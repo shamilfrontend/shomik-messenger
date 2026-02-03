@@ -6,6 +6,7 @@ import { validateEmail, validateUsername, validatePassword } from '../utils/vali
 import { AuthRequest } from '../middleware/auth.middleware';
 
 export const register = async (req: AuthRequest, res: Response): Promise<void> => {
+  console.log('1 req.body: ', req.body);
   try {
     const { username, email, password } = req.body;
 
@@ -32,6 +33,7 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
     const existingUser = await User.findOne({
       $or: [{ email }, { username }]
     });
+    console.log('2 existingUser: ', existingUser);
 
     if (existingUser) {
       res.status(400).json({ error: 'Пользователь с таким email или username уже существует' });
@@ -45,6 +47,7 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
       password: hashedPassword,
       status: 'offline'
     });
+    console.log('3 user: ', user);
 
     await user.save();
 
@@ -52,6 +55,7 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
       userId: user._id.toString(),
       username: user.username
     });
+    console.log('4 token: ', token);
 
     res.status(201).json({
       token,
