@@ -4,10 +4,12 @@ module.exports = {
         script: 'node_modules/vite/bin/vite.js',
         args: 'preview --port 3000 --host',
         env: {
-            NODE_ENV: 'production',
-            VITE_API_URL: 'http://155.212.218.104:5001',
-            VITE_WS_URL: 'http://155.212.218.104:5001',
-            PORT: 3000
+            PORT: 5001,
+            MONGODB_URI: 'mongodb://shomik_user:Prototype123@localhost:27017/shomik-messenger?authSource=shomik-messenger',
+            JWT_SECRET: 'shama_ama_messanger007_ahamani',
+            JWT_EXPIRES_IN: '7d',
+            NODE_ENV: 'development',
+            FRONTEND_URL: 'http://155.212.218.104:3000',
         },
         instances: 1,
         autorestart: true,
