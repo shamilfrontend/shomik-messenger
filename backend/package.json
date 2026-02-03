@@ -1,7 +1,7 @@
 {
-  "name": "telegram-clone-backend",
+  "name": "shimik-messenger-backend",
   "version": "1.0.0",
-  "description": "Backend for Telegram clone",
+  "description": "Backend for messenger",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
