@@ -9,6 +9,9 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
   console.log('1 req.body: ', req.body);
   try {
     const { username, email, password } = req.body;
+    console.log('1.1 username: ', username);
+    console.log('1.2 email: ', email);
+    console.log('1.3 password: ', password);
 
     if (!username || !email || !password) {
       res.status(400).json({ error: 'Все поля обязательны' });
@@ -30,6 +33,7 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
       return;
     }
 
+    console.log('1.4 BEFORE User.findOne')
     const existingUser = await User.findOne({
       $or: [{ email }, { username }]
     });
@@ -68,6 +72,7 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
       }
     });
   } catch (error: any) {
+    console.log('ERRRRROOOR: ', error);
     res.status(500).json({ error: error.message });
   }
 };
