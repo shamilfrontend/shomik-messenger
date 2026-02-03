@@ -26,6 +26,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/shomik-messenger';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://shomik_user:Prototype123@localhost:27017/shomik-messenger?authSource=shomik-messenger';
 
 mongoose.connect(MONGODB_URI)
