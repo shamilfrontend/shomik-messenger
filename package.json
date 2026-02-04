@@ -1,0 +1,13 @@
+{
+  "name": "shomik-messenger",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shomik Messenger - Backend and Frontend",
+  "scripts": {
+    "pm2:dev": "pm2 start ecosystem.config.cjs --env dev --only shomik-backend-dev,shomik-frontend-dev",
+    "pm2:prod": "pm2 start ecosystem.config.cjs --env production --only shomik-backend,shomik-frontend"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1"
+  }
+}

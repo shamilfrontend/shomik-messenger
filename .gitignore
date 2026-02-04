@@ -1,2 +1,6 @@
 .idea
 dist
+.env
+uploads/
+backend/uploads/
+frontend/uploads/
