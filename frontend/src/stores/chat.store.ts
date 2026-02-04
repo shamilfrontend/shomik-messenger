@@ -4,6 +4,7 @@ import { Chat, Message, User } from '../types';
 import api from '../services/api';
 import websocketService from '../services/websocket';
 import { useAuthStore } from './auth.store';
+import { playNotificationSound } from '../utils/sound';
 
 export const useChatStore = defineStore('chat', () => {
   const authStore = useAuthStore();
@@ -53,11 +54,24 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const response = await api.post('/chats', { type, participantIds, groupName });
       const newChat = response.data;
-      chats.value.unshift(newChat);
+      // Не добавляем чат здесь, он будет добавлен через WebSocket событие
+      // Но если WebSocket не сработал, добавляем локально
+      if (!chats.value.find(c => c._id === newChat._id)) {
+        chats.value.unshift(newChat);
+      }
       return newChat;
     } catch (error: any) {
       console.error('Ошибка создания чата:', error.response?.data || error.message);
       throw error;
+    }
+  };
+
+  const addChat = (chat: Chat): void => {
+    // Проверяем, нет ли уже такого чата
+    if (!chats.value.find(c => c._id === chat._id)) {
+      chats.value.unshift(chat);
+      // Инициализируем счетчик непрочитанных
+      unreadCounts.value.set(chat._id, 0);
     }
   };
 
@@ -86,21 +100,39 @@ export const useChatStore = defineStore('chat', () => {
   };
 
   const addMessage = (message: Message): void => {
-    if (currentChat.value && message.chatId === currentChat.value._id) {
+    const senderId = typeof message.senderId === 'string' 
+      ? message.senderId 
+      : message.senderId.id;
+    
+    const isFromCurrentUser = senderId === user.value?.id;
+    const isCurrentChatOpen = currentChat.value && message.chatId === currentChat.value._id;
+    const isSystemMessage = message.type === 'system';
+    
+    // Проверяем, нет ли уже такого сообщения в массиве
+    const messageExists = messages.value.some(msg => msg._id === message._id);
+    if (messageExists) {
+      return; // Сообщение уже существует, не добавляем дубликат
+    }
+    
+    // Воспроизводим звук только для обычных сообщений не от текущего пользователя
+    if (!isFromCurrentUser && !isSystemMessage) {
+      // Воспроизводим звук всегда для входящих сообщений
+      try {
+        playNotificationSound();
+      } catch (error) {
+        console.error('Ошибка воспроизведения звука:', error);
+      }
+    }
+    
+    if (isCurrentChatOpen) {
       messages.value.push(message);
       // Если сообщение не от текущего пользователя, помечаем как прочитанное автоматически
-      const senderId = typeof message.senderId === 'string' 
-        ? message.senderId 
-        : message.senderId.id;
-      if (senderId !== user.value?.id) {
+      if (!isFromCurrentUser) {
         markAsRead(message._id);
       }
     } else {
       // Если чат не открыт, увеличиваем счетчик непрочитанных
-      const senderId = typeof message.senderId === 'string' 
-        ? message.senderId 
-        : message.senderId.id;
-      if (senderId !== user.value?.id) {
+      if (!isFromCurrentUser) {
         const currentCount = unreadCounts.value.get(message.chatId) || 0;
         unreadCounts.value.set(message.chatId, currentCount + 1);
       }
@@ -193,6 +225,196 @@ export const useChatStore = defineStore('chat', () => {
     }
   };
 
+  const updateGroupName = async (chatId: string, groupName: string): Promise<Chat> => {
+    try {
+      const response = await api.patch(`/chats/${chatId}/name`, { groupName });
+      const updatedChat = response.data;
+      // Обновляем чат в списке
+      const index = chats.value.findIndex(c => c._id === chatId);
+      if (index !== -1) {
+        chats.value[index] = updatedChat;
+      }
+      // Обновляем текущий чат если он открыт
+      if (currentChat.value && currentChat.value._id === chatId) {
+        currentChat.value = updatedChat;
+      }
+      return updatedChat;
+    } catch (error: any) {
+      console.error('Ошибка обновления названия группы:', error.response?.data || error.message);
+      throw error;
+    }
+  };
+
+  const updateGroupAvatar = async (chatId: string, groupAvatar: string): Promise<Chat> => {
+    try {
+      const response = await api.patch(`/chats/${chatId}/avatar`, { groupAvatar });
+      const updatedChat = response.data;
+      // Обновляем чат в списке
+      const index = chats.value.findIndex(c => c._id === chatId);
+      if (index !== -1) {
+        chats.value[index] = updatedChat;
+      }
+      // Обновляем текущий чат если он открыт
+      if (currentChat.value && currentChat.value._id === chatId) {
+        currentChat.value = updatedChat;
+      }
+      return updatedChat;
+    } catch (error: any) {
+      console.error('Ошибка обновления аватара группы:', error.response?.data || error.message);
+      throw error;
+    }
+  };
+
+  const addParticipants = async (chatId: string, participantIds: string[]): Promise<Chat> => {
+    try {
+      const response = await api.post(`/chats/${chatId}/participants`, { participantIds });
+      const updatedChat = response.data;
+      // Обновляем чат в списке
+      const index = chats.value.findIndex(c => c._id === chatId);
+      if (index !== -1) {
+        chats.value[index] = updatedChat;
+      }
+      // Обновляем текущий чат если он открыт
+      if (currentChat.value && currentChat.value._id === chatId) {
+        currentChat.value = updatedChat;
+      }
+      return updatedChat;
+    } catch (error: any) {
+      console.error('Ошибка добавления участников:', error.response?.data || error.message);
+      throw error;
+    }
+  };
+
+  const removeParticipants = async (chatId: string, participantIds: string[]): Promise<Chat> => {
+    try {
+      const response = await api.delete(`/chats/${chatId}/participants`, { data: { participantIds } });
+      const updatedChat = response.data;
+      // Обновляем чат в списке
+      const index = chats.value.findIndex(c => c._id === chatId);
+      if (index !== -1) {
+        chats.value[index] = updatedChat;
+      }
+      // Обновляем текущий чат если он открыт
+      if (currentChat.value && currentChat.value._id === chatId) {
+        currentChat.value = updatedChat;
+      }
+      return updatedChat;
+    } catch (error: any) {
+      console.error('Ошибка удаления участников:', error.response?.data || error.message);
+      throw error;
+    }
+  };
+
+  const leaveGroup = async (chatId: string): Promise<void> => {
+    try {
+      await api.post(`/chats/${chatId}/leave`);
+    } catch (error: any) {
+      console.error('Ошибка выхода из группы:', error.response?.data || error.message);
+      throw error;
+    }
+    // Удаляем чат из списка
+    removeChatFromList(chatId);
+  };
+
+  const deleteChat = async (chatId: string): Promise<void> => {
+    try {
+      await api.delete(`/chats/${chatId}`);
+    } catch (error: any) {
+      console.error('Ошибка удаления группы:', error.response?.data || error.message);
+      throw error;
+    }
+    // Удаляем чат из списка
+    removeChatFromList(chatId);
+  };
+
+  const removeChatFromList = (chatId: string): void => {
+    chats.value = chats.value.filter(c => c._id !== chatId);
+    // Если удаленный чат был открыт, закрываем его
+    if (currentChat.value && currentChat.value._id === chatId) {
+      setCurrentChat(null);
+    }
+  };
+
+  const updateUserInChats = (updatedUser: User): void => {
+    // Обновляем данные пользователя во всех чатах
+    chats.value.forEach(chat => {
+      // Обновляем участников чата
+      chat.participants = chat.participants.map(participant => {
+        if (typeof participant === 'string') {
+          return participant === updatedUser.id ? updatedUser : participant;
+        } else {
+          return participant.id === updatedUser.id ? updatedUser : participant;
+        }
+      });
+
+      // Обновляем админа группы если это он
+      if (chat.admin) {
+        if (typeof chat.admin === 'string') {
+          if (chat.admin === updatedUser.id) {
+            chat.admin = updatedUser;
+          }
+        } else {
+          if (chat.admin.id === updatedUser.id) {
+            chat.admin = updatedUser;
+          }
+        }
+      }
+
+      // Обновляем отправителей сообщений
+      messages.value.forEach(message => {
+        if (typeof message.senderId === 'string') {
+          if (message.senderId === updatedUser.id) {
+            message.senderId = updatedUser;
+          }
+        } else {
+          if (message.senderId.id === updatedUser.id) {
+            message.senderId = updatedUser;
+          }
+        }
+      });
+    });
+
+    // Обновляем текущий чат если он открыт
+    if (currentChat.value) {
+      currentChat.value.participants = currentChat.value.participants.map(participant => {
+        if (typeof participant === 'string') {
+          return participant === updatedUser.id ? updatedUser : participant;
+        } else {
+          return participant.id === updatedUser.id ? updatedUser : participant;
+        }
+      });
+
+      if (currentChat.value.admin) {
+        if (typeof currentChat.value.admin === 'string') {
+          if (currentChat.value.admin === updatedUser.id) {
+            currentChat.value.admin = updatedUser;
+          }
+        } else {
+          if (currentChat.value.admin.id === updatedUser.id) {
+            currentChat.value.admin = updatedUser;
+          }
+        }
+      }
+    }
+  };
+
+  const updateChat = (updatedChat: Chat): void => {
+    // Обновляем чат в списке
+    const index = chats.value.findIndex(c => c._id === updatedChat._id);
+    if (index !== -1) {
+      chats.value[index] = updatedChat;
+    } else {
+      // Если чата нет в списке (например, для новых участников), добавляем его
+      chats.value.unshift(updatedChat);
+      // Инициализируем счетчик непрочитанных
+      unreadCounts.value.set(updatedChat._id, 0);
+    }
+    // Обновляем текущий чат если он открыт
+    if (currentChat.value && currentChat.value._id === updatedChat._id) {
+      currentChat.value = updatedChat;
+    }
+  };
+
   return {
     chats,
     currentChat,
@@ -202,6 +424,8 @@ export const useChatStore = defineStore('chat', () => {
     user,
     loadChats,
     createChat,
+    addChat,
+    updateChat,
     loadMessages,
     sendMessage,
     setCurrentChat,
@@ -213,6 +437,14 @@ export const useChatStore = defineStore('chat', () => {
     isMessageUnread,
     startTyping,
     stopTyping,
-    setTypingUser
+    setTypingUser,
+    updateGroupName,
+    updateGroupAvatar,
+    addParticipants,
+    removeParticipants,
+    leaveGroup,
+    deleteChat,
+    removeChatFromList,
+    updateUserInChats
   };
 });

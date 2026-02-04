@@ -1,16 +1,33 @@
 <script setup lang="ts">
-import { computed, watch, ref, nextTick } from 'vue';
+import { computed, watch, ref, nextTick, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useChatStore } from '../stores/chat.store';
 import MessageInput from './MessageInput.vue';
 import UserInfoModal from './UserInfoModal.vue';
+import GroupSettingsModal from './GroupSettingsModal.vue';
 import type { Message, User } from '../types';
+import { getImageUrl } from '../utils/image';
+import { isUserOnline, getComputedStatus } from '../utils/status';
 
 const chatStore = useChatStore();
 const messagesContainer = ref<HTMLElement | null>(null);
 const showUserInfo = ref(false);
 const selectedUser = ref<User | null>(null);
+const showGroupSettings = ref(false);
+const isMobile = ref(window.innerWidth <= 768);
+
+const handleResize = (): void => {
+  isMobile.value = window.innerWidth <= 768;
+};
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+});
 
 const currentChat = computed(() => chatStore.currentChat);
 const messages = computed(() => chatStore.messages);
@@ -24,6 +41,13 @@ watch(messages, () => {
     scrollToBottom();
   });
 }, { deep: true });
+
+// Закрываем модальные окна при смене чата
+watch(currentChat, () => {
+  showGroupSettings.value = false;
+  showUserInfo.value = false;
+  selectedUser.value = null;
+});
 
 const scrollToBottom = (): void => {
   if (messagesContainer.value) {
@@ -45,12 +69,25 @@ const getChatName = (): string => {
 const getAvatar = (): string | undefined => {
   if (!currentChat.value) return;
   if (currentChat.value.type === 'group') {
-    return currentChat.value.groupAvatar;
+    return getImageUrl(currentChat.value.groupAvatar);
   }
   const otherParticipant = currentChat.value.participants.find(p =>
     typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id
   );
-  return typeof otherParticipant === 'string' ? undefined : otherParticipant?.avatar;
+  return typeof otherParticipant === 'string' ? undefined : getImageUrl(otherParticipant?.avatar);
+};
+
+const getOtherParticipant = (): User | null => {
+  if (!currentChat.value || currentChat.value.type === 'group') {
+    return null;
+  }
+  const otherParticipant = currentChat.value.participants.find(p =>
+    typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id
+  );
+  if (!otherParticipant || typeof otherParticipant === 'string') {
+    return null;
+  }
+  return otherParticipant;
 };
 
 const getStatus = (): string => {
@@ -59,8 +96,18 @@ const getStatus = (): string => {
     typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id
   );
   if (typeof otherParticipant === 'string') return '';
-  return otherParticipant?.status === 'online' ? 'в сети' : 'не в сети';
+  return isUserOnline(otherParticipant) ? 'в сети' : 'не в сети';
 };
+
+const isGroupAdmin = computed((): boolean => {
+  if (!currentChat.value || currentChat.value.type !== 'group' || !currentChat.value.admin) {
+    return false;
+  }
+  const adminId = typeof currentChat.value.admin === 'string' 
+    ? currentChat.value.admin 
+    : currentChat.value.admin.id;
+  return adminId === chatStore.user?.id;
+});
 
 const isOwnMessage = (message: Message): boolean => {
   const senderId = typeof message.senderId === 'string' 
@@ -84,7 +131,7 @@ const getMessageAvatar = (message: Message): string | undefined => {
   if (typeof message.senderId === 'string') {
     return undefined;
   }
-  return message.senderId.avatar;
+  return getImageUrl(message.senderId.avatar);
 };
 
 const shouldShowAvatar = (message: Message): boolean => {
@@ -183,11 +230,101 @@ const getTypingText = (): string => {
   if (count === 1) return 'печатает...';
   return `${count} печатают...`;
 };
+
+const getReadStatus = (message: Message): 'sent' | 'delivered' | 'read' => {
+  // Показываем статус только для своих сообщений
+  if (!isOwnMessage(message) || !currentChat.value) {
+    return 'sent';
+  }
+
+  const chat = currentChat.value;
+  
+  // Для приватных чатов
+  if (chat.type === 'private') {
+    // Находим второго участника (не отправителя)
+    const otherParticipant = chat.participants.find(p => {
+      const participantId = typeof p === 'string' ? p : p.id;
+      return participantId !== chatStore.user?.id;
+    });
+    
+    if (!otherParticipant) {
+      return 'delivered'; // Сообщение доставлено (в приватном чате всегда доставлено после отправки)
+    }
+    
+    const otherParticipantId = typeof otherParticipant === 'string' ? otherParticipant : otherParticipant.id;
+    
+    // Если другой участник прочитал сообщение - две синие галочки
+    if (message.readBy.includes(otherParticipantId)) {
+      return 'read';
+    }
+    
+    // Сообщение доставлено, но не прочитано - две серые галочки
+    return 'delivered';
+  }
+  
+  // Для групповых чатов
+  if (chat.type === 'group') {
+    // Получаем всех участников кроме отправителя
+    const otherParticipants = chat.participants.filter(p => {
+      const participantId = typeof p === 'string' ? p : p.id;
+      return participantId !== chatStore.user?.id;
+    });
+    
+    if (otherParticipants.length === 0) {
+      return 'delivered'; // Сообщение доставлено (в группе всегда доставлено после отправки)
+    }
+    
+    // Проверяем, прочитали ли все участники
+    const allRead = otherParticipants.every(p => {
+      const participantId = typeof p === 'string' ? p : p.id;
+      return message.readBy.includes(participantId);
+    });
+    
+    // Если все прочитали - две синие галочки
+    if (allRead) {
+      return 'read';
+    }
+    
+    // Сообщение доставлено всем, но не все прочитали - две серые галочки
+    return 'delivered';
+  }
+  
+  return 'delivered';
+};
+
+const emit = defineEmits<{
+  (e: 'back'): void;
+}>();
+
+const handleBack = (): void => {
+  emit('back');
+};
+
+const handleGroupUpdated = (updatedChat: any): void => {
+  chatStore.updateChat(updatedChat);
+  showGroupSettings.value = false;
+};
+
+const handleGroupDeleted = (): void => {
+  showGroupSettings.value = false;
+  chatStore.setCurrentChat(null);
+  router.push('/');
+};
 </script>
 
 <template>
 	<div class="chat-window">
 		<div v-if="currentChat" class="chat-window__header">
+			<button 
+				v-if="isMobile" 
+				@click="handleBack" 
+				class="chat-window__back-button"
+				aria-label="Назад"
+			>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M19 12H5M12 19l-7-7 7-7"/>
+				</svg>
+			</button>
 			<div class="chat-window__header-info">
 				<div class="chat-window__avatar">
 					<img
@@ -198,12 +335,28 @@ const getTypingText = (): string => {
 					<div v-else class="chat-window__avatar-placeholder">
 						{{ getChatName().charAt(0).toUpperCase() }}
 					</div>
+					<span
+						v-if="currentChat && currentChat.type === 'private' && getOtherParticipant()"
+						:class="['chat-window__status-indicator', `chat-window__status-indicator--${getComputedStatus(getOtherParticipant())}`]"
+					></span>
 				</div>
 				<div class="chat-window__header-text">
 					<h3>{{ getChatName() }}</h3>
 					<span v-if="getStatus()" class="chat-window__status">{{ getStatus() }}</span>
 				</div>
 			</div>
+			<button
+				v-if="currentChat && currentChat.type === 'group'"
+				@click="showGroupSettings = true"
+				class="chat-window__settings-button"
+				aria-label="Настройки группы"
+				title="Настройки группы"
+			>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+					<circle cx="12" cy="12" r="3"></circle>
+				</svg>
+			</button>
 		</div>
 
 		<div v-else class="chat-window__empty">
@@ -211,14 +364,25 @@ const getTypingText = (): string => {
 		</div>
 
 		<div v-if="currentChat" class="chat-window__messages" ref="messagesContainer">
-			<div
-				v-for="message in messages"
-				:key="message._id"
-				:class="['chat-window__message', { 
-					'chat-window__message_me': isOwnMessage(message),
-					'chat-window__message--unread': isUnreadMessage(message)
-				}]"
-			>
+			<template v-for="message in messages" :key="message._id">
+				<!-- Системное сообщение -->
+				<div
+					v-if="message.type === 'system'"
+					class="chat-window__message chat-window__message--system"
+				>
+					<div class="chat-window__system-message">
+						<span class="chat-window__system-text">{{ message.content }}</span>
+						<span class="chat-window__system-time">{{ formatMessageTime(message.createdAt) }}</span>
+					</div>
+				</div>
+				<!-- Обычное сообщение -->
+				<div
+					v-else
+					:class="['chat-window__message', { 
+						'chat-window__message_me': isOwnMessage(message),
+						'chat-window__message--unread': isUnreadMessage(message)
+					}]"
+				>
 				<div 
 					v-if="shouldShowAvatar(message)" 
 					class="chat-window__message-avatar"
@@ -232,6 +396,10 @@ const getTypingText = (): string => {
 					<div v-else class="chat-window__message-avatar-placeholder">
 						{{ getMessageSender(message).charAt(0).toUpperCase() }}
 					</div>
+					<span
+						v-if="typeof message.senderId !== 'string' && message.senderId"
+						:class="['chat-window__status-indicator', `chat-window__status-indicator--${getComputedStatus(message.senderId)}`]"
+					></span>
 				</div>
 				<div class="chat-window__message-content">
 					<div 
@@ -243,18 +411,32 @@ const getTypingText = (): string => {
 					</div>
 					<div class="chat-window__message-bubble">
 						<div v-if="message.type === 'image' && message.fileUrl" class="chat-window__message-image">
-							<img :src="message.fileUrl" :alt="message.content" />
+							<img :src="getImageUrl(message.fileUrl) || message.fileUrl" :alt="message.content" />
 						</div>
 						<div v-else-if="message.type === 'file' && message.fileUrl" class="chat-window__message-file">
-							<a :href="message.fileUrl" target="_blank">{{ message.content }}</a>
+							<a :href="getImageUrl(message.fileUrl) || message.fileUrl" target="_blank">{{ message.content }}</a>
 						</div>
 						<div v-else class="chat-window__message-text">{{ message.content }}</div>
-						<div class="chat-window__message-time">
-							{{ formatMessageTime(message.createdAt) }}
+						<div class="chat-window__message-footer">
+							<div class="chat-window__message-time">
+								{{ formatMessageTime(message.createdAt) }}
+							</div>
+							<div v-if="isOwnMessage(message)" class="chat-window__message-status" :class="`chat-window__message-status--${getReadStatus(message)}`">
+								<!-- Одна галочка (отправлено) -->
+								<svg v-if="getReadStatus(message) === 'sent'" width="16" height="16" viewBox="0 0 16 16" fill="none">
+									<path d="M3 8L6 11L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+								</svg>
+								<!-- Две галочки (доставлено/прочитано) -->
+								<svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
+									<path d="M2 8L5 11L12 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+									<path d="M6 8L9 11L16 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+								</svg>
+							</div>
 						</div>
 					</div>
 				</div>
 			</div>
+			</template>
 
 			<div v-if="typingUsers.size > 0" class="chat-window__typing">
 				<span>{{ getTypingText() }}</span>
@@ -268,6 +450,15 @@ const getTypingText = (): string => {
 			:user="selectedUser"
 			@close="closeUserInfo"
 			@send-message="handleSendMessage"
+		/>
+
+		<GroupSettingsModal
+			v-if="currentChat && currentChat.type === 'group'"
+			:is-open="showGroupSettings"
+			:chat="currentChat"
+			@close="showGroupSettings = false"
+			@updated="handleGroupUpdated"
+			@deleted="handleGroupDeleted"
 		/>
 	</div>
 </template>
@@ -284,25 +475,95 @@ const getTypingText = (): string => {
     padding: 1rem;
     border-bottom: 1px solid var(--border-color);
     background: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  &__back-button {
+    display: none;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: background 0.2s;
+    flex-shrink: 0;
+
+    &:hover {
+      background: var(--bg-primary);
+    }
+
+    @media (max-width: 768px) {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
   }
 
   &__header-info {
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    flex: 1;
+  }
+
+  &__settings-button {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
   }
 
   &__avatar {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    overflow: hidden;
+    overflow: visible;
     flex-shrink: 0;
+    position: relative;
 
     img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      border-radius: 50%;
+    }
+  }
+
+  &__status-indicator {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-primary);
+    z-index: 1;
+
+    &--online {
+      background: #52c41a;
+    }
+
+    &--offline {
+      background: #ff4d4f;
+    }
+
+    &--away {
+      background: #faad14;
     }
   }
 
@@ -347,6 +608,11 @@ const getTypingText = (): string => {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+
+    @media (max-width: 768px) {
+      padding: 0.75rem;
+      gap: 0.5rem;
+    }
   }
 
   &__message {
@@ -355,6 +621,18 @@ const getTypingText = (): string => {
     align-items: flex-end;
     max-width: 70%;
     align-self: flex-start;
+
+    @media (max-width: 768px) {
+      max-width: 85%;
+      gap: 0.375rem;
+    }
+
+    &--system {
+      max-width: 100%;
+      align-self: center;
+      justify-content: center;
+      margin: 0.5rem 0;
+    }
 
     &_me {
       align-self: flex-end;
@@ -366,8 +644,24 @@ const getTypingText = (): string => {
         border-bottom-right-radius: 4px;
       }
 
+      .chat-window__message-footer {
+        justify-content: flex-end;
+      }
+
       .chat-window__message-time {
         text-align: right;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .chat-window__message-status {
+        &--sent,
+        &--delivered {
+          color: rgba(255, 255, 255, 0.7);
+        }
+
+        &--read {
+          color: rgba(255, 255, 255, 0.9);
+        }
       }
 
       // В групповых чатах для своих сообщений тоже показываем аватар справа
@@ -385,14 +679,39 @@ const getTypingText = (): string => {
     }
   }
 
+  &__system-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 1rem;
+    background: var(--bg-primary);
+    border-radius: 12px;
+    max-width: 80%;
+  }
+
+  &__system-text {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    text-align: center;
+    font-style: italic;
+  }
+
+  &__system-time {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    opacity: 0.7;
+  }
+
   &__message-avatar {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    overflow: hidden;
+    overflow: visible;
     flex-shrink: 0;
     cursor: pointer;
     transition: transform 0.2s;
+    position: relative;
 
     &:hover {
       transform: scale(1.1);
@@ -402,6 +721,7 @@ const getTypingText = (): string => {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      border-radius: 50%;
     }
   }
 
@@ -471,11 +791,52 @@ const getTypingText = (): string => {
     }
   }
 
+  &__message-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+  }
+
   &__message-time {
     font-size: 0.7rem;
     opacity: 0.7;
     text-align: left;
-    margin-top: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  &__message-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin-left: auto;
+    color: var(--text-secondary);
+    opacity: 0.7;
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    &--sent {
+      color: var(--text-secondary);
+      opacity: 0.5;
+    }
+
+    &--delivered {
+      color: var(--text-secondary);
+      opacity: 0.7;
+    }
+
+    &--read {
+      color: #4a9eff;
+      opacity: 1;
+    }
   }
 
   &__typing {

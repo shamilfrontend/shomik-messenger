@@ -39,12 +39,13 @@ class WebSocketService {
 
     this.clients.set(userId, authWs);
 
+    const now = new Date();
     await User.findByIdAndUpdate(userId, {
       status: 'online',
-      lastSeen: new Date()
+      lastSeen: now
     });
 
-    this.broadcastUserStatus(userId, 'online');
+    this.broadcastUserStatus(userId, 'online', now);
 
     authWs.send(JSON.stringify({
       type: 'connection:established',
@@ -64,12 +65,13 @@ class WebSocketService {
       this.clients.delete(userId);
       this.typingUsers.delete(userId);
 
+      const now = new Date();
       await User.findByIdAndUpdate(userId, {
         status: 'offline',
-        lastSeen: new Date()
+        lastSeen: now
       });
 
-      this.broadcastUserStatus(userId, 'offline');
+      this.broadcastUserStatus(userId, 'offline', now);
     });
 
     authWs.on('error', (error) => {
@@ -124,7 +126,7 @@ class WebSocketService {
       });
 
       await message.save();
-      await message.populate('senderId', 'username avatar');
+      await message.populate('senderId', 'username avatar status lastSeen');
 
       chat.lastMessage = message._id;
       await chat.save();
@@ -135,7 +137,9 @@ class WebSocketService {
         messageObj.senderId = {
           id: messageObj.senderId._id.toString(),
           username: messageObj.senderId.username,
-          avatar: messageObj.senderId.avatar
+          avatar: messageObj.senderId.avatar,
+          status: messageObj.senderId.status,
+          lastSeen: messageObj.senderId.lastSeen
         };
       }
 
@@ -214,10 +218,10 @@ class WebSocketService {
     }
   }
 
-  private broadcastUserStatus(userId: string, status: string): void {
+  private broadcastUserStatus(userId: string, status: string, lastSeen?: Date): void {
     const statusData = {
       type: 'user:status',
-      data: { userId, status }
+      data: { userId, status, lastSeen: lastSeen || new Date() }
     };
 
     this.clients.forEach((client) => {
@@ -232,6 +236,134 @@ class WebSocketService {
     if (client) {
       client.send(JSON.stringify(data));
     }
+  }
+
+  public broadcastChatCreated(chat: any): void {
+    const chatData = {
+      type: 'chat:created',
+      data: chat
+    };
+
+    // Отправляем событие всем участникам чата
+    chat.participants.forEach((participant: any) => {
+      let participantId: string;
+      
+      if (typeof participant === 'string') {
+        participantId = participant;
+      } else if (participant.id) {
+        participantId = participant.id;
+      } else if (participant._id) {
+        participantId = participant._id.toString();
+      } else {
+        return; // Пропускаем, если не можем определить ID
+      }
+      
+      const client = this.clients.get(participantId);
+      if (client) {
+        try {
+          client.send(JSON.stringify(chatData));
+          console.log(`Отправлено событие chat:created пользователю ${participantId}`);
+        } catch (error) {
+          console.error(`Ошибка отправки события пользователю ${participantId}:`, error);
+        }
+      } else {
+        console.log(`Пользователь ${participantId} не подключен к WebSocket`);
+      }
+    });
+  }
+
+  public broadcastChatUpdated(chat: any): void {
+    const chatData = {
+      type: 'chat:updated',
+      data: chat
+    };
+
+    // Отправляем событие всем участникам чата
+    chat.participants.forEach((participant: any) => {
+      let participantId: string;
+      
+      if (typeof participant === 'string') {
+        participantId = participant;
+      } else if (participant.id) {
+        participantId = participant.id;
+      } else if (participant._id) {
+        participantId = participant._id.toString();
+      } else {
+        return;
+      }
+      
+      const client = this.clients.get(participantId);
+      if (client) {
+        try {
+          client.send(JSON.stringify(chatData));
+        } catch (error) {
+          console.error(`Ошибка отправки события chat:updated пользователю ${participantId}:`, error);
+        }
+      }
+    });
+  }
+
+  public broadcastChatDeleted(chatId: string, participantIds: string[]): void {
+    const chatData = {
+      type: 'chat:deleted',
+      data: { chatId }
+    };
+
+    // Отправляем событие всем участникам чата
+    participantIds.forEach((participantId: string) => {
+      const client = this.clients.get(participantId);
+      if (client) {
+        try {
+          client.send(JSON.stringify(chatData));
+        } catch (error) {
+          console.error(`Ошибка отправки события chat:deleted пользователю ${participantId}:`, error);
+        }
+      }
+    });
+  }
+
+  public broadcastUserUpdated(user: any): void {
+    const userData = {
+      type: 'user:updated',
+      data: {
+        id: user.id || user._id?.toString(),
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar,
+        status: user.status,
+        lastSeen: user.lastSeen
+      }
+    };
+
+    // Отправляем событие всем подключенным клиентам
+    // В реальном приложении можно оптимизировать и отправлять только контактам и участникам общих чатов
+    this.clients.forEach((client, clientUserId) => {
+      if (clientUserId !== user.id && clientUserId !== user._id?.toString()) {
+        try {
+          client.send(JSON.stringify(userData));
+        } catch (error) {
+          console.error(`Ошибка отправки события user:updated пользователю ${clientUserId}:`, error);
+        }
+      }
+    });
+  }
+
+  public broadcastMessage(message: any, participantIds: string[]): void {
+    const messageData = {
+      type: 'message:new',
+      data: message
+    };
+
+    participantIds.forEach((participantId: string) => {
+      const client = this.clients.get(participantId);
+      if (client) {
+        try {
+          client.send(JSON.stringify(messageData));
+        } catch (error) {
+          console.error(`Ошибка отправки сообщения пользователю ${participantId}:`, error);
+        }
+      }
+    });
   }
 }
 

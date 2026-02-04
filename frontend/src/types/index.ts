@@ -25,7 +25,7 @@ export interface Message {
   chatId: string;
   senderId: User | string;
   content: string;
-  type: 'text' | 'image' | 'file';
+  type: 'text' | 'image' | 'file' | 'system';
   fileUrl?: string;
   readBy: string[];
   createdAt: Date;

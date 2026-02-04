@@ -9,6 +9,9 @@ const server = http.createServer(app);
 
 const wsService = new WebSocketService(server);
 
+// Экспортируем wsService для использования в контроллерах
+export { wsService };
+
 server.listen(PORT, () => {
   console.log(`Сервер запущен на порту ${PORT}`);
 });

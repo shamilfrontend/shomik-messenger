@@ -62,7 +62,11 @@ const password = ref('');
 
 const { loading, error, register, login } = useAuth();
 
-const handleSubmit = async () => {
+const handleSubmit = async (event?: Event) => {
+  if (event) {
+    event.preventDefault();
+  }
+  
   if (isLogin.value) {
     await login(username.value, password.value);
   } else {
@@ -86,6 +90,12 @@ const handleSubmit = async () => {
     background: var(--bg-secondary);
     border-radius: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+
+    @media (max-width: 768px) {
+      padding: 1.5rem;
+      margin: 1rem;
+      border-radius: 8px;
+    }
   }
 
   &__title {
@@ -93,6 +103,11 @@ const handleSubmit = async () => {
     text-align: center;
     color: var(--text-primary);
     font-size: 2rem;
+
+    @media (max-width: 768px) {
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
   }
 
   &__form {

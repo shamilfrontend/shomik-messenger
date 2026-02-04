@@ -4,6 +4,7 @@ import User from '../models/User.model';
 import Contact from '../models/Contact.model';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { validateEmail, validateUsername, validatePassword } from '../utils/validators';
+import { wsService } from '../server';
 
 export const searchUsers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -172,14 +173,21 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
 
     await user.save();
 
-    res.json({
+    const updatedUser = {
       id: user._id.toString(),
       username: user.username,
       email: user.email,
       avatar: user.avatar,
       status: user.status,
       lastSeen: user.lastSeen
-    });
+    };
+
+    // Отправляем WebSocket событие об обновлении профиля пользователя
+    if (wsService) {
+      wsService.broadcastUserUpdated(updatedUser);
+    }
+
+    res.json(updatedUser);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

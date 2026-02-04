@@ -64,3 +64,21 @@ input, textarea, select {
     font-size: 16px;
   }
 }
+
+/* Адаптивные брейкпоинты */
+$mobile: 768px;
+$tablet: 1024px;
+
+/* Медиа-запросы для мобильных устройств */
+@media (max-width: $mobile) {
+  /* Уменьшаем размеры скроллбара на мобильных */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+}
+
+/* Медиа-запросы для планшетов */
+@media (min-width: $mobile + 1px) and (max-width: $tablet) {
+  /* Планшетные стили при необходимости */
+}

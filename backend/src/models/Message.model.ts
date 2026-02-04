@@ -4,7 +4,7 @@ export interface IMessage extends Document {
   chatId: mongoose.Types.ObjectId;
   senderId: mongoose.Types.ObjectId;
   content: string;
-  type: 'text' | 'image' | 'file';
+  type: 'text' | 'image' | 'file' | 'system';
   fileUrl?: string;
   readBy: mongoose.Types.ObjectId[];
   createdAt: Date;
@@ -30,7 +30,7 @@ const MessageSchema = new Schema<IMessage>(
     },
     type: {
       type: String,
-      enum: ['text', 'image', 'file'],
+      enum: ['text', 'image', 'file', 'system'],
       default: 'text'
     },
     fileUrl: {

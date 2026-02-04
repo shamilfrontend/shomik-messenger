@@ -12,7 +12,7 @@
           <h3>Фотография профиля</h3>
           <div class="profile-settings__avatar-section">
             <div class="profile-settings__avatar">
-              <img v-if="avatarPreview || (user?.avatar && user.avatar.trim())" :src="avatarPreview || user?.avatar" :alt="user?.username" />
+              <img v-if="getAvatarUrl()" :src="getAvatarUrl()" :alt="user?.username" />
               <div v-else class="profile-settings__avatar-placeholder">
                 {{ user?.username?.charAt(0).toUpperCase() }}
               </div>
@@ -106,6 +106,7 @@ import { profileService } from '../services/profile.service';
 import { uploadService } from '../services/upload.service';
 import { useNotifications } from '../composables/useNotifications';
 import FileUpload from './FileUpload.vue';
+import { getImageUrl } from '../utils/image';
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -129,6 +130,13 @@ const passwordData = ref({
   newPassword: '',
   confirmPassword: ''
 });
+
+const getAvatarUrl = (): string | undefined => {
+  if (avatarPreview.value) {
+    return getImageUrl(avatarPreview.value);
+  }
+  return getImageUrl(user.value?.avatar);
+};
 
 const hasChanges = computed(() => {
   return formData.value.username !== user.value?.username || 

@@ -8,18 +8,21 @@
 
       <div v-if="user" class="user-info-modal__content">
         <div class="user-info-modal__avatar">
-          <img v-if="user.avatar && user.avatar.trim()" :src="user.avatar" :alt="user.username" />
+          <img v-if="avatarUrl" :src="avatarUrl" :alt="user.username" />
           <div v-else class="user-info-modal__avatar-placeholder">
             {{ user.username?.charAt(0).toUpperCase() }}
           </div>
+          <span
+            :class="['user-info-modal__status-indicator', `user-info-modal__status-indicator--${getComputedStatus(user)}`]"
+          ></span>
         </div>
 
         <div class="user-info-modal__info">
           <h3>{{ user.username }}</h3>
           <p class="user-info-modal__email">{{ user.email }}</p>
           <div class="user-info-modal__status">
-            <span :class="['user-info-modal__status-dot', `user-info-modal__status-dot--${user.status}`]"></span>
-            <span>{{ getStatusText(user.status) }}</span>
+            <span :class="['user-info-modal__status-dot', `user-info-modal__status-dot--${getComputedStatus(user)}`]"></span>
+            <span>{{ getStatusText(getComputedStatus(user)) }}</span>
           </div>
         </div>
 
@@ -36,6 +39,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { User } from '../types';
+import { getImageUrl } from '../utils/image';
+import { isUserOnline, getComputedStatus } from '../utils/status';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -46,6 +51,10 @@ const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'send-message', userId: string): void;
 }>();
+
+const avatarUrl = computed(() => {
+  return getImageUrl(props.user?.avatar);
+});
 
 const getStatusText = (status?: string): string => {
   switch (status) {
@@ -137,12 +146,42 @@ const handleSendMessage = (): void => {
     width: 120px;
     height: 120px;
     border-radius: 50%;
-    overflow: hidden;
+    overflow: visible;
+    position: relative;
+
+    @media (max-width: 768px) {
+      width: 200px;
+      height: 200px;
+    }
 
     img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      border-radius: 50%;
+    }
+  }
+
+  &__status-indicator {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 3px solid var(--bg-secondary);
+    z-index: 1;
+
+    &--online {
+      background: #52c41a;
+    }
+
+    &--offline {
+      background: #ff4d4f;
+    }
+
+    &--away {
+      background: #faad14;
     }
   }
 

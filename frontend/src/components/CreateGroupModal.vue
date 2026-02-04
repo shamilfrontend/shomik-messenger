@@ -5,6 +5,8 @@ import { useChat } from '../composables/useChat';
 import { useChatStore } from '../stores/chat.store';
 import { useNotifications } from '../composables/useNotifications';
 import type { User } from '../types';
+import { getImageUrl } from '../utils/image';
+import { isUserOnline, getComputedStatus } from '../utils/status';
 
 defineProps<{
 	isOpen: boolean;
@@ -132,14 +134,17 @@ const close = (): void => {
             @click="toggleParticipant(user)"
           >
             <div class="create-group-modal__user-avatar">
-              <img v-if="user.avatar" :src="user.avatar" :alt="user.username" />
+              <img v-if="getImageUrl(user.avatar)" :src="getImageUrl(user.avatar)" :alt="user.username" />
               <div v-else class="create-group-modal__user-avatar-placeholder">
                 {{ user.username.charAt(0).toUpperCase() }}
               </div>
+              <span
+                :class="['create-group-modal__status-indicator', `create-group-modal__status-indicator--${getComputedStatus(user)}`]"
+              ></span>
             </div>
             <div class="create-group-modal__user-info">
               <span class="create-group-modal__user-name">{{ user.username }}</span>
-              <span class="create-group-modal__user-status">{{ user.status === 'online' ? 'в сети' : 'не в сети' }}</span>
+              <span class="create-group-modal__user-status">{{ isUserOnline(user) ? 'в сети' : 'не в сети' }}</span>
             </div>
             <div v-if="isSelected(user.id)" class="create-group-modal__user-check">✓</div>
           </div>
@@ -148,7 +153,6 @@ const close = (): void => {
         <div v-if="selectedParticipants.length > 0" class="create-group-modal__selected">
           <h3>Выбранные участники ({{ selectedParticipants.length }})</h3>
           <div class="create-group-modal__selected-list">
-						<pre>{{ selectedParticipants }}</pre>
             <div
               v-for="user in selectedParticipants"
               :key="user.id"
@@ -195,6 +199,13 @@ const close = (): void => {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+
+    @media (max-width: 768px) {
+      width: 95%;
+      max-width: none;
+      max-height: 90vh;
+      border-radius: 8px;
+    }
   }
 
   &__header {
@@ -204,10 +215,18 @@ const close = (): void => {
     padding: 1rem;
     border-bottom: 1px solid var(--border-color);
 
+    @media (max-width: 768px) {
+      padding: 0.75rem;
+    }
+
     h2 {
       margin: 0;
       color: var(--text-primary);
       font-size: 1.25rem;
+
+      @media (max-width: 768px) {
+        font-size: 1.1rem;
+      }
     }
   }
 
@@ -233,6 +252,11 @@ const close = (): void => {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+
+    @media (max-width: 768px) {
+      padding: 0.75rem;
+      gap: 0.75rem;
+    }
   }
 
   &__field {
@@ -303,13 +327,38 @@ const close = (): void => {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    overflow: hidden;
+    overflow: visible;
     flex-shrink: 0;
+    position: relative;
 
     img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      border-radius: 50%;
+    }
+  }
+
+  &__status-indicator {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-secondary);
+    z-index: 1;
+
+    &--online {
+      background: #52c41a;
+    }
+
+    &--offline {
+      background: #ff4d4f;
+    }
+
+    &--away {
+      background: #faad14;
     }
   }
 
@@ -396,6 +445,11 @@ const close = (): void => {
     gap: 0.5rem;
     padding: 1rem;
     border-top: 1px solid var(--border-color);
+
+    @media (max-width: 768px) {
+      padding: 0.75rem;
+      gap: 0.375rem;
+    }
   }
 
   &__cancel,

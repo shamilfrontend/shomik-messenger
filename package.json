@@ -4,10 +4,15 @@
   "private": true,
   "description": "Shomik Messenger - Backend and Frontend",
   "scripts": {
-    "pm2:dev": "pm2 start ecosystem.config.cjs --env dev --only shomik-backend-dev,shomik-frontend-dev",
-    "pm2:prod": "pm2 start ecosystem.config.cjs --env production --only shomik-backend,shomik-frontend"
+    "pm2:dev": "npx pm2 start ecosystem.config.cjs --env dev --only shomik-backend-dev,shomik-frontend-dev",
+    "pm2:prod": "npx pm2 start ecosystem.config.cjs --env production --only shomik-backend,shomik-frontend",
+    "pm2:stop": "npx pm2 stop all",
+    "pm2:restart": "npx pm2 restart all",
+    "pm2:logs": "npx pm2 logs",
+    "pm2:status": "npx pm2 status"
   },
   "dependencies": {
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "pm2": "^5.3.0"
   }
 }

@@ -41,6 +41,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   };
 
+  const updateUser = (updatedUser: User): void => {
+    if (user.value && user.value.id === updatedUser.id) {
+      user.value = updatedUser;
+    }
+  };
+
   return {
     user,
     token,
@@ -48,6 +54,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     setAuth,
     logout,
-    loadUser
+    loadUser,
+    updateUser
   };
 });

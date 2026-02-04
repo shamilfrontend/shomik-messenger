@@ -12,6 +12,11 @@ try {
 
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
+// Логируем загруженные переменные для отладки
+console.log('=== PM2 Config: Загруженные переменные ===');
+console.log('DEV_MONGODB_URI:', process.env.DEV_MONGODB_URI || 'не установлен');
+console.log('PROD_MONGODB_URI:', process.env.PROD_MONGODB_URI ? process.env.PROD_MONGODB_URI.replace(/:[^:@]+@/, ':****@') : 'не установлен');
+
 module.exports = {
   apps: [
     // Production Backend
@@ -33,6 +38,7 @@ module.exports = {
         FRONTEND_URL: process.env.PROD_FRONTEND_URL,
       },
     },
+
     // Development Backend
     {
       name: 'shomik-backend-dev',

@@ -2,5 +2,4 @@
 dist
 .env
 uploads/
-backend/uploads/
-frontend/uploads/
+node_modules

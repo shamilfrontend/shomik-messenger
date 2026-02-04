@@ -24,6 +24,7 @@ export const useChat = () => {
       await api.post('/users/contacts', { contactId });
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Ошибка добавления контакта';
+      throw err; // Пробрасываем ошибку дальше для обработки в компоненте
     } finally {
       loading.value = false;
     }

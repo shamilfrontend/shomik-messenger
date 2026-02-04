@@ -9,18 +9,39 @@
     </div>
     <div class="message-input__container">
       <FileUpload
+				v-if="false"
         accept="image/*,application/pdf,.doc,.docx,.txt"
         @uploaded="handleFileUploaded"
         @error="handleUploadError"
       />
-      <input
-        v-model="message"
-        @keydown.enter.exact="handleSend"
-        @input="handleTyping"
-        type="text"
-        placeholder="Введите сообщение..."
-        class="message-input__field"
-      />
+      <div class="message-input__input-wrapper">
+        <button 
+          @click="toggleEmojiPicker" 
+          class="message-input__emoji-button"
+          type="button"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+            <line x1="9" y1="9" x2="9.01" y2="9"></line>
+            <line x1="15" y1="9" x2="15.01" y2="9"></line>
+          </svg>
+        </button>
+        <input
+          ref="inputField"
+          v-model="message"
+          @keydown.enter.exact="handleSend"
+          @input="handleTyping"
+          type="text"
+          placeholder="Введите сообщение..."
+          class="message-input__field"
+        />
+        <EmojiPicker 
+          :is-open="showEmojiPicker" 
+          @select="insertEmoji"
+          @close="showEmojiPicker = false"
+        />
+      </div>
       <button @click="handleSend" class="message-input__button">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -32,10 +53,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch, onMounted, nextTick } from 'vue';
 import { useChatStore } from '../stores/chat.store';
 import { useNotifications } from '../composables/useNotifications';
 import FileUpload from './FileUpload.vue';
+import EmojiPicker from './EmojiPicker.vue';
 
 const props = defineProps<{
   chatId: string;
@@ -45,7 +67,26 @@ const chatStore = useChatStore();
 const { error: notifyError } = useNotifications();
 const message = ref('');
 const previewFile = ref<{ url: string; filename: string; type: string } | null>(null);
+const inputField = ref<HTMLInputElement | null>(null);
+const showEmojiPicker = ref(false);
 let typingTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// Автофокус при открытии чата
+const focusInput = async (): Promise<void> => {
+  await nextTick();
+  if (inputField.value) {
+    inputField.value.focus();
+  }
+};
+
+// Устанавливаем фокус при изменении chatId
+watch(() => props.chatId, () => {
+  focusInput();
+}, { immediate: true });
+
+onMounted(() => {
+  focusInput();
+});
 
 const handleSend = (): void => {
   const content = message.value.trim() || previewFile.value?.filename || 'Файл';
@@ -61,6 +102,8 @@ const handleSend = (): void => {
       clearTimeout(typingTimeout);
       typingTimeout = null;
     }
+    // Возвращаем фокус на поле ввода после отправки
+    focusInput();
   }
 };
 
@@ -91,6 +134,33 @@ const handleTyping = (): void => {
     typingTimeout = null;
   }, 3000);
 };
+
+const toggleEmojiPicker = (): void => {
+  showEmojiPicker.value = !showEmojiPicker.value;
+};
+
+const insertEmoji = (emoji: string): void => {
+  const input = inputField.value;
+  if (input) {
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    const textBefore = message.value.substring(0, start);
+    const textAfter = message.value.substring(end);
+    message.value = textBefore + emoji + textAfter;
+    
+    // Устанавливаем курсор после вставленного эмоджи
+    nextTick(() => {
+      input.focus();
+      const newPosition = start + emoji.length;
+      input.setSelectionRange(newPosition, newPosition);
+    });
+  } else {
+    message.value += emoji;
+  }
+  
+  showEmojiPicker.value = false;
+  handleTyping();
+};
 </script>
 
 <style scoped lang="scss">
@@ -99,20 +169,74 @@ const handleTyping = (): void => {
   border-top: 1px solid var(--border-color);
   background: var(--bg-secondary);
 
+  @media (max-width: 768px) {
+    padding: 0.75rem;
+  }
+
   &__container {
     display: flex;
     gap: 0.5rem;
     align-items: center;
+    position: relative;
+
+    @media (max-width: 768px) {
+      gap: 0.375rem;
+    }
+  }
+
+  &__input-wrapper {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  &__emoji-button {
+    position: absolute;
+    left: 0.5rem;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+    z-index: 1;
+
+    @media (max-width: 768px) {
+      width: 28px;
+      height: 28px;
+      left: 0.375rem;
+    }
+
+    &:hover {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      transform: scale(1.1);
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
   }
 
   &__field {
     flex: 1;
-    padding: 0.75rem 1rem;
+    padding: 0.75rem 1rem 0.75rem 2.75rem;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: 24px;
     color: var(--text-primary);
     font-size: 0.95rem;
+
+    @media (max-width: 768px) {
+      padding: 0.625rem 0.875rem 0.625rem 2.5rem;
+      font-size: 0.875rem;
+    }
 
     &:focus {
       outline: none;
@@ -132,6 +256,12 @@ const handleTyping = (): void => {
     align-items: center;
     justify-content: center;
     transition: transform 0.2s;
+    flex-shrink: 0;
+
+    @media (max-width: 768px) {
+      width: 36px;
+      height: 36px;
+    }
 
     &:hover {
       transform: scale(1.1);

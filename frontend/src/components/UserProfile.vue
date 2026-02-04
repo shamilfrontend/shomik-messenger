@@ -18,8 +18,8 @@
           <h3>{{ user?.username }}</h3>
           <p class="user-profile__email">{{ user?.email }}</p>
           <p class="user-profile__status">
-            <span :class="['user-profile__status-dot', `user-profile__status-dot--${user?.status}`]"></span>
-            {{ user?.status === 'online' ? 'в сети' : 'не в сети' }}
+            <span :class="['user-profile__status-dot', `user-profile__status-dot--${getComputedStatus(user)}`]"></span>
+            {{ isUserOnline(user) ? 'в сети' : 'не в сети' }}
           </p>
         </div>
 
@@ -50,14 +50,11 @@ const showSettings = ref(false);
 
 const user = computed(() => authStore.user);
 
+import { getImageUrl } from '../utils/image';
+import { isUserOnline, getComputedStatus } from '../utils/status';
+
 const avatarUrl = computed(() => {
-  if (!user.value?.avatar) return null;
-  const avatar = user.value.avatar.trim();
-  if (!avatar) return null;
-  // Если URL уже полный (начинается с http), возвращаем как есть
-  if (avatar.startsWith('http')) return avatar;
-  // Иначе возвращаем относительный путь (будет проксироваться через Vite)
-  return avatar;
+  return getImageUrl(user.value?.avatar) || null;
 });
 
 const handleLogout = (): void => {
@@ -84,6 +81,12 @@ const handleLogout = (): void => {
     width: 90%;
     max-width: 400px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+
+    @media (max-width: 768px) {
+      width: 95%;
+      max-width: none;
+      border-radius: 8px;
+    }
   }
 
   &__header {
@@ -93,10 +96,18 @@ const handleLogout = (): void => {
     padding: 1.5rem;
     border-bottom: 1px solid var(--border-color);
 
+    @media (max-width: 768px) {
+      padding: 1rem;
+    }
+
     h2 {
       margin: 0;
       color: var(--text-primary);
       font-size: 1.5rem;
+
+      @media (max-width: 768px) {
+        font-size: 1.25rem;
+      }
     }
   }
 
@@ -125,6 +136,11 @@ const handleLogout = (): void => {
     flex-direction: column;
     align-items: center;
     gap: 1.5rem;
+
+    @media (max-width: 768px) {
+      padding: 1rem;
+      gap: 1rem;
+    }
   }
 
   &__avatar {
@@ -132,6 +148,11 @@ const handleLogout = (): void => {
     height: 100px;
     border-radius: 50%;
     overflow: hidden;
+
+    @media (max-width: 768px) {
+      width: 200px;
+      height: 200px;
+    }
 
     img {
       width: 100%;
