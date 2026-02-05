@@ -48,6 +48,14 @@ const getChatNameById = (chatId: string): string => {
   return typeof other === 'string' ? 'Чат' : (other?.username || 'Чат');
 };
 
+/** Username участника звонка по chatId и userId (для подписи на превью) */
+const getParticipantUsername = (chatId: string, userId: string): string => {
+  const chat = chatStore.chats.find((c) => c._id === chatId);
+  if (!chat) return userId.slice(0, 8);
+  const p = chat.participants.find((participant) => (typeof participant === 'string' ? participant : participant.id) === userId);
+  return p && typeof p !== 'string' ? p.username : userId.slice(0, 8);
+};
+
 const handleStartCall = async (): Promise<void> => {
   const other = getOtherParticipant();
   if (!currentChat.value || !other) return;
@@ -109,6 +117,13 @@ const typingUsers = computed(() => {
   return chatStore.typingUsers.get(currentChat.value._id) || new Set();
 });
 
+/** Число колонок сетки группового видеозвонка по количеству участников (≈ квадратная сетка) */
+const groupVideoGridStyle = computed(() => {
+  const n = Math.max(1, Object.keys(callStore.remoteStreams).length);
+  const cols = Math.ceil(Math.sqrt(n));
+  return { '--grid-cols': String(cols) };
+});
+
 watch(messages, () => {
   nextTick(() => {
     scrollToBottom();
@@ -166,6 +181,13 @@ watch(
     } else {
       callStore.setLocalVideoRef(null);
     }
+  }
+);
+
+watch(
+  () => Boolean(callStore.activeCall && callStore.isVideoCall),
+  (isVideoCallActive) => {
+    if (isVideoCallActive) callStore.loadDevices();
   }
 );
 
@@ -351,10 +373,17 @@ const formatMessageTime = (date: Date | string): string => {
 };
 
 const getTypingText = (): string => {
-  const count = typingUsers.value.size;
-  if (count === 0) return '';
-  if (count === 1) return 'печатает...';
-  return `${count} печатают...`;
+  const ids = Array.from(typingUsers.value);
+  if (ids.length === 0) return '';
+  const names = ids.map((userId) => {
+    if (!currentChat.value) return userId.slice(0, 8);
+    const p = currentChat.value.participants.find(
+      (participant) => (typeof participant === 'string' ? participant : participant.id) === userId
+    );
+    return p && typeof p !== 'string' ? p.username : userId.slice(0, 8);
+  });
+  if (names.length === 1) return `${names[0]} печатает`;
+  return `${names.join(', ')} печатают`;
 };
 
 const getReadStatus = (message: Message): 'sent' | 'delivered' | 'read' => {
@@ -709,7 +738,11 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
 		<!-- Видеозвонок: полноэкранная панель с видео -->
 		<div v-if="callStore.activeCall && callStore.isVideoCall" class="chat-window__video-call">
-			<div class="chat-window__video-call-remote" :class="{ 'chat-window__video-call-remote--grid': callStore.isGroupCall }">
+			<div
+			class="chat-window__video-call-remote"
+			:class="{ 'chat-window__video-call-remote--grid': callStore.isGroupCall }"
+			:style="callStore.isGroupCall ? groupVideoGridStyle : undefined"
+		>
 				<template v-if="callStore.isGroupCall">
 					<div
 						v-for="userId in Object.keys(callStore.remoteStreams)"
@@ -722,6 +755,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 							playsinline
 							class="chat-window__video-call-video"
 						/>
+						<span
+							v-if="callStore.activeCall?.chatId"
+							class="chat-window__video-call-tile-label"
+						>{{ getParticipantUsername(callStore.activeCall.chatId, userId) }}</span>
 					</div>
 					<div v-if="Object.keys(callStore.remoteStreams).length === 0" class="chat-window__video-call-placeholder">
 						<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
@@ -729,7 +766,13 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 					</div>
 				</template>
 				<template v-else>
-					<video ref="remoteVideoRef" autoplay playsinline class="chat-window__video-call-video" />
+					<div class="chat-window__video-call-tile chat-window__video-call-tile--single">
+						<video ref="remoteVideoRef" autoplay playsinline class="chat-window__video-call-video" />
+						<span
+							v-if="callStore.activeCall?.chatId && callStore.activeCall?.peerUserId"
+							class="chat-window__video-call-tile-label"
+						>{{ getParticipantUsername(callStore.activeCall.chatId, callStore.activeCall.peerUserId) }}</span>
+					</div>
 					<div v-if="!callStore.activeCall?.peerUserId || !callStore.remoteStreams[callStore.activeCall.peerUserId]" class="chat-window__video-call-placeholder">
 						<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
 						<span>Ожидание видео...</span>
@@ -740,6 +783,39 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				<video ref="localVideoRef" autoplay muted playsinline class="chat-window__video-call-video chat-window__video-call-video--local" />
 			</div>
 			<div class="chat-window__video-call-controls">
+				<div class="chat-window__video-call-devices">
+					<select
+						:value="callStore.selectedMicId ?? ''"
+						class="chat-window__video-call-select"
+						aria-label="Микрофон"
+						@change="callStore.switchAudioInput(($event.target as HTMLSelectElement).value || null)"
+					>
+						<option value="">Микрофон по умолчанию</option>
+						<option
+							v-for="dev in callStore.audioDevices"
+							:key="dev.deviceId"
+							:value="dev.deviceId"
+						>
+							{{ dev.label || `Микрофон ${dev.deviceId.slice(0, 8)}` }}
+						</option>
+					</select>
+					<select
+						v-if="callStore.activeCall?.isVideo"
+						:value="callStore.selectedCameraId ?? ''"
+						class="chat-window__video-call-select"
+						aria-label="Камера"
+						@change="callStore.switchVideoInput(($event.target as HTMLSelectElement).value || null)"
+					>
+						<option value="">Камера по умолчанию</option>
+						<option
+							v-for="dev in callStore.videoDevices"
+							:key="dev.deviceId"
+							:value="dev.deviceId"
+						>
+							{{ dev.label || `Камера ${dev.deviceId.slice(0, 8)}` }}
+						</option>
+					</select>
+				</div>
 				<button type="button" :class="['chat-window__call-action', { 'chat-window__call-action--muted': callStore.isMuted }]" @click="callStore.setMuted(!callStore.isMuted)" aria-label="Микрофон">
 					<svg v-if="!callStore.isMuted" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
 					<svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path></svg>
@@ -1180,19 +1256,31 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
     &--grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 0.5rem;
-      padding: 0.5rem;
-      align-content: start;
+      grid-template-columns: repeat(var(--grid-cols, 2), 1fr);
+      grid-auto-rows: 1fr;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      align-content: center;
+      align-items: center;
+      justify-items: center;
     }
   }
 
   &__video-call-tile {
     position: relative;
+    width: 100%;
+    max-width: 100%;
     aspect-ratio: 4 / 3;
     background: #111;
     border-radius: 8px;
     overflow: hidden;
+    min-height: 0;
+
+    &--single {
+      position: absolute;
+      inset: 0;
+      aspect-ratio: auto;
+    }
 
     .chat-window__video-call-video {
       position: absolute;
@@ -1200,6 +1288,22 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
       width: 100%;
       height: 100%;
     }
+  }
+
+  &__video-call-tile-label {
+    position: absolute;
+    left: 0.5rem;
+    bottom: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 4px;
+    max-width: calc(100% - 1rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
   }
 
   &__video-call-video {
@@ -1243,9 +1347,40 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     right: 0;
     padding: 1rem;
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: center;
     gap: 0.75rem;
     background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
+  }
+
+  &__video-call-devices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-right: 0.5rem;
+  }
+
+  &__video-call-select {
+    min-width: 0;
+    max-width: 180px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    cursor: pointer;
+
+    &:focus {
+      outline: none;
+      border-color: rgba(255, 255, 255, 0.5);
+    }
+
+    option {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+    }
   }
 
   &__empty {

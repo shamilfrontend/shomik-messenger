@@ -480,6 +480,71 @@ export const useCallStore = defineStore('call', () => {
     }
   }
 
+  async function switchAudioInput(deviceId: string | null): Promise<void> {
+    setSelectedMic(deviceId);
+    if (!localStream) return;
+    const constraint: MediaTrackConstraints | boolean = deviceId ? { deviceId: { exact: deviceId } } : true;
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({ audio: constraint, video: false });
+      const newTrack = newStream.getAudioTracks()[0];
+      if (!newTrack) {
+        newStream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      const oldTrack = localStream.getAudioTracks()[0];
+      if (oldTrack) {
+        localStream.removeTrack(oldTrack);
+        oldTrack.stop();
+      }
+      newTrack.enabled = !isMuted.value;
+      localStream.addTrack(newTrack);
+      newStream.getTracks().forEach((t) => {
+        if (t !== newTrack) t.stop();
+      });
+      const replaceInPc = (pc: RTCPeerConnection): void => {
+        const sender = pc.getSenders().find((s) => s.track?.kind === 'audio');
+        if (sender) void sender.replaceTrack(newTrack);
+      };
+      if (peerConnection) replaceInPc(peerConnection);
+      peerConnections.forEach(replaceInPc);
+    } catch (err) {
+      console.error('switchAudioInput error:', err);
+    }
+  }
+
+  async function switchVideoInput(deviceId: string | null): Promise<void> {
+    setSelectedCamera(deviceId);
+    if (!localStream) return;
+    const constraint: MediaTrackConstraints | boolean = deviceId ? { deviceId: { exact: deviceId } } : true;
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: constraint });
+      const newTrack = newStream.getVideoTracks()[0];
+      if (!newTrack) {
+        newStream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      const oldTrack = localStream.getVideoTracks()[0];
+      if (oldTrack) {
+        localStream.removeTrack(oldTrack);
+        oldTrack.stop();
+      }
+      newTrack.enabled = !isVideoOff.value;
+      localStream.addTrack(newTrack);
+      newStream.getTracks().forEach((t) => {
+        if (t !== newTrack) t.stop();
+      });
+      if (localVideoRef) localVideoRef.srcObject = localStream;
+      const replaceInPc = (pc: RTCPeerConnection): void => {
+        const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+        if (sender) void sender.replaceTrack(newTrack);
+      };
+      if (peerConnection) replaceInPc(peerConnection);
+      peerConnections.forEach(replaceInPc);
+    } catch (err) {
+      console.error('switchVideoInput error:', err);
+    }
+  }
+
   function setIncomingCall(payload: IncomingCall | null): void {
     incomingCall.value = payload;
   }
@@ -523,6 +588,8 @@ export const useCallStore = defineStore('call', () => {
     handleRemoteSignal,
     setMuted,
     setVideoOff,
+    switchAudioInput,
+    switchVideoInput,
     setIncomingCall,
     setCallEnded,
     cleanup

@@ -410,6 +410,7 @@ class WebSocketService {
     const { chatId } = data;
     const callSet = this.activeGroupCalls.get(chatId);
     if (!callSet || !callSet.has(userId)) return;
+    const isVideo = this.activeGroupCallVideo.get(chatId) ?? false;
     callSet.delete(userId);
     const participants = Array.from(callSet);
     participants.forEach((pid: string) => {
@@ -424,6 +425,11 @@ class WebSocketService {
     if (callSet.size === 0) {
       this.activeGroupCalls.delete(chatId);
       this.activeGroupCallVideo.delete(chatId);
+    } else {
+      this.sendToUser(userId, {
+        type: 'call:started',
+        data: { chatId, participants, isVideo }
+      });
     }
   }
 
