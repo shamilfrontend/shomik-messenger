@@ -27,6 +27,7 @@ export interface Message {
   content: string;
   type: 'text' | 'image' | 'file' | 'system';
   fileUrl?: string;
+  replyTo?: Message | string;
   readBy: string[];
   createdAt: Date;
   updatedAt: Date;

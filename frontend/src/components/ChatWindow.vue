@@ -15,6 +15,7 @@ const messagesContainer = ref<HTMLElement | null>(null);
 const showUserInfo = ref(false);
 const selectedUser = ref<User | null>(null);
 const showGroupSettings = ref(false);
+const replyToMessage = ref<Message | null>(null);
 const isMobile = ref(window.innerWidth <= 768);
 
 const handleResize = (): void => {
@@ -47,6 +48,7 @@ watch(currentChat, () => {
   showGroupSettings.value = false;
   showUserInfo.value = false;
   selectedUser.value = null;
+  replyToMessage.value = null;
 });
 
 const scrollToBottom = (): void => {
@@ -124,11 +126,17 @@ const getMessageSender = (message: Message): string => {
   if (typeof message.senderId === 'string') {
     return 'Пользователь';
   }
-  return message.senderId.username;
+  if (!message.senderId) {
+    return 'Пользователь';
+  }
+  return message.senderId.username || 'Пользователь';
 };
 
 const getMessageAvatar = (message: Message): string | undefined => {
   if (typeof message.senderId === 'string') {
+    return undefined;
+  }
+  if (!message.senderId) {
     return undefined;
   }
   return getImageUrl(message.senderId.avatar);
@@ -310,6 +318,78 @@ const handleGroupDeleted = (): void => {
   chatStore.setCurrentChat(null);
   router.push('/');
 };
+
+const handleReplyToMessage = (message: Message): void => {
+  // Не позволяем отвечать на системные сообщения
+  if (message.type === 'system') {
+    return;
+  }
+  replyToMessage.value = message;
+};
+
+const clearReplyToMessage = (): void => {
+  replyToMessage.value = null;
+};
+
+const scrollToRepliedMessage = (replyTo: Message | string): void => {
+  if (typeof replyTo === 'string') {
+    return;
+  }
+  if (!replyTo._id) {
+    return;
+  }
+  
+  const messageId = `message-${replyTo._id}`;
+  const messageElement = document.getElementById(messageId);
+  
+  if (messageElement && messagesContainer.value) {
+    // Вычисляем позицию элемента относительно контейнера
+    const containerRect = messagesContainer.value.getBoundingClientRect();
+    const elementRect = messageElement.getBoundingClientRect();
+    const scrollTop = messagesContainer.value.scrollTop;
+    const elementTop = elementRect.top - containerRect.top + scrollTop;
+    
+    // Скроллим к элементу с небольшим отступом сверху
+    messagesContainer.value.scrollTo({
+      top: elementTop - 20,
+      behavior: 'smooth'
+    });
+    
+    // Добавляем визуальное выделение
+    messageElement.classList.add('chat-window__message-wrapper--highlighted');
+    setTimeout(() => {
+      messageElement.classList.remove('chat-window__message-wrapper--highlighted');
+    }, 2000);
+  }
+};
+
+const getReplyToSenderName = (replyTo: Message | string): string => {
+  if (typeof replyTo === 'string') {
+    return 'Пользователь';
+  }
+  if (!replyTo.senderId) {
+    return 'Пользователь';
+  }
+  if (typeof replyTo.senderId === 'string') {
+    return 'Пользователь';
+  }
+  const senderId = replyTo.senderId.id;
+  const isOwn = senderId === chatStore.user?.id;
+  return isOwn ? 'Вы' : (replyTo.senderId.username || 'Пользователь');
+};
+
+const getReplyToText = (replyTo: Message | string): string => {
+  if (typeof replyTo === 'string') {
+    return '';
+  }
+  if (replyTo.type === 'image') {
+    return '📷 Фото';
+  }
+  if (replyTo.type === 'file') {
+    return '📎 Файл';
+  }
+  return replyTo.content || '';
+};
 </script>
 
 <template>
@@ -376,66 +456,88 @@ const handleGroupDeleted = (): void => {
 					</div>
 				</div>
 				<!-- Обычное сообщение -->
-				<div
-					v-else
-					:class="['chat-window__message', { 
-						'chat-window__message_me': isOwnMessage(message),
-						'chat-window__message--unread': isUnreadMessage(message)
-					}]"
-				>
 				<div 
-					v-if="shouldShowAvatar(message)" 
-					class="chat-window__message-avatar"
-					@click="openUserInfo(message)"
+					:id="`message-${message._id}`"
+					:class="['chat-window__message-wrapper', {
+						'chat-window__message-wrapper_me': isOwnMessage(message)
+					}]"
+					@dblclick="handleReplyToMessage(message)"
 				>
-					<img
-						v-if="getMessageAvatar(message)"
-						:src="getMessageAvatar(message)"
-						:alt="getMessageSender(message)"
-					/>
-					<div v-else class="chat-window__message-avatar-placeholder">
-						{{ getMessageSender(message).charAt(0).toUpperCase() }}
-					</div>
-					<span
-						v-if="typeof message.senderId !== 'string' && message.senderId"
-						:class="['chat-window__status-indicator', `chat-window__status-indicator--${getComputedStatus(message.senderId)}`]"
-					></span>
-				</div>
-				<div class="chat-window__message-content">
-					<div 
-						v-if="shouldShowSender(message)" 
-						class="chat-window__message-sender"
-						@click="openUserInfo(message)"
+					<div
+						:class="['chat-window__message', { 
+							'chat-window__message_me': isOwnMessage(message),
+							'chat-window__message--unread': isUnreadMessage(message)
+						}]"
 					>
-						{{ getMessageSender(message) }}
-					</div>
-					<div class="chat-window__message-bubble">
-						<div v-if="message.type === 'image' && message.fileUrl" class="chat-window__message-image">
-							<img :src="getImageUrl(message.fileUrl) || message.fileUrl" :alt="message.content" />
-						</div>
-						<div v-else-if="message.type === 'file' && message.fileUrl" class="chat-window__message-file">
-							<a :href="getImageUrl(message.fileUrl) || message.fileUrl" target="_blank">{{ message.content }}</a>
-						</div>
-						<div v-else class="chat-window__message-text">{{ message.content }}</div>
-						<div class="chat-window__message-footer">
-							<div class="chat-window__message-time">
-								{{ formatMessageTime(message.createdAt) }}
+						<div 
+							v-if="shouldShowAvatar(message)" 
+							class="chat-window__message-avatar"
+							@click="openUserInfo(message)"
+						>
+							<img
+								v-if="getMessageAvatar(message)"
+								:src="getMessageAvatar(message)"
+								:alt="getMessageSender(message)"
+							/>
+							<div v-else class="chat-window__message-avatar-placeholder">
+								{{ getMessageSender(message).charAt(0).toUpperCase() }}
 							</div>
-							<div v-if="isOwnMessage(message)" class="chat-window__message-status" :class="`chat-window__message-status--${getReadStatus(message)}`">
-								<!-- Одна галочка (отправлено) -->
-								<svg v-if="getReadStatus(message) === 'sent'" width="16" height="16" viewBox="0 0 16 16" fill="none">
-									<path d="M3 8L6 11L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-								</svg>
-								<!-- Две галочки (доставлено/прочитано) -->
-								<svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
-									<path d="M2 8L5 11L12 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-									<path d="M6 8L9 11L16 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-								</svg>
+							<span
+								v-if="typeof message.senderId !== 'string' && message.senderId"
+								:class="['chat-window__status-indicator', `chat-window__status-indicator--${getComputedStatus(message.senderId)}`]"
+							></span>
+						</div>
+						<div class="chat-window__message-content">
+							<div 
+								v-if="shouldShowSender(message)" 
+								class="chat-window__message-sender"
+								@click="openUserInfo(message)"
+							>
+								{{ getMessageSender(message) }}
+							</div>
+							<div class="chat-window__message-bubble">
+								<!-- Ответ на сообщение -->
+								<div v-if="message.replyTo" class="chat-window__message-reply">
+									<div class="chat-window__message-reply-line"></div>
+									<div 
+										class="chat-window__message-reply-content"
+										@click="scrollToRepliedMessage(message.replyTo)"
+									>
+										<span class="chat-window__message-reply-sender">
+											{{ getReplyToSenderName(message.replyTo) }}
+										</span>
+										<span class="chat-window__message-reply-text">
+											{{ getReplyToText(message.replyTo) }}
+										</span>
+									</div>
+								</div>
+								<div v-if="message.type === 'image' && message.fileUrl" class="chat-window__message-image">
+									<img :src="getImageUrl(message.fileUrl) || message.fileUrl" :alt="message.content" />
+								</div>
+								<div v-else-if="message.type === 'file' && message.fileUrl" class="chat-window__message-file">
+									<a :href="getImageUrl(message.fileUrl) || message.fileUrl" target="_blank">{{ message.content }}</a>
+								</div>
+								<div v-else class="chat-window__message-text">{{ message.content }}</div>
+								<div class="chat-window__message-footer">
+									<div class="chat-window__message-time">
+										{{ formatMessageTime(message.createdAt) }}
+									</div>
+									<div v-if="isOwnMessage(message)" class="chat-window__message-status" :class="`chat-window__message-status--${getReadStatus(message)}`">
+										<!-- Одна галочка (отправлено) -->
+										<svg v-if="getReadStatus(message) === 'sent'" width="16" height="16" viewBox="0 0 16 16" fill="none">
+											<path d="M3 8L6 11L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+										</svg>
+										<!-- Две галочки (доставлено/прочитано) -->
+										<svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
+											<path d="M2 8L5 11L12 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+											<path d="M6 8L9 11L16 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+										</svg>
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>
 				</div>
-			</div>
 			</template>
 
 			<div v-if="typingUsers.size > 0" class="chat-window__typing">
@@ -443,7 +545,12 @@ const handleGroupDeleted = (): void => {
 			</div>
 		</div>
 
-		<MessageInput v-if="currentChat" :chat-id="currentChat._id" />
+		<MessageInput 
+			v-if="currentChat" 
+			:chat-id="currentChat._id"
+			:reply-to="replyToMessage"
+			@clear-reply="clearReplyToMessage"
+		/>
 
 		<UserInfoModal
 			:is-open="showUserInfo"
@@ -615,6 +722,37 @@ const handleGroupDeleted = (): void => {
     }
   }
 
+  &__message-wrapper {
+    width: 100%;
+    display: flex;
+    padding: 0.25rem 1rem;
+    cursor: pointer;
+    justify-content: flex-start;
+    transition: background 0.2s;
+
+    @media (max-width: 768px) {
+      padding: 0.25rem 0.75rem;
+    }
+
+    &_me {
+      justify-content: flex-end;
+    }
+
+    &--highlighted {
+      background: rgba(59, 130, 246, 0.15);
+      animation: highlight-pulse 2s ease-out;
+    }
+  }
+
+  @keyframes highlight-pulse {
+    0% {
+      background: rgba(59, 130, 246, 0.3);
+    }
+    100% {
+      background: transparent;
+    }
+  }
+
   &__message {
     display: flex;
     gap: 0.5rem;
@@ -704,8 +842,8 @@ const handleGroupDeleted = (): void => {
   }
 
   &__message-avatar {
-    width: 32px;
-    height: 32px;
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     overflow: visible;
     flex-shrink: 0;
@@ -756,6 +894,51 @@ const handleGroupDeleted = (): void => {
       color: var(--accent-color);
       text-decoration: underline;
     }
+  }
+
+  &__message-reply {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.08);
+    }
+  }
+
+  &__message-reply-line {
+    width: 3px;
+    background: var(--accent-color);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  &__message-reply-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    cursor: pointer;
+    min-width: 0;
+  }
+
+  &__message-reply-sender {
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  &__message-reply-text {
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 
   &__message-bubble {

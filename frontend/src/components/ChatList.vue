@@ -14,9 +14,6 @@
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
             <circle cx="12" cy="7" r="4"></circle>
           </svg>
-          <div v-if="!userAvatar && user?.username" class="chat-list__profile-initial">
-            {{ user.username.charAt(0).toUpperCase() }}
-          </div>
         </button>
         <button @click="$emit('new-group')" class="chat-list__new-button" title="Создать группу">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -123,7 +120,7 @@ import { getImageUrl } from '../utils/image';
 import { getComputedStatus } from '../utils/status';
 import type { User } from '../types';
 
-const emit = defineEmits<{
+defineEmits<{
   (e: 'new-chat'): void;
   (e: 'new-group'): void;
   (e: 'show-profile'): void;

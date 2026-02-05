@@ -108,7 +108,7 @@ class WebSocketService {
   }
 
   private async handleSendMessage(userId: string, data: any): Promise<void> {
-    const { chatId, content, type = 'text', fileUrl } = data;
+    const { chatId, content, type = 'text', fileUrl, replyTo } = data;
 
     try {
       const chat = await Chat.findById(chatId);
@@ -117,21 +117,41 @@ class WebSocketService {
         return;
       }
 
+      // Проверяем, что replyTo существует и принадлежит этому чату
+      let replyToId = null;
+      if (replyTo) {
+        const replyMessage = await Message.findById(replyTo);
+        if (replyMessage && replyMessage.chatId.toString() === chatId) {
+          replyToId = replyTo;
+        }
+      }
+
       const message = new Message({
         chatId,
         senderId: userId,
         content,
         type,
-        fileUrl: fileUrl || ''
+        fileUrl: fileUrl || '',
+        replyTo: replyToId
       });
 
       await message.save();
       await message.populate('senderId', 'username avatar status lastSeen');
+      if (message.replyTo) {
+        await message.populate({
+          path: 'replyTo',
+          select: 'content senderId type',
+          populate: {
+            path: 'senderId',
+            select: 'username'
+          }
+        });
+      }
 
       chat.lastMessage = message._id;
       await chat.save();
 
-      // Преобразуем _id в id для senderId
+      // Преобразуем _id в id для senderId и replyTo
       const messageObj = message.toObject();
       if (messageObj.senderId && typeof messageObj.senderId === 'object') {
         messageObj.senderId = {
@@ -141,6 +161,20 @@ class WebSocketService {
           status: messageObj.senderId.status,
           lastSeen: messageObj.senderId.lastSeen
         };
+      }
+      if (messageObj.replyTo && typeof messageObj.replyTo === 'object') {
+        const replyToObj: any = {
+          _id: messageObj.replyTo._id.toString(),
+          content: messageObj.replyTo.content,
+          type: messageObj.replyTo.type
+        };
+        if (messageObj.replyTo.senderId && typeof messageObj.replyTo.senderId === 'object') {
+          replyToObj.senderId = {
+            id: messageObj.replyTo.senderId._id.toString(),
+            username: messageObj.replyTo.senderId.username
+          };
+        }
+        messageObj.replyTo = replyToObj;
       }
 
       const messageData = {
@@ -335,15 +369,13 @@ class WebSocketService {
       }
     };
 
-    // Отправляем событие всем подключенным клиентам
-    // В реальном приложении можно оптимизировать и отправлять только контактам и участникам общих чатов
+    // Отправляем событие всем подключенным клиентам, включая самого пользователя
+    // Это необходимо для обновления аватара в его собственных сообщениях
     this.clients.forEach((client, clientUserId) => {
-      if (clientUserId !== user.id && clientUserId !== user._id?.toString()) {
-        try {
-          client.send(JSON.stringify(userData));
-        } catch (error) {
-          console.error(`Ошибка отправки события user:updated пользователю ${clientUserId}:`, error);
-        }
+      try {
+        client.send(JSON.stringify(userData));
+      } catch (error) {
+        console.error(`Ошибка отправки события user:updated пользователю ${clientUserId}:`, error);
       }
     });
   }

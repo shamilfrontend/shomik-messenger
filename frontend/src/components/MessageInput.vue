@@ -1,5 +1,15 @@
 <template>
   <div class="message-input">
+    <div v-if="props.replyTo" class="message-input__reply">
+      <div class="message-input__reply-content">
+        <div class="message-input__reply-line"></div>
+        <div class="message-input__reply-info">
+          <span class="message-input__reply-sender">{{ getReplySenderName() }}</span>
+          <span class="message-input__reply-text">{{ getReplyText() }}</span>
+        </div>
+        <button @click="clearReply" class="message-input__reply-close">×</button>
+      </div>
+    </div>
     <div v-if="previewFile" class="message-input__preview">
       <img v-if="previewFile.type === 'image'" :src="previewFile.url" alt="Preview" />
       <div v-else class="message-input__file-preview">
@@ -55,15 +65,23 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, nextTick } from 'vue';
 import { useChatStore } from '../stores/chat.store';
+import { useAuthStore } from '../stores/auth.store';
 import { useNotifications } from '../composables/useNotifications';
 import FileUpload from './FileUpload.vue';
 import EmojiPicker from './EmojiPicker.vue';
+import type { Message } from '../types';
 
 const props = defineProps<{
   chatId: string;
+  replyTo?: Message | null;
+}>();
+
+const emit = defineEmits<{
+  (e: 'clear-reply'): void;
 }>();
 
 const chatStore = useChatStore();
+const authStore = useAuthStore();
 const { error: notifyError } = useNotifications();
 const message = ref('');
 const previewFile = ref<{ url: string; filename: string; type: string } | null>(null);
@@ -92,12 +110,16 @@ const handleSend = (): void => {
   const content = message.value.trim() || previewFile.value?.filename || 'Файл';
   const type = previewFile.value?.type === 'image' ? 'image' : previewFile.value ? 'file' : 'text';
   const fileUrl = previewFile.value?.url;
+  const replyToId = props.replyTo?._id;
 
   if (content) {
-    chatStore.sendMessage(props.chatId, content, type as 'text' | 'image' | 'file', fileUrl);
+    chatStore.sendMessage(props.chatId, content, type as 'text' | 'image' | 'file', fileUrl, replyToId);
     chatStore.stopTyping(props.chatId);
     message.value = '';
     previewFile.value = null;
+    if (props.replyTo) {
+      emit('clear-reply');
+    }
     if (typingTimeout) {
       clearTimeout(typingTimeout);
       typingTimeout = null;
@@ -105,6 +127,34 @@ const handleSend = (): void => {
     // Возвращаем фокус на поле ввода после отправки
     focusInput();
   }
+};
+
+const getReplySenderName = (): string => {
+  if (!props.replyTo) return '';
+  if (typeof props.replyTo.senderId === 'string') {
+    return 'Пользователь';
+  }
+  if (!props.replyTo.senderId) {
+    return 'Пользователь';
+  }
+  const senderId = props.replyTo.senderId.id;
+  const isOwn = senderId === authStore.user?.id;
+  return isOwn ? 'Вы' : (props.replyTo.senderId.username || 'Пользователь');
+};
+
+const getReplyText = (): string => {
+  if (!props.replyTo) return '';
+  if (props.replyTo.type === 'image') {
+    return '📷 Фото';
+  }
+  if (props.replyTo.type === 'file') {
+    return '📎 Файл';
+  }
+  return props.replyTo.content || '';
+};
+
+const clearReply = (): void => {
+  emit('clear-reply');
 };
 
 const handleFileUploaded = (data: { url: string; filename: string; type: string }): void => {
@@ -304,6 +354,70 @@ const insertEmoji = (emoji: string): void => {
     line-height: 1;
 
     &:hover {
+      color: var(--text-primary);
+    }
+  }
+
+  &__reply {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-primary);
+  }
+
+  &__reply-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  &__reply-line {
+    width: 3px;
+    background: var(--accent-color);
+    border-radius: 2px;
+    flex-shrink: 0;
+    min-height: 40px;
+  }
+
+  &__reply-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  &__reply-sender {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--accent-color);
+  }
+
+  &__reply-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__reply-close {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.25rem;
+    cursor: pointer;
+    line-height: 1;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+
+    &:hover {
+      background: var(--bg-secondary);
       color: var(--text-primary);
     }
   }

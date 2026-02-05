@@ -1,0 +1,8 @@
+node_modules
+dist
+build
+*.config.js
+*.config.ts
+*.config.cjs
+vite-env.d.ts
+yarn.lock

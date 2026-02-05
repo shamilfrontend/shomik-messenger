@@ -16,6 +16,11 @@ export const getImageUrl = (url: string | undefined | null): string | undefined 
 
   const trimmedUrl = url.trim();
 
+  // Если это Base64 строка (начинается с data:), возвращаем её напрямую
+  if (trimmedUrl.startsWith('data:')) {
+    return trimmedUrl;
+  }
+
   // Если URL уже полный (начинается с http:// или https://), возвращаем как есть
   if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
     return trimmedUrl;

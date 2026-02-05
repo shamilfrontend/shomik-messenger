@@ -6,6 +6,7 @@ export interface IMessage extends Document {
   content: string;
   type: 'text' | 'image' | 'file' | 'system';
   fileUrl?: string;
+  replyTo?: mongoose.Types.ObjectId;
   readBy: mongoose.Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
@@ -36,6 +37,11 @@ const MessageSchema = new Schema<IMessage>(
     fileUrl: {
       type: String,
       default: ''
+    },
+    replyTo: {
+      type: Schema.Types.ObjectId,
+      ref: 'Message',
+      default: null
     },
     readBy: [{
       type: Schema.Types.ObjectId,

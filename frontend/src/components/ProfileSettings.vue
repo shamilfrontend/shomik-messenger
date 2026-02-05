@@ -18,11 +18,21 @@
               </div>
             </div>
             <div class="profile-settings__avatar-controls">
-              <FileUpload
+              <input
+                ref="avatarInput"
+                type="file"
                 accept="image/*"
-                @uploaded="handleAvatarUploaded"
-                @error="handleUploadError"
+                @change="handleAvatarSelect"
+                class="profile-settings__avatar-input"
               />
+              <button @click="triggerAvatarSelect" class="profile-settings__upload-button" :disabled="uploadingAvatar">
+                <svg v-if="!uploadingAvatar" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span v-else>...</span>
+              </button>
               <button v-if="user?.avatar" @click="removeAvatar" class="profile-settings__remove-avatar">
                 Удалить фото
               </button>
@@ -59,7 +69,7 @@
         </div>
 
         <!-- Секция смены пароля -->
-        <div class="profile-settings__section">
+        <div v-if="false" class="profile-settings__section">
           <h3>Смена пароля</h3>
           <div class="profile-settings__form">
             <div class="profile-settings__field">
@@ -100,12 +110,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
 import { profileService } from '../services/profile.service';
-import { uploadService } from '../services/upload.service';
 import { useNotifications } from '../composables/useNotifications';
-import FileUpload from './FileUpload.vue';
 import { getImageUrl } from '../utils/image';
 
 const emit = defineEmits<{
@@ -119,6 +127,8 @@ const user = computed(() => authStore.user);
 const loading = ref(false);
 const changingPassword = ref(false);
 const avatarPreview = ref<string | null>(null);
+const uploadingAvatar = ref(false);
+const avatarInput = ref<HTMLInputElement | null>(null);
 
 const formData = ref({
   username: '',
@@ -157,20 +167,73 @@ watch(user, (newUser) => {
   }
 }, { immediate: true });
 
-const handleAvatarUploaded = async (data: { url: string; filename: string; type: string }): Promise<void> => {
-  avatarPreview.value = data.url;
+const triggerAvatarSelect = (): void => {
+  avatarInput.value?.click();
+};
+
+const handleAvatarSelect = async (event: Event): Promise<void> => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+
+  if (!file) return;
+
+  // Проверка размера файла (максимум 200 КБ)
+  const maxSize = 200 * 1024; // 200 КБ в байтах
+  if (file.size > maxSize) {
+    notifyError('Размер файла не должен превышать 200 КБ');
+    if (avatarInput.value) {
+      avatarInput.value.value = '';
+    }
+    return;
+  }
+
+  // Проверка типа файла
+  if (!file.type.startsWith('image/')) {
+    notifyError('Выберите изображение');
+    if (avatarInput.value) {
+      avatarInput.value.value = '';
+    }
+    return;
+  }
+
+  uploadingAvatar.value = true;
+
   try {
-    await profileService.updateProfile({ avatar: data.url });
+    // Конвертируем файл в Base64
+    const base64String = await fileToBase64(file);
+    avatarPreview.value = base64String;
+
+    // Сохраняем Base64 строку в профиль
+    await profileService.updateProfile({ avatar: base64String });
     await authStore.loadUser();
     notifySuccess('Фотография профиля обновлена');
+    avatarPreview.value = null; // Сбрасываем preview после успешного сохранения
   } catch (error: any) {
     notifyError(error.response?.data?.error || 'Ошибка обновления фотографии');
     avatarPreview.value = null;
+  } finally {
+    uploadingAvatar.value = false;
+    if (avatarInput.value) {
+      avatarInput.value.value = '';
+    }
   }
 };
 
-const handleUploadError = (error: string): void => {
-  notifyError(error);
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Ошибка чтения файла'));
+      }
+    };
+    reader.onerror = () => {
+      reject(new Error('Ошибка чтения файла'));
+    };
+    reader.readAsDataURL(file);
+  });
 };
 
 const removeAvatar = async (): Promise<void> => {
@@ -341,20 +404,34 @@ const changePassword = async (): Promise<void> => {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+  }
 
-    button {
-      padding: 0.5rem 1rem;
-      background: var(--accent-color);
-      border: none;
-      border-radius: 8px;
-      color: white;
-      cursor: pointer;
-      font-size: 0.9rem;
-      transition: opacity 0.2s;
+  &__avatar-input {
+    display: none;
+  }
 
-      &:hover {
-        opacity: 0.9;
-      }
+  &__upload-button {
+    width: 40px;
+    height: 40px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    padding: 0;
+
+    &:hover:not(:disabled) {
+      background: var(--bg-primary);
+      border-color: var(--accent-color);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
   }
 

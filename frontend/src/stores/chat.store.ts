@@ -86,8 +86,8 @@ export const useChatStore = defineStore('chat', () => {
     }
   };
 
-  const sendMessage = async (chatId: string, content: string, type: 'text' | 'image' | 'file' = 'text', fileUrl?: string): Promise<void> => {
-    websocketService.send('message:send', { chatId, content, type, fileUrl });
+  const sendMessage = async (chatId: string, content: string, type: 'text' | 'image' | 'file' = 'text', fileUrl?: string, replyTo?: string): Promise<void> => {
+    websocketService.send('message:send', { chatId, content, type, fileUrl, replyTo });
   };
 
   const setCurrentChat = (chat: Chat | null): void => {
@@ -362,13 +362,29 @@ export const useChatStore = defineStore('chat', () => {
 
       // Обновляем отправителей сообщений
       messages.value.forEach(message => {
+        // Обновляем senderId сообщения
         if (typeof message.senderId === 'string') {
           if (message.senderId === updatedUser.id) {
             message.senderId = updatedUser;
           }
         } else {
-          if (message.senderId.id === updatedUser.id) {
+          if (message.senderId && message.senderId.id === updatedUser.id) {
             message.senderId = updatedUser;
+          }
+        }
+        
+        // Обновляем senderId в replyTo если есть
+        if (message.replyTo && typeof message.replyTo !== 'string') {
+          if (message.replyTo.senderId) {
+            if (typeof message.replyTo.senderId === 'string') {
+              if (message.replyTo.senderId === updatedUser.id) {
+                message.replyTo.senderId = updatedUser;
+              }
+            } else {
+              if (message.replyTo.senderId.id === updatedUser.id) {
+                message.replyTo.senderId = updatedUser;
+              }
+            }
           }
         }
       });

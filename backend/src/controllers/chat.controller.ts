@@ -433,11 +433,19 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
 
     const messages = await Message.find(query)
       .populate('senderId', 'username avatar status lastSeen')
+      .populate({
+        path: 'replyTo',
+        select: 'content senderId type',
+        populate: {
+          path: 'senderId',
+          select: 'username'
+        }
+      })
       .sort({ createdAt: 1 })
       .limit(Number(limit))
       .exec();
 
-    // Преобразуем _id в id для senderId
+    // Преобразуем _id в id для senderId и replyTo
     const messagesWithId = messages.map(msg => {
       const messageObj = msg.toObject();
       if (messageObj.senderId && typeof messageObj.senderId === 'object') {
@@ -448,6 +456,20 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
           status: messageObj.senderId.status,
           lastSeen: messageObj.senderId.lastSeen
         };
+      }
+      if (messageObj.replyTo && typeof messageObj.replyTo === 'object') {
+        const replyToObj: any = {
+          _id: messageObj.replyTo._id.toString(),
+          content: messageObj.replyTo.content,
+          type: messageObj.replyTo.type
+        };
+        if (messageObj.replyTo.senderId && typeof messageObj.replyTo.senderId === 'object') {
+          replyToObj.senderId = {
+            id: messageObj.replyTo.senderId._id.toString(),
+            username: messageObj.replyTo.senderId.username
+          };
+        }
+        messageObj.replyTo = replyToObj;
       }
       return messageObj;
     });
@@ -461,7 +483,7 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
 export const sendMessage = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { content, type = 'text', fileUrl } = req.body;
+    const { content, type = 'text', fileUrl, replyTo } = req.body;
 
     if (!content) {
       res.status(400).json({ error: 'Содержимое сообщения обязательно' });
@@ -480,21 +502,41 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
+    // Проверяем, что replyTo существует и принадлежит этому чату
+    let replyToId = null;
+    if (replyTo) {
+      const replyMessage = await Message.findById(replyTo);
+      if (replyMessage && replyMessage.chatId.toString() === id) {
+        replyToId = replyTo;
+      }
+    }
+
     const message = new Message({
       chatId: id,
       senderId: req.userId,
       content,
       type,
-      fileUrl: fileUrl || ''
+      fileUrl: fileUrl || '',
+      replyTo: replyToId
     });
 
     await message.save();
     await message.populate('senderId', 'username avatar status lastSeen');
+    if (message.replyTo) {
+      await message.populate({
+        path: 'replyTo',
+        select: 'content senderId type',
+        populate: {
+          path: 'senderId',
+          select: 'username'
+        }
+      });
+    }
 
     chat.lastMessage = message._id;
     await chat.save();
 
-    // Преобразуем _id в id для senderId
+    // Преобразуем _id в id для senderId и replyTo
     const messageObj = message.toObject();
     if (messageObj.senderId && typeof messageObj.senderId === 'object') {
       messageObj.senderId = {
@@ -504,6 +546,20 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
         status: messageObj.senderId.status,
         lastSeen: messageObj.senderId.lastSeen
       };
+    }
+    if (messageObj.replyTo && typeof messageObj.replyTo === 'object') {
+      const replyToObj: any = {
+        _id: messageObj.replyTo._id.toString(),
+        content: messageObj.replyTo.content,
+        type: messageObj.replyTo.type
+      };
+      if (messageObj.replyTo.senderId && typeof messageObj.replyTo.senderId === 'object') {
+        replyToObj.senderId = {
+          id: messageObj.replyTo.senderId._id.toString(),
+          username: messageObj.replyTo.senderId.username
+        };
+      }
+      messageObj.replyTo = replyToObj;
     }
 
     res.status(201).json(messageObj);
