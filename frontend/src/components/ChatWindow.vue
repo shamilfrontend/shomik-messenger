@@ -10,9 +10,11 @@ import GroupSettingsModal from './GroupSettingsModal.vue';
 import type { Message, User } from '../types';
 import { getImageUrl } from '../utils/image';
 import { isUserOnline, getComputedStatus } from '../utils/status';
+import { useNotifications } from '../composables/useNotifications';
 
 const chatStore = useChatStore();
 const callStore = useCallStore();
+const { error: notifyError } = useNotifications();
 const remoteAudioRef = ref<HTMLAudioElement | null>(null);
 const localVideoRef = ref<HTMLVideoElement | null>(null);
 const remoteVideoRef = ref<HTMLVideoElement | null>(null);
@@ -65,18 +67,30 @@ const getParticipantUsername = (chatId: string, userId: string): string => {
 const handleStartCall = async (): Promise<void> => {
   const other = getOtherParticipant();
   if (!currentChat.value || !other) return;
-  await callStore.startCall(currentChat.value._id, other.id, false);
+  try {
+    await callStore.startCall(currentChat.value._id, other.id, false);
+  } catch (err) {
+    notifyError(err instanceof Error ? err.message : 'Не удалось начать звонок');
+  }
 };
 
 const handleStartVideoCall = async (): Promise<void> => {
   const other = getOtherParticipant();
   if (!currentChat.value || !other) return;
-  await callStore.startCall(currentChat.value._id, other.id, true);
+  try {
+    await callStore.startCall(currentChat.value._id, other.id, true);
+  } catch (err) {
+    notifyError(err instanceof Error ? err.message : 'Не удалось начать видеозвонок');
+  }
 };
 
-const handleAcceptCall = (): void => {
+const handleAcceptCall = async (): Promise<void> => {
   if (!callStore.incomingCall) return;
-  callStore.acceptCall(callStore.incomingCall.chatId, callStore.incomingCall.fromUserId);
+  try {
+    await callStore.acceptCall(callStore.incomingCall.chatId, callStore.incomingCall.fromUserId);
+  } catch (err) {
+    notifyError(err instanceof Error ? err.message : 'Не удалось принять звонок');
+  }
 };
 
 const handleRejectCall = (): void => {
@@ -86,18 +100,30 @@ const handleRejectCall = (): void => {
 
 const handleStartGroupCall = async (): Promise<void> => {
   if (!currentChat.value) return;
-  await callStore.startGroupCall(currentChat.value._id, false);
+  try {
+    await callStore.startGroupCall(currentChat.value._id, false);
+  } catch (err) {
+    notifyError(err instanceof Error ? err.message : 'Не удалось начать групповой звонок');
+  }
 };
 
 const handleStartGroupVideoCall = async (): Promise<void> => {
   if (!currentChat.value) return;
-  await callStore.startGroupCall(currentChat.value._id, true);
+  try {
+    await callStore.startGroupCall(currentChat.value._id, true);
+  } catch (err) {
+    notifyError(err instanceof Error ? err.message : 'Не удалось начать групповой видеозвонок');
+  }
 };
 
-const handleJoinGroupCall = (): void => {
+const handleJoinGroupCall = async (): Promise<void> => {
   const chatId = callStore.groupCallAvailable?.chatId ?? currentChat.value?._id;
   if (!chatId) return;
-  callStore.joinGroupCall(chatId);
+  try {
+    await callStore.joinGroupCall(chatId);
+  } catch (err) {
+    notifyError(err instanceof Error ? err.message : 'Не удалось присоединиться к созвону');
+  }
 };
 
 onMounted(() => {

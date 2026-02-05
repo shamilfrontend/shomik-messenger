@@ -7,6 +7,15 @@ const STUN_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 const STORAGE_MIC_KEY = 'call-preferred-mic-id';
 const STORAGE_CAMERA_KEY = 'call-preferred-camera-id';
 
+const MEDIA_NOT_AVAILABLE_MSG =
+  'Микрофон и камера недоступны. Откройте сайт по HTTPS и используйте современный браузер.';
+
+function ensureMediaDevices(): void {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+    throw new Error(MEDIA_NOT_AVAILABLE_MSG);
+  }
+}
+
 export interface IncomingCall {
   fromUserId: string;
   chatId: string;
@@ -77,6 +86,7 @@ export const useCallStore = defineStore('call', () => {
   }
 
   async function loadDevices(): Promise<void> {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return;
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       audioDevices.value = devices.filter((d) => d.kind === 'audioinput');
@@ -103,6 +113,7 @@ export const useCallStore = defineStore('call', () => {
   }
 
   async function getLocalStream(options: { video?: boolean } = {}): Promise<MediaStream> {
+    ensureMediaDevices();
     const needVideo = options.video ?? false;
     if (localStream) {
       const hasVideo = localStream.getVideoTracks().length > 0;
@@ -483,6 +494,7 @@ export const useCallStore = defineStore('call', () => {
   async function switchAudioInput(deviceId: string | null): Promise<void> {
     setSelectedMic(deviceId);
     if (!localStream) return;
+    if (!navigator.mediaDevices?.getUserMedia) return;
     const constraint: MediaTrackConstraints | boolean = deviceId ? { deviceId: { exact: deviceId } } : true;
     try {
       const newStream = await navigator.mediaDevices.getUserMedia({ audio: constraint, video: false });
@@ -515,6 +527,7 @@ export const useCallStore = defineStore('call', () => {
   async function switchVideoInput(deviceId: string | null): Promise<void> {
     setSelectedCamera(deviceId);
     if (!localStream) return;
+    if (!navigator.mediaDevices?.getUserMedia) return;
     const constraint: MediaTrackConstraints | boolean = deviceId ? { deviceId: { exact: deviceId } } : true;
     try {
       const newStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: constraint });
