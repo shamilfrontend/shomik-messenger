@@ -1,17 +1,21 @@
 <template>
   <div class="chat-view">
     <ChatList
-      :class="{ 'chat-view__list--hidden': showChatWindow && isMobile }"
+      :class="{ 'chat-view__list--hidden': (showChatWindow || showProfile) && isMobile }"
       @new-chat="showNewChat = true"
       @new-group="showNewGroup = true"
-      @show-profile="showProfile = true"
     />
     <ChatWindow 
+      v-if="showChatWindow && !showProfile"
       @back="handleBack"
       :class="{ 'chat-view__window--full': showChatWindow && isMobile }"
     />
-    <ContactList
-      v-if="showNewChat"
+    <ProfileView 
+      v-if="showProfile && !showChatWindow"
+      :class="{ 'chat-view__profile--full': showProfile && isMobile }"
+    />
+    <NewChat
+      :is-open="showNewChat"
       @select-user="handleSelectUser"
       @close="showNewChat = false"
     />
@@ -19,10 +23,6 @@
       :is-open="showNewGroup"
       @close="showNewGroup = false"
       @created="handleGroupCreated"
-    />
-    <UserProfile
-      v-if="showProfile"
-      @close="showProfile = false"
     />
   </div>
 </template>
@@ -32,9 +32,9 @@ import { ref, onMounted, watch, computed, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ChatList from '../components/ChatList.vue';
 import ChatWindow from '../components/ChatWindow.vue';
-import ContactList from '../components/ContactList.vue';
+import NewChat from '../components/NewChat.vue';
 import CreateGroupModal from '../components/CreateGroupModal.vue';
-import UserProfile from '../components/UserProfile.vue';
+import ProfileView from './ProfileView.vue';
 import { useChatStore } from '../stores/chat.store';
 import { useWebSocket } from '../composables/useWebSocket';
 import api from '../services/api';
@@ -45,9 +45,9 @@ const route = useRoute();
 const router = useRouter();
 const showNewChat = ref(false);
 const showNewGroup = ref(false);
-const showProfile = ref(false);
 const isMobile = ref(window.innerWidth <= 768);
 const showChatWindow = computed(() => !!route.params.id);
+const showProfile = computed(() => route.path === '/profile');
 
 const handleResize = (): void => {
   isMobile.value = window.innerWidth <= 768;
@@ -152,6 +152,26 @@ const handleGroupCreated = async (chatId: string): Promise<void> => {
   }
 
   &__window {
+    flex: 1;
+    display: flex;
+
+    &--full {
+      @media (max-width: 768px) {
+        width: 100%;
+        position: absolute;
+        left: 0;
+        top: 0;
+        z-index: 10;
+      }
+    }
+  }
+
+  &__profile {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
+
     &--full {
       @media (max-width: 768px) {
         width: 100%;

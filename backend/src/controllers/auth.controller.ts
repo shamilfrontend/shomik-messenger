@@ -68,7 +68,8 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
         username: user.username,
         email: user.email,
         avatar: user.avatar,
-        status: user.status
+        status: user.status,
+        params: user.params || {}
       }
     });
   } catch (error: any) {
@@ -118,7 +119,8 @@ export const login = async (req: AuthRequest, res: Response): Promise<void> => {
         username: user.username,
         email: user.email,
         avatar: user.avatar,
-        status: user.status
+        status: user.status,
+        params: user.params || {}
       }
     });
   } catch (error: any) {
@@ -142,7 +144,8 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
       avatar: user.avatar || '',
       status: user.status,
       lastSeen: user.lastSeen,
-      contacts: user.contacts
+      contacts: user.contacts,
+      params: user.params || {}
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

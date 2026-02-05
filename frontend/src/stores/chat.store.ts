@@ -78,7 +78,11 @@ export const useChatStore = defineStore('chat', () => {
   const loadMessages = async (chatId: string): Promise<void> => {
     try {
       const response = await api.get(`/chats/${chatId}/messages`);
-      messages.value = response.data;
+      // Инициализируем реакции для каждого сообщения
+      messages.value = response.data.map((msg: Message) => ({
+        ...msg,
+        reactions: msg.reactions || {}
+      }));
       // Помечаем все сообщения как прочитанные при открытии чата
       markChatAsRead(chatId);
     } catch (error) {
@@ -125,7 +129,12 @@ export const useChatStore = defineStore('chat', () => {
     }
     
     if (isCurrentChatOpen) {
-      messages.value.push(message);
+      // Инициализируем реакции если их нет
+      const messageWithReactions = {
+        ...message,
+        reactions: message.reactions || {}
+      };
+      messages.value.push(messageWithReactions);
       // Если сообщение не от текущего пользователя, помечаем как прочитанное автоматически
       if (!isFromCurrentUser) {
         markAsRead(message._id);
@@ -211,6 +220,36 @@ export const useChatStore = defineStore('chat', () => {
 
   const stopTyping = (chatId: string): void => {
     websocketService.send('typing:stop', { chatId });
+  };
+
+  const toggleReaction = async (chatId: string, messageId: string, emoji: string): Promise<void> => {
+    try {
+      const response = await api.post(`/chats/${chatId}/messages/${messageId}/reactions`, { emoji });
+      // Сразу обновляем локальное состояние для мгновенного отображения
+      if (response.data?.reactions) {
+        updateMessageReactions(messageId, response.data.reactions);
+      }
+    } catch (error: any) {
+      console.error('Ошибка добавления реакции:', error.response?.data?.error || error.message);
+      throw error;
+    }
+  };
+
+  const updateMessageReactions = (messageId: string, reactions: { [emoji: string]: string[] }): void => {
+    const messageIndex = messages.value.findIndex(msg => msg._id === messageId);
+    if (messageIndex !== -1) {
+      // Прямо обновляем свойство reactions для правильной реактивности Vue 3
+      const message = messages.value[messageIndex];
+      if (message) {
+        message.reactions = reactions || {};
+      }
+    }
+    // Также обновляем реакции в lastMessage чатов, если сообщение является последним
+    chats.value.forEach(chat => {
+      if (chat.lastMessage && chat.lastMessage._id === messageId) {
+        chat.lastMessage.reactions = reactions || {};
+      }
+    });
   };
 
   const setTypingUser = (chatId: string, userId: string, isTyping: boolean): void => {
@@ -461,6 +500,8 @@ export const useChatStore = defineStore('chat', () => {
     leaveGroup,
     deleteChat,
     removeChatFromList,
-    updateUserInChats
+    updateUserInChats,
+    toggleReaction,
+    updateMessageReactions
   };
 });

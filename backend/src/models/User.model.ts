@@ -8,6 +8,10 @@ export interface IUser extends Document {
   status: 'online' | 'offline' | 'away';
   lastSeen: Date;
   contacts: mongoose.Types.ObjectId[];
+  params?: {
+    messageTextSize?: number;
+    theme?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -50,7 +54,20 @@ const UserSchema = new Schema<IUser>(
     contacts: [{
       type: Schema.Types.ObjectId,
       ref: 'User'
-    }]
+    }],
+    params: {
+      messageTextSize: {
+        type: Number,
+        default: 14,
+        min: 12,
+        max: 20
+      },
+      theme: {
+        type: String,
+        enum: ['system', 'light', 'dark'],
+        default: 'system'
+      }
+    }
   },
   {
     timestamps: true

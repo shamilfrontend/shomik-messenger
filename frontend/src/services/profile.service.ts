@@ -4,6 +4,10 @@ export interface UpdateProfileData {
   username?: string;
   email?: string;
   avatar?: string;
+  params?: {
+    messageTextSize?: number;
+    theme?: string;
+  };
 }
 
 export interface ChangePasswordData {

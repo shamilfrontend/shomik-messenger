@@ -445,7 +445,7 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
       .limit(Number(limit))
       .exec();
 
-    // Преобразуем _id в id для senderId и replyTo
+    // Преобразуем _id в id для senderId и replyTo, а также reactions
     const messagesWithId = messages.map(msg => {
       const messageObj = msg.toObject();
       if (messageObj.senderId && typeof messageObj.senderId === 'object') {
@@ -470,6 +470,16 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
           };
         }
         messageObj.replyTo = replyToObj;
+      }
+      // Преобразуем Map reactions в объект
+      if (messageObj.reactions && messageObj.reactions instanceof Map) {
+        const reactionsObj: { [key: string]: string[] } = {};
+        messageObj.reactions.forEach((userIds: mongoose.Types.ObjectId[], emoji: string) => {
+          reactionsObj[emoji] = userIds.map((id: mongoose.Types.ObjectId) => id.toString());
+        });
+        messageObj.reactions = reactionsObj;
+      } else if (!messageObj.reactions) {
+        messageObj.reactions = {};
       }
       return messageObj;
     });
@@ -560,6 +570,16 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
         };
       }
       messageObj.replyTo = replyToObj;
+    }
+    // Преобразуем Map reactions в объект
+    if (messageObj.reactions && messageObj.reactions instanceof Map) {
+      const reactionsObj: { [key: string]: string[] } = {};
+      messageObj.reactions.forEach((userIds: mongoose.Types.ObjectId[], emoji: string) => {
+        reactionsObj[emoji] = userIds.map((id: mongoose.Types.ObjectId) => id.toString());
+      });
+      messageObj.reactions = reactionsObj;
+    } else if (!messageObj.reactions) {
+      messageObj.reactions = {};
     }
 
     res.status(201).json(messageObj);
@@ -915,6 +935,107 @@ export const deleteChat = async (req: AuthRequest, res: Response): Promise<void>
     }
 
     res.json({ message: 'Группа успешно удалена' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const toggleReaction = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id, messageId } = req.params;
+    const { emoji } = req.body;
+
+    // Валидация emoji
+    const allowedEmojis = ['👍', '😂', '🔥', '❤️', '👎', '👀', '💯'];
+    if (!emoji || !allowedEmojis.includes(emoji)) {
+      res.status(400).json({ error: 'Недопустимая реакция' });
+      return;
+    }
+
+    const chat = await Chat.findById(id);
+    if (!chat) {
+      res.status(404).json({ error: 'Чат не найден' });
+      return;
+    }
+
+    if (!chat.participants.includes(req.userId as any)) {
+      res.status(403).json({ error: 'Нет доступа к этому чату' });
+      return;
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      res.status(404).json({ error: 'Сообщение не найдено' });
+      return;
+    }
+
+    if (message.chatId.toString() !== id) {
+      res.status(400).json({ error: 'Сообщение не принадлежит этому чату' });
+      return;
+    }
+
+    // Проверяем, что пользователь не является отправителем сообщения
+    if (message.senderId.toString() === req.userId) {
+      res.status(403).json({ error: 'Нельзя добавлять реакции на свои сообщения' });
+      return;
+    }
+
+    // Инициализируем reactions если его нет
+    if (!message.reactions) {
+      message.reactions = new Map();
+    }
+
+    const reactionsMap = message.reactions as Map<string, mongoose.Types.ObjectId[]>;
+    const userIdObj = new mongoose.Types.ObjectId(req.userId);
+
+    // Проверяем, стоит ли уже у пользователя эта реакция (снять или заменить)
+    const currentUsersForEmoji = reactionsMap.get(emoji) || [];
+    const hasThisEmoji = currentUsersForEmoji.some((id: mongoose.Types.ObjectId) => id.toString() === req.userId);
+
+    if (hasThisEmoji) {
+      // Снимаем реакцию (повторный клик по той же)
+      const newUsers = currentUsersForEmoji.filter((id: mongoose.Types.ObjectId) => id.toString() !== req.userId);
+      if (newUsers.length === 0) {
+        reactionsMap.delete(emoji);
+      } else {
+        reactionsMap.set(emoji, newUsers);
+      }
+    } else {
+      // Удаляем пользователя из всех других реакций (только одна реакция на сообщение)
+      reactionsMap.forEach((userIds, emojiKey) => {
+        if (emojiKey === emoji) return;
+        const idx = userIds.findIndex((id: mongoose.Types.ObjectId) => id.toString() === req.userId);
+        if (idx >= 0) {
+          const newUsers = userIds.filter((_: mongoose.Types.ObjectId, i: number) => i !== idx);
+          if (newUsers.length === 0) {
+            reactionsMap.delete(emojiKey);
+          } else {
+            reactionsMap.set(emojiKey, newUsers);
+          }
+        }
+      });
+      // Добавляем новую реакцию
+      const updated = reactionsMap.get(emoji) || [];
+      updated.push(userIdObj);
+      reactionsMap.set(emoji, updated);
+    }
+
+    message.reactions = reactionsMap;
+    await message.save();
+
+    // Преобразуем Map в объект для ответа
+    const reactionsObj: { [key: string]: string[] } = {};
+    reactionsMap.forEach((userIds, emojiKey) => {
+      reactionsObj[emojiKey] = userIds.map((id: mongoose.Types.ObjectId) => id.toString());
+    });
+
+    // Отправляем WebSocket событие об обновлении реакций
+    if (wsService) {
+      const participantIds = chat.participants.map((p: any) => p.toString());
+      wsService.broadcastReaction(messageId, reactionsObj, participantIds);
+    }
+
+    res.json({ reactions: reactionsObj });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

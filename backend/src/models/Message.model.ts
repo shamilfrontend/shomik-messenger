@@ -8,6 +8,7 @@ export interface IMessage extends Document {
   fileUrl?: string;
   replyTo?: mongoose.Types.ObjectId;
   readBy: mongoose.Types.ObjectId[];
+  reactions?: { [emoji: string]: mongoose.Types.ObjectId[] };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,7 +47,15 @@ const MessageSchema = new Schema<IMessage>(
     readBy: [{
       type: Schema.Types.ObjectId,
       ref: 'User'
-    }]
+    }],
+    reactions: {
+      type: Map,
+      of: [{
+        type: Schema.Types.ObjectId,
+        ref: 'User'
+      }],
+      default: {}
+    }
   },
   {
     timestamps: true

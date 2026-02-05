@@ -117,7 +117,7 @@ export const addContact = async (req: AuthRequest, res: Response): Promise<void>
 
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { username, email, avatar } = req.body;
+    const { username, email, avatar, params } = req.body;
 
     const user = await User.findById(req.userId);
 
@@ -171,6 +171,21 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       user.avatar = avatar;
     }
 
+    // Обновление параметров настроек
+    if (params !== undefined) {
+      if (!user.params) {
+        user.params = {};
+      }
+      if (params.messageTextSize !== undefined) {
+        if (params.messageTextSize >= 12 && params.messageTextSize <= 20) {
+          user.params.messageTextSize = params.messageTextSize;
+        }
+      }
+      if (params.theme !== undefined) {
+        user.params.theme = params.theme;
+      }
+    }
+
     await user.save();
 
     const updatedUser = {
@@ -179,7 +194,8 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       email: user.email,
       avatar: user.avatar,
       status: user.status,
-      lastSeen: user.lastSeen
+      lastSeen: user.lastSeen,
+      params: user.params || {}
     };
 
     // Отправляем WebSocket событие об обновлении профиля пользователя

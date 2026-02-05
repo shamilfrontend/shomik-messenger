@@ -1,7 +1,7 @@
 <template>
   <div class="profile-settings">
     <div class="profile-settings__container">
-      <div class="profile-settings__header">
+      <div v-if="showHeader !== false" class="profile-settings__header">
         <h2>Настройки профиля</h2>
         <button @click="$emit('close')" class="profile-settings__close">×</button>
       </div>
@@ -68,6 +68,91 @@
           </div>
         </div>
 
+        <!-- Секция настроек -->
+        <div class="profile-settings__section">
+          <h3>Настройки</h3>
+          <div class="profile-settings__form">
+            <div class="profile-settings__field">
+              <label>Размер текста</label>
+              <div class="profile-settings__slider-wrapper">
+                <input
+                  v-model.number="tempMessageTextSize"
+                  type="range"
+                  min="12"
+                  max="20"
+                  step="1"
+                  class="profile-settings__slider"
+                />
+                <div class="profile-settings__slider-labels">
+                  <span>12px</span>
+                  <span>13px</span>
+                  <span>14px</span>
+                  <span>15px</span>
+                  <span>16px</span>
+                  <span>17px</span>
+                  <span>18px</span>
+                  <span>19px</span>
+                  <span>20px</span>
+                </div>
+                <button
+                  @click="saveTextSize"
+                  :disabled="tempMessageTextSize === messageTextSize"
+                  class="profile-settings__save-text-size"
+                >
+                  Сохранить
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Секция темы -->
+        <div class="profile-settings__section">
+          <h3>Тема</h3>
+          <div class="profile-settings__form">
+            <div class="profile-settings__field">
+              <div class="profile-settings__theme-options">
+                <button
+                  v-for="themeOption in themeOptions"
+                  :key="themeOption.value"
+                  @click="tempTheme = themeOption.value"
+                  :class="['profile-settings__theme-option', { 'profile-settings__theme-option--active': tempTheme === themeOption.value }]"
+                >
+                  <span class="profile-settings__theme-option-icon">
+                    <svg v-if="themeOption.value === 'system'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                      <line x1="8" y1="21" x2="16" y2="21"></line>
+                      <line x1="12" y1="17" x2="12" y2="21"></line>
+                    </svg>
+                    <svg v-else-if="themeOption.value === 'light'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="5"></circle>
+                      <line x1="12" y1="1" x2="12" y2="3"></line>
+                      <line x1="12" y1="21" x2="12" y2="23"></line>
+                      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                      <line x1="1" y1="12" x2="3" y2="12"></line>
+                      <line x1="21" y1="12" x2="23" y2="12"></line>
+                      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                  </span>
+                  <span class="profile-settings__theme-option-label">{{ themeOption.label }}</span>
+                </button>
+              </div>
+              <button
+                @click="saveTheme"
+                :disabled="tempTheme === theme"
+                class="profile-settings__save-theme"
+              >
+                Сохранить
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Секция смены пароля -->
         <div v-if="false" class="profile-settings__section">
           <h3>Смена пароля</h3>
@@ -114,7 +199,12 @@ import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
 import { profileService } from '../services/profile.service';
 import { useNotifications } from '../composables/useNotifications';
+import { useSettings } from '../composables/useSettings';
 import { getImageUrl } from '../utils/image';
+
+const props = defineProps<{
+  showHeader?: boolean;
+}>();
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -122,6 +212,39 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore();
 const { success: notifySuccess, error: notifyError } = useNotifications();
+const { messageTextSize, theme, setMessageTextSize, setTheme } = useSettings();
+
+// Временное значение для размера текста (до сохранения)
+const tempMessageTextSize = ref(messageTextSize.value);
+const tempTheme = ref(theme.value);
+
+// Опции тем
+const themeOptions = [
+  { value: 'system', label: 'Системная' },
+  { value: 'light', label: 'Светлая' },
+  { value: 'dark', label: 'Темная' }
+];
+
+// Синхронизируем временное значение при изменении сохраненного значения
+watch(messageTextSize, (newSize) => {
+  tempMessageTextSize.value = newSize;
+}, { immediate: true });
+
+watch(theme, (newTheme) => {
+  tempTheme.value = newTheme;
+}, { immediate: true });
+
+// Сохранение размера текста
+const saveTextSize = async (): Promise<void> => {
+  await setMessageTextSize(tempMessageTextSize.value);
+  notifySuccess('Настройки сохранены');
+};
+
+// Сохранение темы
+const saveTheme = async (): Promise<void> => {
+  await setTheme(tempTheme.value);
+  notifySuccess('Настройки сохранены');
+};
 
 const user = computed(() => authStore.user);
 const loading = ref(false);
@@ -296,25 +419,23 @@ const changePassword = async (): Promise<void> => {
 
 <style scoped lang="scss">
 .profile-settings {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  background: var(--bg-primary);
 
   &__container {
-    background: var(--bg-secondary);
-    border-radius: 12px;
-    width: 90%;
-    max-width: 600px;
-    max-height: 90vh;
+    background: var(--bg-primary);
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1rem;
     overflow-y: auto;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+
+    @media (max-width: 768px) {
+      padding: 0.75rem;
+    }
   }
 
   &__header {
@@ -323,6 +444,10 @@ const changePassword = async (): Promise<void> => {
     align-items: center;
     padding: 1.5rem;
     border-bottom: 1px solid var(--border-color);
+
+    @media (max-width: 768px) {
+      padding: 1rem;
+    }
 
     h2 {
       margin: 0;
@@ -352,6 +477,10 @@ const changePassword = async (): Promise<void> => {
 
   &__content {
     padding: 1.5rem;
+
+    @media (max-width: 768px) {
+      padding: 1rem;
+    }
   }
 
   &__section {
@@ -508,6 +637,149 @@ const changePassword = async (): Promise<void> => {
       opacity: 0.6;
       cursor: not-allowed;
     }
+  }
+
+  &__slider-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  &__slider {
+    width: 100%;
+    height: 6px;
+    background: var(--bg-primary);
+    border-radius: 3px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+
+    &::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: var(--accent-color);
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      &:hover {
+        transform: scale(1.2);
+      }
+    }
+
+    &::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      background: var(--accent-color);
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+
+      &:hover {
+        transform: scale(1.2);
+      }
+    }
+  }
+
+  &__slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  &__slider-value {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  &__save-text-size,
+  &__save-theme {
+    padding: 0.5rem 1rem;
+    background: var(--accent-color);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    margin-top: 0.5rem;
+
+    &:hover:not(:disabled) {
+      opacity: 0.9;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &__theme-options {
+    display: flex;
+    flex-direction: row;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+  }
+
+  &__theme-option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex: 1;
+    min-width: 0;
+
+    @media (max-width: 768px) {
+      width: 100%;
+      justify-content: flex-start;
+      text-align: left;
+    }
+
+    &:hover {
+      background: var(--bg-secondary);
+      border-color: var(--accent-color);
+    }
+
+    &--active {
+      background: rgba(82, 136, 193, 0.1);
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+    }
+  }
+
+  &__theme-option-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    color: inherit;
+  }
+
+  &__theme-option-label {
+    flex: 1;
+    font-weight: 500;
   }
 }
 </style>

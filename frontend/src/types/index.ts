@@ -6,6 +6,10 @@ export interface User {
   status: 'online' | 'offline' | 'away';
   lastSeen?: Date;
   contacts?: string[];
+  params?: {
+    messageTextSize?: number;
+    theme?: string;
+  };
 }
 
 export interface Chat {
@@ -29,6 +33,7 @@ export interface Message {
   fileUrl?: string;
   replyTo?: Message | string;
   readBy: string[];
+  reactions?: { [emoji: string]: string[] };
   createdAt: Date;
   updatedAt: Date;
 }

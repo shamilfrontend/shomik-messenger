@@ -176,6 +176,16 @@ class WebSocketService {
         }
         messageObj.replyTo = replyToObj;
       }
+      // Преобразуем Map reactions в объект
+      if (messageObj.reactions && messageObj.reactions instanceof Map) {
+        const reactionsObj: { [key: string]: string[] } = {};
+        messageObj.reactions.forEach((userIds: any[], emoji: string) => {
+          reactionsObj[emoji] = userIds.map((id: any) => id.toString());
+        });
+        messageObj.reactions = reactionsObj;
+      } else if (!messageObj.reactions) {
+        messageObj.reactions = {};
+      }
 
       const messageData = {
         type: 'message:new',
@@ -376,6 +386,27 @@ class WebSocketService {
         client.send(JSON.stringify(userData));
       } catch (error) {
         console.error(`Ошибка отправки события user:updated пользователю ${clientUserId}:`, error);
+      }
+    });
+  }
+
+  public broadcastReaction(messageId: string, reactions: { [emoji: string]: string[] }, participantIds: string[]): void {
+    const reactionData = {
+      type: 'message:reaction',
+      data: {
+        messageId,
+        reactions
+      }
+    };
+
+    participantIds.forEach((participantId) => {
+      const client = this.clients.get(participantId);
+      if (client && client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(JSON.stringify(reactionData));
+        } catch (error) {
+          console.error(`Ошибка отправки события message:reaction пользователю ${participantId}:`, error);
+        }
       }
     });
   }

@@ -1,4 +1,31 @@
 :root {
+  --message-text-size: 14px;
+}
+
+/* Темная тема (Telegram Night) */
+[data-theme="dark"] {
+  --bg-primary: #0e1621;
+  --bg-secondary: #17212b;
+  --text-primary: #ffffff;
+  --text-secondary: #8e9297;
+  --border-color: #242f3d;
+  --accent-color: #5288c1;
+  --accent-hover: #5a92d1;
+}
+
+/* Светлая тема (Telegram Light) */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f0f0f0;
+  --text-primary: #000000;
+  --text-secondary: #707579;
+  --border-color: #e4e4e4;
+  --accent-color: #3390ec;
+  --accent-hover: #2b7fd1;
+}
+
+/* Значения по умолчанию (темная тема) */
+:root:not([data-theme]) {
   --bg-primary: #0e1621;
   --bg-secondary: #17212b;
   --text-primary: #ffffff;

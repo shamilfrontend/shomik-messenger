@@ -17,17 +17,29 @@ const selectedUser = ref<User | null>(null);
 const showGroupSettings = ref(false);
 const replyToMessage = ref<Message | null>(null);
 const isMobile = ref(window.innerWidth <= 768);
+const showReactionMenu = ref<string | null>(null);
+const availableReactions = ['👍', '😂', '🔥', '❤️', '👎', '👀', '💯'];
 
 const handleResize = (): void => {
   isMobile.value = window.innerWidth <= 768;
 };
 
+// Закрываем меню реакций при клике вне его
+const handleClickOutside = (event: MouseEvent): void => {
+  const target = event.target as HTMLElement;
+  if (!target.closest('.chat-window__reaction-menu') && !target.closest('.chat-window__reaction-add')) {
+    showReactionMenu.value = null;
+  }
+};
+
 onMounted(() => {
   window.addEventListener('resize', handleResize);
+  document.addEventListener('click', handleClickOutside);
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
+  document.removeEventListener('click', handleClickOutside);
 });
 
 const currentChat = computed(() => chatStore.currentChat);
@@ -49,6 +61,7 @@ watch(currentChat, () => {
   showUserInfo.value = false;
   selectedUser.value = null;
   replyToMessage.value = null;
+  showReactionMenu.value = null;
 });
 
 const scrollToBottom = (): void => {
@@ -390,6 +403,50 @@ const getReplyToText = (replyTo: Message | string): string => {
   }
   return replyTo.content || '';
 };
+
+const toggleReactionMenu = (messageId: string, event: MouseEvent): void => {
+  event.stopPropagation();
+  if (showReactionMenu.value === messageId) {
+    showReactionMenu.value = null;
+  } else {
+    showReactionMenu.value = messageId;
+  }
+};
+
+const handleReactionClick = async (message: Message, emoji: string): Promise<void> => {
+  if (!currentChat.value || isOwnMessage(message)) {
+    return;
+  }
+  
+  try {
+    await chatStore.toggleReaction(currentChat.value._id, message._id, emoji);
+    showReactionMenu.value = null;
+  } catch (error: any) {
+    console.error('Ошибка добавления реакции:', error);
+  }
+};
+
+const hasUserReaction = (message: Message, emoji: string): boolean => {
+  if (!message.reactions || !chatStore.user) {
+    return false;
+  }
+  const userIds = message.reactions[emoji] || [];
+  return userIds.includes(chatStore.user.id);
+};
+
+const getReactionsArray = (message: Message): Array<{ emoji: string; count: number; hasUser: boolean }> => {
+  if (!message.reactions) {
+    return [];
+  }
+  return Object.entries(message.reactions)
+    .map(([emoji, userIds]) => ({
+      emoji,
+      count: userIds.length,
+      hasUser: hasUserReaction(message, emoji)
+    }))
+    .filter(reaction => reaction.count > 0)
+    .sort((a, b) => b.count - a.count);
+};
 </script>
 
 <template>
@@ -532,6 +589,46 @@ const getReplyToText = (replyTo: Message | string): string => {
 											<path d="M2 8L5 11L12 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 											<path d="M6 8L9 11L16 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 										</svg>
+									</div>
+								</div>
+								<!-- Реакции на сообщение -->
+								<div class="chat-window__message-reactions">
+									<div v-if="getReactionsArray(message).length > 0" class="chat-window__reactions-list">
+										<button
+											v-for="reaction in getReactionsArray(message)"
+											:key="reaction.emoji"
+											:class="['chat-window__reaction', { 'chat-window__reaction--active': reaction.hasUser }]"
+											@click="!isOwnMessage(message) && handleReactionClick(message, reaction.emoji)"
+											:title="`${reaction.count} ${reaction.count === 1 ? 'реакция' : 'реакций'}`"
+											:disabled="isOwnMessage(message)"
+											:style="isOwnMessage(message) ? { cursor: 'default', opacity: 1 } : {}"
+										>
+											<span class="chat-window__reaction-emoji">{{ reaction.emoji }}</span>
+											<span class="chat-window__reaction-count">{{ reaction.count }}</span>
+										</button>
+									</div>
+									<!-- Кнопка добавления реакции (только для чужих сообщений) -->
+									<div v-if="!isOwnMessage(message)" class="chat-window__reaction-add-wrapper">
+										<button
+											class="chat-window__reaction-add"
+											@click="toggleReactionMenu(message._id, $event)"
+											:title="showReactionMenu === message._id ? 'Закрыть' : 'Добавить реакцию'"
+										>
+											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<path d="M12 5v14M5 12h14"/>
+											</svg>
+										</button>
+										<!-- Меню выбора реакции -->
+										<div v-if="showReactionMenu === message._id" class="chat-window__reaction-menu">
+											<button
+												v-for="emoji in availableReactions"
+												:key="emoji"
+												class="chat-window__reaction-menu-item"
+												@click="handleReactionClick(message, emoji)"
+											>
+												{{ emoji }}
+											</button>
+										</div>
 									</div>
 								</div>
 							</div>
@@ -802,10 +899,19 @@ const getReplyToText = (replyTo: Message | string): string => {
         }
       }
 
-      // В групповых чатах для своих сообщений тоже показываем аватар справа
+      // В групповых чатах для своих сообщений аватар справа от сообщения
+      // При flex-direction: row-reverse аватарка (первая в HTML) будет справа
       .chat-window__message-avatar {
-        order: 1;
+        order: 0;
       }
+
+      .chat-window__message-content {
+        order: 0;
+      }
+
+			.chat-window__reaction-count {
+				color: var(--border-color);
+			}
     }
 
     &--unread {
@@ -954,6 +1060,7 @@ const getReplyToText = (replyTo: Message | string): string => {
 
   &__message-text {
     margin-bottom: 0.25rem;
+    font-size: var(--message-text-size);
   }
 
   &__message-image {
@@ -980,6 +1087,129 @@ const getReplyToText = (replyTo: Message | string): string => {
     justify-content: flex-start;
     gap: 0.25rem;
     margin-top: 0.25rem;
+  }
+
+  &__message-reactions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+    flex-wrap: wrap;
+  }
+
+  &__reactions-list {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+  }
+
+  &__reaction {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: transparent;
+		color: currentColor;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.85rem;
+
+    &:hover:not(:disabled) {
+      background: var(--bg-primary);
+      border-color: var(--accent-color);
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 1;
+    }
+
+    &--active {
+      background: rgba(var(--accent-color-rgb, 59, 130, 246), 0.1);
+      border-color: var(--accent-color);
+    }
+  }
+
+  &__reaction-emoji {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  &__reaction-count {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--accent-color);
+  }
+
+  &__reaction-add-wrapper {
+    position: relative;
+  }
+
+  &__reaction-add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    opacity: 0;
+
+    .chat-window__message-wrapper:hover & {
+      opacity: 1;
+    }
+
+    &:hover {
+      background: var(--bg-secondary);
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+    }
+  }
+
+  &__reaction-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    margin-bottom: 0.5rem;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+    flex-wrap: nowrap;
+  }
+
+  &__reaction-menu-item {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: background 0.2s;
+
+    &:hover {
+      background: var(--bg-primary);
+    }
   }
 
   &__message-time {
