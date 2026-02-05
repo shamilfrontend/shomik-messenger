@@ -9,6 +9,8 @@ class WebSocketService {
   private wss: WebSocketServer;
   private clients: Map<string, AuthenticatedWebSocket> = new Map();
   private typingUsers: Map<string, Set<string>> = new Map();
+  /** Групповые созвоны: chatId -> Set участников (userId) */
+  private activeGroupCalls: Map<string, Set<string>> = new Map();
 
   constructor(server: Server) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
@@ -64,6 +66,7 @@ class WebSocketService {
     authWs.on('close', async () => {
       this.clients.delete(userId);
       this.typingUsers.delete(userId);
+      this.leaveGroupCall(userId);
 
       const now = new Date();
       await User.findByIdAndUpdate(userId, {
@@ -117,6 +120,14 @@ class WebSocketService {
 
       case 'call:signal':
         this.handleCallSignal(userId, message.data);
+        break;
+
+      case 'call:join':
+        await this.handleCallJoin(userId, message.data);
+        break;
+
+      case 'call:leave':
+        this.handleCallLeave(userId, message.data);
         break;
 
       default:
@@ -282,29 +293,128 @@ class WebSocketService {
     }
   }
 
-  private async handleCallStart(callerId: string, data: { chatId: string; targetUserId: string }): Promise<void> {
+  private async handleCallStart(callerId: string, data: { chatId: string; targetUserId?: string }): Promise<void> {
     try {
       const { chatId, targetUserId } = data;
       const chat = await Chat.findById(chatId);
-      if (!chat || chat.type !== 'private') return;
-      const participants = chat.participants.map((p: any) => p.toString());
-      if (!participants.includes(callerId) || !participants.includes(targetUserId)) return;
-      const targetClient = this.clients.get(targetUserId);
-      if (!targetClient) {
-        this.sendToUser(callerId, { type: 'call:unavailable', data: { chatId } });
+      if (!chat) return;
+      const participantIds = chat.participants.map((p: any) => p.toString());
+      if (!participantIds.includes(callerId)) return;
+
+      if (chat.type === 'group' && !targetUserId) {
+        if (!this.activeGroupCalls.has(chatId)) {
+          this.activeGroupCalls.set(chatId, new Set());
+        }
+        this.activeGroupCalls.get(chatId)!.add(callerId);
+        const participants = Array.from(this.activeGroupCalls.get(chatId)!);
+        this.sendToUser(callerId, {
+          type: 'call:joined',
+          data: { chatId, participants, initiatorId: callerId }
+        });
+        participantIds.forEach((pid: string) => {
+          if (pid !== callerId) {
+            const client = this.clients.get(pid);
+            if (client) {
+              client.send(JSON.stringify({
+                type: 'call:started',
+                data: { chatId, participants, initiatorId: callerId }
+              }));
+            }
+          }
+        });
         return;
       }
-      const caller = await User.findById(callerId).select('username avatar').lean();
-      targetClient.send(JSON.stringify({
-        type: 'call:incoming',
-        data: {
-          fromUserId: callerId,
-          chatId,
-          caller: caller ? { id: caller._id.toString(), username: caller.username, avatar: caller.avatar } : null
+
+      if (chat.type === 'private' && targetUserId) {
+        if (!participantIds.includes(targetUserId)) return;
+        const targetClient = this.clients.get(targetUserId);
+        if (!targetClient) {
+          this.sendToUser(callerId, { type: 'call:unavailable', data: { chatId } });
+          return;
         }
-      }));
+        const caller = await User.findById(callerId).select('username avatar').lean();
+        targetClient.send(JSON.stringify({
+          type: 'call:incoming',
+          data: {
+            fromUserId: callerId,
+            chatId,
+            caller: caller ? { id: caller._id.toString(), username: caller.username, avatar: caller.avatar } : null
+          }
+        }));
+      }
     } catch (error) {
       console.error('Ошибка call:start:', error);
+    }
+  }
+
+  private async handleCallJoin(userId: string, data: { chatId: string }): Promise<void> {
+    try {
+      const { chatId } = data;
+      const chat = await Chat.findById(chatId);
+      if (!chat || chat.type !== 'group') return;
+      const participantIds = chat.participants.map((p: any) => p.toString());
+      if (!participantIds.includes(userId)) return;
+      const callSet = this.activeGroupCalls.get(chatId);
+      if (!callSet) return;
+      callSet.add(userId);
+      const participants = Array.from(callSet);
+      const others = participants.filter((id: string) => id !== userId);
+      this.sendToUser(userId, {
+        type: 'call:joined',
+        data: { chatId, participants: others }
+      });
+      others.forEach((pid: string) => {
+        const client = this.clients.get(pid);
+        if (client) {
+          client.send(JSON.stringify({
+            type: 'call:participant_joined',
+            data: { chatId, userId }
+          }));
+        }
+      });
+    } catch (error) {
+      console.error('Ошибка call:join:', error);
+    }
+  }
+
+  private leaveGroupCall(userId: string): void {
+    this.activeGroupCalls.forEach((callSet, chatId) => {
+      if (callSet.has(userId)) {
+        callSet.delete(userId);
+        const participants = Array.from(callSet);
+        participants.forEach((pid: string) => {
+          const client = this.clients.get(pid);
+          if (client) {
+            client.send(JSON.stringify({
+              type: 'call:participant_left',
+              data: { chatId, userId }
+            }));
+          }
+        });
+        if (callSet.size === 0) {
+          this.activeGroupCalls.delete(chatId);
+        }
+      }
+    });
+  }
+
+  private handleCallLeave(userId: string, data: { chatId: string }): void {
+    const { chatId } = data;
+    const callSet = this.activeGroupCalls.get(chatId);
+    if (!callSet || !callSet.has(userId)) return;
+    callSet.delete(userId);
+    const participants = Array.from(callSet);
+    participants.forEach((pid: string) => {
+      const client = this.clients.get(pid);
+      if (client) {
+        client.send(JSON.stringify({
+          type: 'call:participant_left',
+          data: { chatId, userId }
+        }));
+      }
+    });
+    if (callSet.size === 0) {
+      this.activeGroupCalls.delete(chatId);
     }
   }
 

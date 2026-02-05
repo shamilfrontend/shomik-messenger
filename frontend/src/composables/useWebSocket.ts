@@ -97,6 +97,22 @@ export const useWebSocket = () => {
     callStore.setCallEnded();
   };
 
+  const callStartedHandler = (data: { chatId: string; participants: string[] }) => {
+    callStore.setGroupCallStarted(data.chatId, data.participants);
+  };
+
+  const callJoinedHandler = (data: { chatId: string; participants: string[]; initiatorId?: string }) => {
+    callStore.onCallJoinedGroup(data.chatId, data.participants, data.initiatorId);
+  };
+
+  const callParticipantJoinedHandler = (data: { chatId: string; userId: string }) => {
+    callStore.onParticipantJoined(data.chatId, data.userId);
+  };
+
+  const callParticipantLeftHandler = (data: { chatId: string; userId: string }) => {
+    callStore.onParticipantLeft(data.chatId, data.userId);
+  };
+
   onMounted(() => {
     websocketService.on('message:new', messageNewHandler);
     websocketService.on('typing:update', typingUpdateHandler);
@@ -113,6 +129,10 @@ export const useWebSocket = () => {
     websocketService.on('call:ended', callEndedHandler);
     websocketService.on('call:signal', callSignalHandler);
     websocketService.on('call:unavailable', callUnavailableHandler);
+    websocketService.on('call:started', callStartedHandler);
+    websocketService.on('call:joined', callJoinedHandler);
+    websocketService.on('call:participant_joined', callParticipantJoinedHandler);
+    websocketService.on('call:participant_left', callParticipantLeftHandler);
   });
 
   onUnmounted(() => {
@@ -131,5 +151,9 @@ export const useWebSocket = () => {
     websocketService.off('call:ended', callEndedHandler);
     websocketService.off('call:signal', callSignalHandler);
     websocketService.off('call:unavailable', callUnavailableHandler);
+    websocketService.off('call:started', callStartedHandler);
+    websocketService.off('call:joined', callJoinedHandler);
+    websocketService.off('call:participant_joined', callParticipantJoinedHandler);
+    websocketService.off('call:participant_left', callParticipantLeftHandler);
   });
 };

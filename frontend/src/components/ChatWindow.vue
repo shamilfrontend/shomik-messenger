@@ -35,10 +35,14 @@ const handleClickOutside = (event: MouseEvent): void => {
   }
 };
 
-const isActiveCallInCurrentChat = computed(() => {
-  const act = callStore.activeCall;
-  return !!currentChat.value && !!act && act.chatId === currentChat.value._id;
-});
+/** Название чата по id (для панели созвона вне текущего чата) */
+const getChatNameById = (chatId: string): string => {
+  const chat = chatStore.chats.find((c) => c._id === chatId);
+  if (!chat) return 'Чат';
+  if (chat.type === 'group') return chat.groupName || 'Группа';
+  const other = chat.participants.find((p) => (typeof p === 'string' ? p : p.id) !== chatStore.user?.id);
+  return typeof other === 'string' ? 'Чат' : (other?.username || 'Чат');
+};
 
 const handleStartCall = async (): Promise<void> => {
   const other = getOtherParticipant();
@@ -54,6 +58,17 @@ const handleAcceptCall = (): void => {
 const handleRejectCall = (): void => {
   if (!callStore.incomingCall) return;
   callStore.rejectCall(callStore.incomingCall.chatId, callStore.incomingCall.fromUserId);
+};
+
+const handleStartGroupCall = async (): Promise<void> => {
+  if (!currentChat.value) return;
+  await callStore.startGroupCall(currentChat.value._id);
+};
+
+const handleJoinGroupCall = (): void => {
+  const chatId = callStore.groupCallAvailable?.chatId ?? currentChat.value?._id;
+  if (!chatId) return;
+  callStore.joinGroupCall(chatId);
 };
 
 onMounted(() => {
@@ -523,6 +538,18 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				</svg>
 			</button>
 			<button
+				v-if="currentChat && currentChat.type === 'group' && !callStore.activeCall && !isGroupCallAvailableForCurrentChat"
+				@click="handleStartGroupCall"
+				:disabled="callStore.isConnecting"
+				class="chat-window__call-button"
+				aria-label="Групповой звонок"
+				title="Начать групповой звонок"
+			>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+				</svg>
+			</button>
+			<button
 				v-if="currentChat && currentChat.type === 'group'"
 				@click="showGroupSettings = true"
 				class="chat-window__settings-button"
@@ -560,9 +587,29 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			</div>
 		</div>
 
-		<!-- Активный звонок -->
-		<div v-if="callStore.activeCall && isActiveCallInCurrentChat" class="chat-window__active-call">
-			<span class="chat-window__active-call-label">Звонок</span>
+		<!-- Можно присоединиться к групповому созвону (показываем всегда, если есть активный созвон) -->
+		<div v-if="callStore.groupCallAvailable" class="chat-window__incoming-call">
+			<div class="chat-window__incoming-call-info">
+				<span class="chat-window__incoming-call-label">Групповой созвон</span>
+				<span class="chat-window__incoming-call-name">{{ getChatNameById(callStore.groupCallAvailable.chatId) }} · Участников: {{ callStore.groupCallAvailable.participants.length }}</span>
+			</div>
+			<div class="chat-window__incoming-call-actions">
+				<button type="button" class="chat-window__call-action chat-window__call-action--accept" @click="handleJoinGroupCall" :disabled="callStore.isConnecting" aria-label="Присоединиться">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+					</svg>
+				</button>
+			</div>
+		</div>
+
+		<!-- Активный звонок (всегда виден, пока пользователь в созвоне) -->
+		<div v-if="callStore.activeCall" class="chat-window__active-call">
+			<span class="chat-window__active-call-label">
+				{{ callStore.isGroupCall
+					? `${getChatNameById(callStore.activeCall.chatId)} · Групповой звонок (${callStore.activeCall.participants.length})`
+					: `Звонок · ${getChatNameById(callStore.activeCall.chatId)}`
+				}}
+			</span>
 			<button type="button" :class="['chat-window__call-action', { 'chat-window__call-action--muted': callStore.isMuted }]" @click="callStore.setMuted(!callStore.isMuted)" aria-label="Микрофон">
 				<svg v-if="!callStore.isMuted" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
 				<svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path></svg>
