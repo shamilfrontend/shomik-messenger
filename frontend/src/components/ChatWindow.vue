@@ -26,16 +26,22 @@ const replyToMessage = ref<Message | null>(null);
 const isMobile = ref(window.innerWidth <= 768);
 const showReactionMenu = ref<string | null>(null);
 const availableReactions = ['👍', '😂', '🔥', '❤️', '👎', '👀', '💯'];
+const videoCallMicDropdownOpen = ref(false);
+const videoCallCameraDropdownOpen = ref(false);
 
 const handleResize = (): void => {
   isMobile.value = window.innerWidth <= 768;
 };
 
-// Закрываем меню реакций при клике вне его
+// Закрываем меню реакций и выпадающие списки устройств при клике вне их
 const handleClickOutside = (event: MouseEvent): void => {
   const target = event.target as HTMLElement;
   if (!target.closest('.chat-window__reaction-menu') && !target.closest('.chat-window__reaction-add')) {
     showReactionMenu.value = null;
+  }
+  if (!target.closest('.chat-window__video-call-device-group')) {
+    videoCallMicDropdownOpen.value = false;
+    videoCallCameraDropdownOpen.value = false;
   }
 };
 
@@ -783,47 +789,34 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				<video ref="localVideoRef" autoplay muted playsinline class="chat-window__video-call-video chat-window__video-call-video--local" />
 			</div>
 			<div class="chat-window__video-call-controls">
-				<div class="chat-window__video-call-devices">
-					<select
-						:value="callStore.selectedMicId ?? ''"
-						class="chat-window__video-call-select"
-						aria-label="Микрофон"
-						@change="callStore.switchAudioInput(($event.target as HTMLSelectElement).value || null)"
-					>
-						<option value="">Микрофон по умолчанию</option>
-						<option
-							v-for="dev in callStore.audioDevices"
-							:key="dev.deviceId"
-							:value="dev.deviceId"
-						>
-							{{ dev.label || `Микрофон ${dev.deviceId.slice(0, 8)}` }}
-						</option>
-					</select>
-					<select
-						v-if="callStore.activeCall?.isVideo"
-						:value="callStore.selectedCameraId ?? ''"
-						class="chat-window__video-call-select"
-						aria-label="Камера"
-						@change="callStore.switchVideoInput(($event.target as HTMLSelectElement).value || null)"
-					>
-						<option value="">Камера по умолчанию</option>
-						<option
-							v-for="dev in callStore.videoDevices"
-							:key="dev.deviceId"
-							:value="dev.deviceId"
-						>
-							{{ dev.label || `Камера ${dev.deviceId.slice(0, 8)}` }}
-						</option>
-					</select>
+				<div class="chat-window__video-call-device-group">
+					<button type="button" :class="['chat-window__call-action', { 'chat-window__call-action--muted': callStore.isMuted }]" @click="callStore.setMuted(!callStore.isMuted)" aria-label="Микрофон">
+						<svg v-if="!callStore.isMuted" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+						<svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path></svg>
+					</button>
+					<button type="button" class="chat-window__video-call-device-trigger" :class="{ 'chat-window__video-call-device-trigger--open': videoCallMicDropdownOpen }" aria-label="Выбор микрофона" @click="videoCallMicDropdownOpen = !videoCallMicDropdownOpen; videoCallCameraDropdownOpen = false">
+						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+					</button>
+					<div v-if="videoCallMicDropdownOpen" class="chat-window__video-call-device-dropdown">
+						<button type="button" class="chat-window__video-call-device-item" :class="{ 'chat-window__video-call-device-item--active': !callStore.selectedMicId }" @click="callStore.switchAudioInput(null); videoCallMicDropdownOpen = false">По умолчанию</button>
+						<button v-for="dev in callStore.audioDevices" :key="dev.deviceId" type="button" class="chat-window__video-call-device-item" :class="{ 'chat-window__video-call-device-item--active': callStore.selectedMicId === dev.deviceId }" @click="callStore.switchAudioInput(dev.deviceId); videoCallMicDropdownOpen = false">{{ dev.label || `Микрофон ${dev.deviceId.slice(0, 8)}` }}</button>
+					</div>
 				</div>
-				<button type="button" :class="['chat-window__call-action', { 'chat-window__call-action--muted': callStore.isMuted }]" @click="callStore.setMuted(!callStore.isMuted)" aria-label="Микрофон">
-					<svg v-if="!callStore.isMuted" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-					<svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path></svg>
-				</button>
-				<button type="button" :class="['chat-window__call-action', { 'chat-window__call-action--muted': callStore.isVideoOff }]" @click="callStore.setVideoOff(!callStore.isVideoOff)" aria-label="Камера">
-					<svg v-if="!callStore.isVideoOff" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
-					<svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-				</button>
+
+				<div v-if="callStore.activeCall?.isVideo" class="chat-window__video-call-device-group">
+					<button type="button" :class="['chat-window__call-action', { 'chat-window__call-action--muted': callStore.isVideoOff }]" @click="callStore.setVideoOff(!callStore.isVideoOff)" aria-label="Камера">
+						<svg v-if="!callStore.isVideoOff" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+						<svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+					</button>
+					<button type="button" class="chat-window__video-call-device-trigger" :class="{ 'chat-window__video-call-device-trigger--open': videoCallCameraDropdownOpen }" aria-label="Выбор камеры" @click="videoCallCameraDropdownOpen = !videoCallCameraDropdownOpen; videoCallMicDropdownOpen = false">
+						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+					</button>
+					<div v-if="videoCallCameraDropdownOpen" class="chat-window__video-call-device-dropdown">
+						<button type="button" class="chat-window__video-call-device-item" :class="{ 'chat-window__video-call-device-item--active': !callStore.selectedCameraId }" @click="callStore.switchVideoInput(null); videoCallCameraDropdownOpen = false">По умолчанию</button>
+						<button v-for="dev in callStore.videoDevices" :key="dev.deviceId" type="button" class="chat-window__video-call-device-item" :class="{ 'chat-window__video-call-device-item--active': callStore.selectedCameraId === dev.deviceId }" @click="callStore.switchVideoInput(dev.deviceId); videoCallCameraDropdownOpen = false">{{ dev.label || `Камера ${dev.deviceId.slice(0, 8)}` }}</button>
+					</div>
+				</div>
+
 				<button type="button" class="chat-window__call-action chat-window__call-action--hangup" @click="callStore.hangUp()" aria-label="Завершить">
 					<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
 				</button>
@@ -1350,36 +1343,87 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
     background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
   }
 
-  &__video-call-devices {
+  &__video-call-device-group {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-right: 0.5rem;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+
+    .chat-window__call-action {
+      border-radius: 50%;
+    }
   }
 
-  &__video-call-select {
-    min-width: 0;
-    max-width: 180px;
-    padding: 0.4rem 0.6rem;
-    font-size: 0.8rem;
-    color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 8px;
+  &__video-call-device-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    margin-right: 2px;
+    color: rgba(255, 255, 255, 0.9);
+    background: transparent;
+    border: none;
+    border-radius: 50%;
     cursor: pointer;
+    transition: background 0.2s;
 
-    &:focus {
-      outline: none;
-      border-color: rgba(255, 255, 255, 0.5);
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
     }
 
-    option {
-      background: var(--bg-secondary);
-      color: var(--text-primary);
+    svg {
+      transition: transform 0.2s;
+    }
+
+    &--open svg {
+      transform: rotate(180deg);
+    }
+  }
+
+  &__video-call-device-dropdown {
+    position: absolute;
+    bottom: calc(100% + 0.5rem);
+    left: 0;
+    min-width: 200px;
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 0.25rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    z-index: 30;
+  }
+
+  &__video-call-device-item {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    text-align: left;
+    color: var(--text-primary);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &:hover {
+      background: var(--bg-primary);
+    }
+
+    &--active {
+      background: var(--bg-primary);
+      font-weight: 500;
     }
   }
 

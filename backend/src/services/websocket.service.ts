@@ -129,7 +129,7 @@ class WebSocketService {
         break;
 
       case 'call:leave':
-        this.handleCallLeave(userId, message.data);
+        void this.handleCallLeave(userId, message.data);
         break;
 
       default:
@@ -406,7 +406,20 @@ class WebSocketService {
     });
   }
 
-  private handleCallLeave(userId: string, data: { chatId: string }): void {
+  private async notifyGroupCallEnded(chatId: string): Promise<void> {
+    try {
+      const chat = await Chat.findById(chatId);
+      if (!chat) return;
+      const participantIds = chat.participants.map((p: any) => p.toString());
+      participantIds.forEach((pid: string) => {
+        this.sendToUser(pid, { type: 'call:ended', data: {} });
+      });
+    } catch (err) {
+      console.error('notifyGroupCallEnded error:', err);
+    }
+  }
+
+  private async handleCallLeave(userId: string, data: { chatId: string }): Promise<void> {
     const { chatId } = data;
     const callSet = this.activeGroupCalls.get(chatId);
     if (!callSet || !callSet.has(userId)) return;
@@ -423,9 +436,15 @@ class WebSocketService {
       }
     });
     if (callSet.size === 0) {
+      await this.notifyGroupCallEnded(chatId);
       this.activeGroupCalls.delete(chatId);
       this.activeGroupCallVideo.delete(chatId);
     } else {
+      if (participants.length === 1) {
+        await this.notifyGroupCallEnded(chatId);
+        this.activeGroupCalls.delete(chatId);
+        this.activeGroupCallVideo.delete(chatId);
+      }
       this.sendToUser(userId, {
         type: 'call:started',
         data: { chatId, participants, isVideo }
