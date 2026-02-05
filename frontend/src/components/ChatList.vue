@@ -302,6 +302,9 @@ const isProfilePage = computed(() => route.path === '/profile');
 
   @media (max-width: 768px) {
     width: 100%;
+    height: 100%;
+    height: 100dvh;
+    min-height: -webkit-fill-available;
     position: absolute;
     left: 0;
     top: 0;
@@ -397,6 +400,10 @@ const isProfilePage = computed(() => route.path === '/profile');
   &__items {
     flex: 1;
     overflow-y: auto;
+
+    @media (max-width: 768px) {
+      padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    }
   }
 
   &__item {
@@ -550,7 +557,12 @@ const isProfilePage = computed(() => route.path === '/profile');
     z-index: 10;
 
     @media (max-width: 768px) {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
       padding: 0.75rem 0;
+      padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
     }
   }
 

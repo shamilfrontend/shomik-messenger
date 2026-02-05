@@ -195,6 +195,13 @@
           </div>
         </div>
 
+        <!-- Выход -->
+        <div class="profile-settings__section">
+          <button type="button" class="profile-settings__logout" @click="handleLogout">
+            Выход
+          </button>
+        </div>
+
         <!-- Секция смены пароля -->
         <div v-if="false" class="profile-settings__section">
           <h3>Смена пароля</h3>
@@ -238,6 +245,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.store';
 import { useCallStore } from '../stores/call.store';
 import { profileService } from '../services/profile.service';
@@ -245,7 +253,14 @@ import { useNotifications } from '../composables/useNotifications';
 import { useSettings } from '../composables/useSettings';
 import { getImageUrl } from '../utils/image';
 
+const router = useRouter();
 const callStore = useCallStore();
+
+const handleLogout = (): void => {
+  authStore.logout();
+  emit('close');
+  router.push('/login');
+};
 
 const props = defineProps<{
   showHeader?: boolean;
@@ -706,6 +721,24 @@ const changePassword = async (): Promise<void> => {
     &:disabled {
       opacity: 0.6;
       cursor: not-allowed;
+    }
+  }
+
+  &__logout {
+    width: 100%;
+    padding: 0.75rem 1.5rem;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+
+    &:hover {
+      background: var(--bg-primary);
+      border-color: var(--text-secondary);
     }
   }
 
