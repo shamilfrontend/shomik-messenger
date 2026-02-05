@@ -1,12 +1,14 @@
 import { onMounted, onUnmounted } from 'vue';
 import { useChatStore } from '../stores/chat.store';
 import { useAuthStore } from '../stores/auth.store';
+import { useCallStore } from '../stores/call.store';
 import websocketService from '../services/websocket';
 import { Message, Chat, User } from '../types';
 
 export const useWebSocket = () => {
   const chatStore = useChatStore();
   const authStore = useAuthStore();
+  const callStore = useCallStore();
 
   // Сохраняем ссылки на обработчики для правильной отписки
   const messageNewHandler = (message: Message) => {
@@ -71,6 +73,30 @@ export const useWebSocket = () => {
     chatStore.updateMessageReactions(data.messageId, data.reactions);
   };
 
+  const callIncomingHandler = (data: { fromUserId: string; chatId: string; caller: { id: string; username: string; avatar?: string } | null }) => {
+    callStore.setIncomingCall(data);
+  };
+
+  const callAcceptedHandler = (data: { chatId: string; acceptedByUserId: string }) => {
+    callStore.onCallAccepted(data.chatId, data.acceptedByUserId);
+  };
+
+  const callRejectedHandler = () => {
+    callStore.setCallEnded();
+  };
+
+  const callEndedHandler = () => {
+    callStore.setCallEnded();
+  };
+
+  const callSignalHandler = (data: { fromUserId: string; signal: { type: string; sdp?: string; candidate?: RTCIceCandidateInit } }) => {
+    callStore.handleRemoteSignal(data.fromUserId, data.signal);
+  };
+
+  const callUnavailableHandler = () => {
+    callStore.setCallEnded();
+  };
+
   onMounted(() => {
     websocketService.on('message:new', messageNewHandler);
     websocketService.on('typing:update', typingUpdateHandler);
@@ -81,6 +107,12 @@ export const useWebSocket = () => {
     websocketService.on('chat:deleted', chatDeletedHandler);
     websocketService.on('user:updated', userUpdatedHandler);
     websocketService.on('message:reaction', messageReactionHandler);
+    websocketService.on('call:incoming', callIncomingHandler);
+    websocketService.on('call:accepted', callAcceptedHandler);
+    websocketService.on('call:rejected', callRejectedHandler);
+    websocketService.on('call:ended', callEndedHandler);
+    websocketService.on('call:signal', callSignalHandler);
+    websocketService.on('call:unavailable', callUnavailableHandler);
   });
 
   onUnmounted(() => {
@@ -93,5 +125,11 @@ export const useWebSocket = () => {
     websocketService.off('chat:deleted', chatDeletedHandler);
     websocketService.off('user:updated', userUpdatedHandler);
     websocketService.off('message:reaction', messageReactionHandler);
+    websocketService.off('call:incoming', callIncomingHandler);
+    websocketService.off('call:accepted', callAcceptedHandler);
+    websocketService.off('call:rejected', callRejectedHandler);
+    websocketService.off('call:ended', callEndedHandler);
+    websocketService.off('call:signal', callSignalHandler);
+    websocketService.off('call:unavailable', callUnavailableHandler);
   });
 };

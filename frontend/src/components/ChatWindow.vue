@@ -3,6 +3,7 @@ import { computed, watch, ref, nextTick, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useChatStore } from '../stores/chat.store';
+import { useCallStore } from '../stores/call.store';
 import MessageInput from './MessageInput.vue';
 import UserInfoModal from './UserInfoModal.vue';
 import GroupSettingsModal from './GroupSettingsModal.vue';
@@ -11,6 +12,8 @@ import { getImageUrl } from '../utils/image';
 import { isUserOnline, getComputedStatus } from '../utils/status';
 
 const chatStore = useChatStore();
+const callStore = useCallStore();
+const remoteAudioRef = ref<HTMLAudioElement | null>(null);
 const messagesContainer = ref<HTMLElement | null>(null);
 const showUserInfo = ref(false);
 const selectedUser = ref<User | null>(null);
@@ -32,14 +35,39 @@ const handleClickOutside = (event: MouseEvent): void => {
   }
 };
 
+const isActiveCallInCurrentChat = computed(() => {
+  const act = callStore.activeCall;
+  return !!currentChat.value && !!act && act.chatId === currentChat.value._id;
+});
+
+const handleStartCall = async (): Promise<void> => {
+  const other = getOtherParticipant();
+  if (!currentChat.value || !other) return;
+  await callStore.startCall(currentChat.value._id, other.id);
+};
+
+const handleAcceptCall = (): void => {
+  if (!callStore.incomingCall) return;
+  callStore.acceptCall(callStore.incomingCall.chatId, callStore.incomingCall.fromUserId);
+};
+
+const handleRejectCall = (): void => {
+  if (!callStore.incomingCall) return;
+  callStore.rejectCall(callStore.incomingCall.chatId, callStore.incomingCall.fromUserId);
+};
+
 onMounted(() => {
   window.addEventListener('resize', handleResize);
   document.addEventListener('click', handleClickOutside);
+  nextTick(() => {
+    callStore.setRemoteAudioRef(remoteAudioRef.value);
+  });
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
   document.removeEventListener('click', handleClickOutside);
+  callStore.setRemoteAudioRef(null);
 });
 
 const currentChat = computed(() => chatStore.currentChat);
@@ -483,6 +511,18 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				</div>
 			</div>
 			<button
+				v-if="currentChat && currentChat.type === 'private' && getOtherParticipant()"
+				@click="handleStartCall"
+				:disabled="callStore.isConnecting || !!callStore.activeCall"
+				class="chat-window__call-button"
+				aria-label="Голосовой звонок"
+				title="Голосовой звонок"
+			>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+				</svg>
+			</button>
+			<button
 				v-if="currentChat && currentChat.type === 'group'"
 				@click="showGroupSettings = true"
 				class="chat-window__settings-button"
@@ -499,6 +539,40 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 		<div v-else class="chat-window__empty">
 			<p>Выберите чат для начала общения</p>
 		</div>
+
+		<!-- Входящий звонок -->
+		<div v-if="callStore.incomingCall" class="chat-window__incoming-call">
+			<div class="chat-window__incoming-call-info">
+				<span class="chat-window__incoming-call-label">Входящий звонок</span>
+				<span class="chat-window__incoming-call-name">{{ callStore.incomingCall.caller?.username || 'Пользователь' }}</span>
+			</div>
+			<div class="chat-window__incoming-call-actions">
+				<button type="button" class="chat-window__call-action chat-window__call-action--reject" @click="handleRejectCall" aria-label="Отклонить">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+					</svg>
+				</button>
+				<button type="button" class="chat-window__call-action chat-window__call-action--accept" @click="handleAcceptCall" aria-label="Принять">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+					</svg>
+				</button>
+			</div>
+		</div>
+
+		<!-- Активный звонок -->
+		<div v-if="callStore.activeCall && isActiveCallInCurrentChat" class="chat-window__active-call">
+			<span class="chat-window__active-call-label">Звонок</span>
+			<button type="button" :class="['chat-window__call-action', { 'chat-window__call-action--muted': callStore.isMuted }]" @click="callStore.setMuted(!callStore.isMuted)" aria-label="Микрофон">
+				<svg v-if="!callStore.isMuted" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+				<svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path></svg>
+			</button>
+			<button type="button" class="chat-window__call-action chat-window__call-action--hangup" @click="callStore.hangUp()" aria-label="Завершить">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+			</button>
+		</div>
+
+		<audio ref="remoteAudioRef" autoplay playsinline />
 
 		<div v-if="currentChat" class="chat-window__messages" ref="messagesContainer">
 			<template v-for="message in messages" :key="message._id">
@@ -713,6 +787,30 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     flex: 1;
   }
 
+  &__call-button {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover:not(:disabled) {
+      background: var(--bg-primary);
+      color: var(--accent-color);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
   &__settings-button {
     background: transparent;
     border: none;
@@ -795,6 +893,91 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
   &__status {
     color: var(--text-secondary);
     font-size: 0.85rem;
+  }
+
+  &__incoming-call {
+    padding: 0.75rem 1rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  &__incoming-call-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  &__incoming-call-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  &__incoming-call-name {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  &__incoming-call-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  &__active-call {
+    padding: 0.5rem 1rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  &__active-call-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    flex: 1;
+  }
+
+  &__call-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-primary);
+    background: var(--bg-primary);
+
+    &:hover {
+      opacity: 0.9;
+    }
+
+    &--accept {
+      background: #22c55e;
+      color: #fff;
+    }
+
+    &--reject {
+      background: #ef4444;
+      color: #fff;
+    }
+
+    &--hangup {
+      background: #ef4444;
+      color: #fff;
+    }
+
+    &--muted {
+      background: var(--text-secondary);
+      color: var(--bg-primary);
+    }
   }
 
   &__empty {

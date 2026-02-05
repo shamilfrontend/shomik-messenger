@@ -99,6 +99,26 @@ class WebSocketService {
         await this.handleMessageRead(userId, message.data.messageId);
         break;
 
+      case 'call:start':
+        await this.handleCallStart(userId, message.data);
+        break;
+
+      case 'call:accept':
+        this.handleCallAccept(userId, message.data);
+        break;
+
+      case 'call:reject':
+        this.handleCallReject(userId, message.data);
+        break;
+
+      case 'call:hangup':
+        this.handleCallHangup(userId, message.data);
+        break;
+
+      case 'call:signal':
+        this.handleCallSignal(userId, message.data);
+        break;
+
       default:
         ws.send(JSON.stringify({
           type: 'error',
@@ -259,6 +279,71 @@ class WebSocketService {
       }
     } catch (error) {
       console.error('Ошибка обработки прочтения сообщения:', error);
+    }
+  }
+
+  private async handleCallStart(callerId: string, data: { chatId: string; targetUserId: string }): Promise<void> {
+    try {
+      const { chatId, targetUserId } = data;
+      const chat = await Chat.findById(chatId);
+      if (!chat || chat.type !== 'private') return;
+      const participants = chat.participants.map((p: any) => p.toString());
+      if (!participants.includes(callerId) || !participants.includes(targetUserId)) return;
+      const targetClient = this.clients.get(targetUserId);
+      if (!targetClient) {
+        this.sendToUser(callerId, { type: 'call:unavailable', data: { chatId } });
+        return;
+      }
+      const caller = await User.findById(callerId).select('username avatar').lean();
+      targetClient.send(JSON.stringify({
+        type: 'call:incoming',
+        data: {
+          fromUserId: callerId,
+          chatId,
+          caller: caller ? { id: caller._id.toString(), username: caller.username, avatar: caller.avatar } : null
+        }
+      }));
+    } catch (error) {
+      console.error('Ошибка call:start:', error);
+    }
+  }
+
+  private handleCallAccept(acceptorId: string, data: { chatId: string; fromUserId: string }): void {
+    const { fromUserId } = data;
+    const callerClient = this.clients.get(fromUserId);
+    if (callerClient) {
+      callerClient.send(JSON.stringify({
+        type: 'call:accepted',
+        data: { chatId: data.chatId, acceptedByUserId: acceptorId }
+      }));
+    }
+  }
+
+  private handleCallReject(rejectorId: string, data: { chatId: string; fromUserId: string }): void {
+    const { fromUserId } = data;
+    const callerClient = this.clients.get(fromUserId);
+    if (callerClient) {
+      callerClient.send(JSON.stringify({
+        type: 'call:rejected',
+        data: { chatId: data.chatId }
+      }));
+    }
+  }
+
+  private handleCallHangup(userId: string, data: { targetUserId: string }): void {
+    const targetClient = this.clients.get(data.targetUserId);
+    if (targetClient) {
+      targetClient.send(JSON.stringify({ type: 'call:ended', data: { byUserId: userId } }));
+    }
+  }
+
+  private handleCallSignal(userId: string, data: { targetUserId: string; signal: any }): void {
+    const targetClient = this.clients.get(data.targetUserId);
+    if (targetClient) {
+      targetClient.send(JSON.stringify({
+        type: 'call:signal',
+        data: { fromUserId: userId, signal: data.signal }
+      }));
     }
   }
 
