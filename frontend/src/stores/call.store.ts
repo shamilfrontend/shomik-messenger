@@ -4,10 +4,13 @@ import websocketService from '../services/websocket';
 import { useAuthStore } from './auth.store';
 
 const STUN_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+const STORAGE_MIC_KEY = 'call-preferred-mic-id';
+const STORAGE_CAMERA_KEY = 'call-preferred-camera-id';
 
 export interface IncomingCall {
   fromUserId: string;
   chatId: string;
+  isVideo?: boolean;
   caller: { id: string; username: string; avatar?: string } | null;
 }
 
@@ -17,12 +20,14 @@ export interface ActiveCall {
   peerUserId?: string;
   participants: string[];
   isInitiator: boolean;
+  isVideo?: boolean;
 }
 
 /** Групповой созвон идёт, можно присоединиться */
 export interface GroupCallAvailable {
   chatId: string;
   participants: string[];
+  isVideo?: boolean;
 }
 
 export const useCallStore = defineStore('call', () => {
@@ -31,21 +36,38 @@ export const useCallStore = defineStore('call', () => {
   const activeCall = ref<ActiveCall | null>(null);
   const groupCallAvailable = ref<GroupCallAvailable | null>(null);
   const isMuted = ref(false);
+  const isVideoOff = ref(false);
   const isConnecting = ref(false);
+  /** Удалённые видеопотоки по userId (для видеозвонка) */
+  const remoteStreams = ref<Record<string, MediaStream>>({});
+
+  const audioDevices = ref<MediaDeviceInfo[]>([]);
+  const videoDevices = ref<MediaDeviceInfo[]>([]);
+  const selectedMicId = ref<string | null>(typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_MIC_KEY) : null);
+  const selectedCameraId = ref<string | null>(typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_CAMERA_KEY) : null);
 
   const currentUserId = computed(() => authStore.user?.id ?? null);
   const isGroupCall = computed(() => activeCall.value?.callType === 'group');
+  const isVideoCall = computed(() => activeCall.value?.isVideo === true);
 
   let peerConnection: RTCPeerConnection | null = null;
   let peerConnections: Map<string, RTCPeerConnection> = new Map();
   let localStream: MediaStream | null = null;
   let remoteAudioRef: HTMLAudioElement | null = null;
+  let localVideoRef: HTMLVideoElement | null = null;
   let combinedRemoteStream: MediaStream | null = null;
 
   function setRemoteAudioRef(el: HTMLAudioElement | null): void {
     remoteAudioRef = el;
-    if (el && activeCall.value) {
+    if (el && activeCall.value && !activeCall.value.isVideo) {
       el.srcObject = combinedRemoteStream || null;
+    }
+  }
+
+  function setLocalVideoRef(el: HTMLVideoElement | null): void {
+    localVideoRef = el;
+    if (el && localStream) {
+      el.srcObject = localStream;
     }
   }
 
@@ -54,15 +76,64 @@ export const useCallStore = defineStore('call', () => {
     return activeCall.value.peerUserId ?? null;
   }
 
-  async function getLocalStream(): Promise<MediaStream> {
-    if (localStream) return localStream;
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  async function loadDevices(): Promise<void> {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      audioDevices.value = devices.filter((d) => d.kind === 'audioinput');
+      videoDevices.value = devices.filter((d) => d.kind === 'videoinput');
+    } catch (err) {
+      console.error('loadDevices error:', err);
+    }
+  }
+
+  function setSelectedMic(deviceId: string | null): void {
+    selectedMicId.value = deviceId;
+    if (typeof localStorage !== 'undefined') {
+      if (deviceId) localStorage.setItem(STORAGE_MIC_KEY, deviceId);
+      else localStorage.removeItem(STORAGE_MIC_KEY);
+    }
+  }
+
+  function setSelectedCamera(deviceId: string | null): void {
+    selectedCameraId.value = deviceId;
+    if (typeof localStorage !== 'undefined') {
+      if (deviceId) localStorage.setItem(STORAGE_CAMERA_KEY, deviceId);
+      else localStorage.removeItem(STORAGE_CAMERA_KEY);
+    }
+  }
+
+  async function getLocalStream(options: { video?: boolean } = {}): Promise<MediaStream> {
+    const needVideo = options.video ?? false;
+    if (localStream) {
+      const hasVideo = localStream.getVideoTracks().length > 0;
+      if (hasVideo === needVideo) return localStream;
+      localStream.getTracks().forEach((t) => t.stop());
+      localStream = null;
+    }
+    const audioConstraint: MediaTrackConstraints | boolean = selectedMicId.value
+      ? { deviceId: { ideal: selectedMicId.value } }
+      : true;
+    const videoConstraint: boolean | MediaTrackConstraints = needVideo
+      ? {
+          ...(selectedCameraId.value ? { deviceId: { ideal: selectedCameraId.value } } : {}),
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        }
+      : false;
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: audioConstraint,
+      video: videoConstraint
+    });
+    if (localVideoRef && needVideo) {
+      localVideoRef.srcObject = localStream;
+    }
     return localStream;
   }
 
   function createPeerConnection(
     peerUserId: string,
-    onTrack?: (stream: MediaStream) => void
+    onTrack?: (stream: MediaStream) => void,
+    isVideo?: boolean
   ): RTCPeerConnection {
     const pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
 
@@ -77,12 +148,13 @@ export const useCallStore = defineStore('call', () => {
 
     pc.ontrack = (event) => {
       const stream = event.streams[0];
-      if (combinedRemoteStream) {
+      if (isVideo && onTrack) {
+        onTrack(stream);
+      } else if (combinedRemoteStream) {
         stream.getTracks().forEach((t) => combinedRemoteStream!.addTrack(t));
       } else if (remoteAudioRef) {
         remoteAudioRef.srcObject = stream;
       }
-      onTrack?.(stream);
     };
 
     pc.onconnectionstatechange = () => {
@@ -107,22 +179,33 @@ export const useCallStore = defineStore('call', () => {
       localStream = null;
     }
     combinedRemoteStream = null;
+    remoteStreams.value = {};
     if (remoteAudioRef) {
       remoteAudioRef.srcObject = null;
+    }
+    if (localVideoRef) {
+      localVideoRef.srcObject = null;
     }
     activeCall.value = null;
     incomingCall.value = null;
     groupCallAvailable.value = null;
+    isVideoOff.value = false;
     isConnecting.value = false;
   }
 
-  async function startCall(chatId: string, targetUserId: string): Promise<void> {
+  async function startCall(chatId: string, targetUserId: string, isVideo = false): Promise<void> {
     if (activeCall.value || incomingCall.value || !currentUserId.value) return;
     isMuted.value = false;
+    isVideoOff.value = false;
     isConnecting.value = true;
     try {
-      const stream = await getLocalStream();
-      peerConnection = createPeerConnection(targetUserId);
+      const stream = await getLocalStream({ video: isVideo });
+      const onTrack = isVideo
+        ? (remoteStream: MediaStream) => {
+            remoteStreams.value = { ...remoteStreams.value, [targetUserId]: remoteStream };
+          }
+        : undefined;
+      peerConnection = createPeerConnection(targetUserId, onTrack, isVideo);
       stream.getTracks().forEach((track) => peerConnection!.addTrack(track, stream));
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
@@ -131,9 +214,10 @@ export const useCallStore = defineStore('call', () => {
         callType: 'private',
         peerUserId: targetUserId,
         participants: [currentUserId.value, targetUserId],
-        isInitiator: true
+        isInitiator: true,
+        isVideo
       };
-      websocketService.send('call:start', { chatId, targetUserId });
+      websocketService.send('call:start', { chatId, targetUserId, isVideo });
     } catch (err) {
       console.error('startCall error:', err);
       cleanup();
@@ -142,20 +226,22 @@ export const useCallStore = defineStore('call', () => {
     }
   }
 
-  async function startGroupCall(chatId: string): Promise<void> {
+  async function startGroupCall(chatId: string, isVideo = false): Promise<void> {
     if (activeCall.value || incomingCall.value || !currentUserId.value) return;
     isMuted.value = false;
+    isVideoOff.value = false;
     isConnecting.value = true;
     try {
-      await getLocalStream();
+      await getLocalStream({ video: isVideo });
       activeCall.value = {
         chatId,
         callType: 'group',
         participants: [currentUserId.value],
-        isInitiator: true
+        isInitiator: true,
+        isVideo
       };
       groupCallAvailable.value = null;
-      websocketService.send('call:start', { chatId });
+      websocketService.send('call:start', { chatId, isVideo });
     } catch (err) {
       console.error('startGroupCall error:', err);
       cleanup();
@@ -164,21 +250,28 @@ export const useCallStore = defineStore('call', () => {
     }
   }
 
-  function setGroupCallStarted(chatId: string, participants: string[]): void {
+  function setGroupCallStarted(chatId: string, participants: string[], isVideo?: boolean): void {
     if (activeCall.value?.chatId === chatId) return;
-    groupCallAvailable.value = { chatId, participants };
+    groupCallAvailable.value = { chatId, participants, isVideo };
   }
 
   async function joinGroupCall(chatId: string): Promise<void> {
     if (activeCall.value || !currentUserId.value) return;
     if (groupCallAvailable.value?.chatId !== chatId) return;
+    const isVideo = groupCallAvailable.value?.isVideo === true;
     isMuted.value = false;
+    isVideoOff.value = false;
     isConnecting.value = true;
     groupCallAvailable.value = null;
     try {
-      const stream = await getLocalStream();
-      combinedRemoteStream = new MediaStream();
-      if (remoteAudioRef) remoteAudioRef.srcObject = combinedRemoteStream;
+      const stream = await getLocalStream({ video: isVideo });
+      if (isVideo) {
+        if (!combinedRemoteStream) combinedRemoteStream = new MediaStream();
+        if (remoteAudioRef) remoteAudioRef.srcObject = null;
+      } else {
+        combinedRemoteStream = new MediaStream();
+        if (remoteAudioRef) remoteAudioRef.srcObject = combinedRemoteStream;
+      }
       websocketService.send('call:join', { chatId });
     } catch (err) {
       console.error('joinGroupCall error:', err);
@@ -189,21 +282,30 @@ export const useCallStore = defineStore('call', () => {
   async function onCallJoinedGroup(
     chatId: string,
     participants: string[],
-    initiatorId?: string
+    initiatorId?: string,
+    isVideo?: boolean
   ): Promise<void> {
     if (!currentUserId.value) return;
     const me = currentUserId.value;
     const isInitiator = initiatorId === me;
     isConnecting.value = true;
     try {
-      const stream = localStream || (await getLocalStream());
-      if (!combinedRemoteStream) {
+      const stream = localStream || (await getLocalStream({ video: isVideo }));
+      if (isVideo) {
+        if (!combinedRemoteStream) combinedRemoteStream = new MediaStream();
+        if (remoteAudioRef) remoteAudioRef.srcObject = null;
+      } else if (!combinedRemoteStream) {
         combinedRemoteStream = new MediaStream();
         if (remoteAudioRef) remoteAudioRef.srcObject = combinedRemoteStream;
       }
       const others = participants.filter((id) => id !== me);
       others.forEach((peerId) => {
-        const pc = createPeerConnection(peerId);
+        const onTrack = isVideo
+          ? (remoteStream: MediaStream) => {
+              remoteStreams.value = { ...remoteStreams.value, [peerId]: remoteStream };
+            }
+          : undefined;
+        const pc = createPeerConnection(peerId, onTrack, isVideo);
         stream.getTracks().forEach((track) => pc.addTrack(track, stream));
         peerConnections.set(peerId, pc);
       });
@@ -211,7 +313,8 @@ export const useCallStore = defineStore('call', () => {
         chatId,
         callType: 'group',
         participants: [me, ...others],
-        isInitiator
+        isInitiator,
+        isVideo
       };
     } finally {
       isConnecting.value = false;
@@ -221,8 +324,14 @@ export const useCallStore = defineStore('call', () => {
   async function onParticipantJoined(chatId: string, userId: string): Promise<void> {
     if (!activeCall.value || activeCall.value.chatId !== chatId || activeCall.value.callType !== 'group') return;
     if (peerConnections.has(userId)) return;
-    const stream = localStream || (await getLocalStream());
-    const pc = createPeerConnection(userId);
+    const isVideo = activeCall.value.isVideo === true;
+    const stream = localStream || (await getLocalStream({ video: isVideo }));
+    const onTrack = isVideo
+      ? (remoteStream: MediaStream) => {
+          remoteStreams.value = { ...remoteStreams.value, [userId]: remoteStream };
+        }
+      : undefined;
+    const pc = createPeerConnection(userId, onTrack, isVideo);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     peerConnections.set(userId, pc);
     const offer = await pc.createOffer();
@@ -239,6 +348,11 @@ export const useCallStore = defineStore('call', () => {
     if (pc) {
       pc.close();
       peerConnections.delete(userId);
+    }
+    if (activeCall.value?.isVideo) {
+      const next = { ...remoteStreams.value };
+      delete next[userId];
+      remoteStreams.value = next;
     }
     if (activeCall.value?.chatId === chatId && activeCall.value.participants) {
       activeCall.value = {
@@ -273,19 +387,27 @@ export const useCallStore = defineStore('call', () => {
       incomingCall.value.chatId !== chatId
     )
       return;
+    const isVideo = incomingCall.value.isVideo === true;
     isMuted.value = false;
+    isVideoOff.value = false;
     isConnecting.value = true;
     incomingCall.value = null;
     try {
-      const stream = await getLocalStream();
-      peerConnection = createPeerConnection(fromUserId);
+      const stream = await getLocalStream({ video: isVideo });
+      const onTrack = isVideo
+        ? (remoteStream: MediaStream) => {
+            remoteStreams.value = { ...remoteStreams.value, [fromUserId]: remoteStream };
+          }
+        : undefined;
+      peerConnection = createPeerConnection(fromUserId, onTrack, isVideo);
       stream.getTracks().forEach((track) => peerConnection!.addTrack(track, stream));
       activeCall.value = {
         chatId,
         callType: 'private',
         peerUserId: fromUserId,
         participants: [currentUserId.value!, fromUserId],
-        isInitiator: false
+        isInitiator: false,
+        isVideo
       };
       websocketService.send('call:accept', { chatId, fromUserId });
     } catch (err) {
@@ -349,6 +471,15 @@ export const useCallStore = defineStore('call', () => {
     }
   }
 
+  function setVideoOff(off: boolean): void {
+    isVideoOff.value = off;
+    if (localStream) {
+      localStream.getVideoTracks().forEach((track) => {
+        track.enabled = !off;
+      });
+    }
+  }
+
   function setIncomingCall(payload: IncomingCall | null): void {
     incomingCall.value = payload;
   }
@@ -362,11 +493,22 @@ export const useCallStore = defineStore('call', () => {
     activeCall,
     groupCallAvailable,
     isMuted,
+    isVideoOff,
     isConnecting,
+    remoteStreams,
+    audioDevices,
+    videoDevices,
+    selectedMicId,
+    selectedCameraId,
     currentUserId,
     isGroupCall,
+    isVideoCall,
     setRemoteAudioRef,
+    setLocalVideoRef,
     getPeerUserId,
+    loadDevices,
+    setSelectedMic,
+    setSelectedCamera,
     startCall,
     startGroupCall,
     joinGroupCall,
@@ -380,6 +522,7 @@ export const useCallStore = defineStore('call', () => {
     hangUp,
     handleRemoteSignal,
     setMuted,
+    setVideoOff,
     setIncomingCall,
     setCallEnded,
     cleanup

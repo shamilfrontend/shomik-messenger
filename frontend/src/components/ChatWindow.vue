@@ -14,6 +14,10 @@ import { isUserOnline, getComputedStatus } from '../utils/status';
 const chatStore = useChatStore();
 const callStore = useCallStore();
 const remoteAudioRef = ref<HTMLAudioElement | null>(null);
+const localVideoRef = ref<HTMLVideoElement | null>(null);
+const remoteVideoRef = ref<HTMLVideoElement | null>(null);
+/** Элементы <video> для удалённых потоков по userId (групповой видеозвонок) */
+const remoteVideoEls: Record<string, HTMLVideoElement | null> = {};
 const messagesContainer = ref<HTMLElement | null>(null);
 const showUserInfo = ref(false);
 const selectedUser = ref<User | null>(null);
@@ -47,7 +51,13 @@ const getChatNameById = (chatId: string): string => {
 const handleStartCall = async (): Promise<void> => {
   const other = getOtherParticipant();
   if (!currentChat.value || !other) return;
-  await callStore.startCall(currentChat.value._id, other.id);
+  await callStore.startCall(currentChat.value._id, other.id, false);
+};
+
+const handleStartVideoCall = async (): Promise<void> => {
+  const other = getOtherParticipant();
+  if (!currentChat.value || !other) return;
+  await callStore.startCall(currentChat.value._id, other.id, true);
 };
 
 const handleAcceptCall = (): void => {
@@ -62,7 +72,12 @@ const handleRejectCall = (): void => {
 
 const handleStartGroupCall = async (): Promise<void> => {
   if (!currentChat.value) return;
-  await callStore.startGroupCall(currentChat.value._id);
+  await callStore.startGroupCall(currentChat.value._id, false);
+};
+
+const handleStartGroupVideoCall = async (): Promise<void> => {
+  if (!currentChat.value) return;
+  await callStore.startGroupCall(currentChat.value._id, true);
 };
 
 const handleJoinGroupCall = (): void => {
@@ -76,6 +91,7 @@ onMounted(() => {
   document.addEventListener('click', handleClickOutside);
   nextTick(() => {
     callStore.setRemoteAudioRef(remoteAudioRef.value);
+    callStore.setLocalVideoRef(localVideoRef.value);
   });
 });
 
@@ -83,6 +99,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
   document.removeEventListener('click', handleClickOutside);
   callStore.setRemoteAudioRef(null);
+  callStore.setLocalVideoRef(null);
 });
 
 const currentChat = computed(() => chatStore.currentChat);
@@ -106,6 +123,51 @@ watch(currentChat, () => {
   replyToMessage.value = null;
   showReactionMenu.value = null;
 });
+
+watch(
+  () => callStore.remoteStreams && callStore.activeCall?.peerUserId
+    ? callStore.remoteStreams[callStore.activeCall.peerUserId]
+    : null,
+  (stream) => {
+    if (remoteVideoRef.value) {
+      remoteVideoRef.value.srcObject = stream || null;
+    }
+  },
+  { immediate: true }
+);
+
+/** Привязка элемента видео к удалённому потоку по userId (для группового видеозвонка) */
+function setRemoteVideoEl(userId: string, el: unknown): void {
+  if (!el || !(el instanceof HTMLVideoElement)) {
+    delete remoteVideoEls[userId];
+    return;
+  }
+  remoteVideoEls[userId] = el;
+  el.srcObject = callStore.remoteStreams[userId] || null;
+}
+
+watch(
+  () => callStore.remoteStreams,
+  () => {
+    Object.entries(remoteVideoEls).forEach(([uid, video]) => {
+      if (video) video.srcObject = callStore.remoteStreams[uid] || null;
+    });
+  },
+  { deep: true }
+);
+
+watch(
+  () => callStore.activeCall?.isVideo === true,
+  (isVideo) => {
+    if (isVideo) {
+      nextTick(() => {
+        callStore.setLocalVideoRef(localVideoRef.value);
+      });
+    } else {
+      callStore.setLocalVideoRef(null);
+    }
+  }
+);
 
 const scrollToBottom = (): void => {
   if (messagesContainer.value) {
@@ -538,7 +600,20 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				</svg>
 			</button>
 			<button
-				v-if="currentChat && currentChat.type === 'group' && !callStore.activeCall && !isGroupCallAvailableForCurrentChat"
+				v-if="currentChat && currentChat.type === 'private' && getOtherParticipant()"
+				@click="handleStartVideoCall"
+				:disabled="callStore.isConnecting || !!callStore.activeCall"
+				class="chat-window__call-button"
+				aria-label="Видеозвонок"
+				title="Видеозвонок"
+			>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M23 7l-7 5 7 5V7z"></path>
+					<rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+				</svg>
+			</button>
+			<button
+				v-if="currentChat && currentChat.type === 'group' && !callStore.activeCall && (!callStore.groupCallAvailable || callStore.groupCallAvailable.chatId !== currentChat._id)"
 				@click="handleStartGroupCall"
 				:disabled="callStore.isConnecting"
 				class="chat-window__call-button"
@@ -547,6 +622,19 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			>
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+				</svg>
+			</button>
+			<button
+				v-if="currentChat && currentChat.type === 'group' && !callStore.activeCall && (!callStore.groupCallAvailable || callStore.groupCallAvailable.chatId !== currentChat._id)"
+				@click="handleStartGroupVideoCall"
+				:disabled="callStore.isConnecting"
+				class="chat-window__call-button"
+				aria-label="Групповой видеозвонок"
+				title="Начать групповой видеозвонок"
+			>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M23 7l-7 5 7 5V7z"></path>
+					<rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
 				</svg>
 			</button>
 			<button
@@ -570,7 +658,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 		<!-- Входящий звонок -->
 		<div v-if="callStore.incomingCall" class="chat-window__incoming-call">
 			<div class="chat-window__incoming-call-info">
-				<span class="chat-window__incoming-call-label">Входящий звонок</span>
+				<span class="chat-window__incoming-call-label">{{ callStore.incomingCall.isVideo ? 'Входящий видеозвонок' : 'Входящий звонок' }}</span>
 				<span class="chat-window__incoming-call-name">{{ callStore.incomingCall.caller?.username || 'Пользователь' }}</span>
 			</div>
 			<div class="chat-window__incoming-call-actions">
@@ -590,7 +678,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 		<!-- Можно присоединиться к групповому созвону (показываем всегда, если есть активный созвон) -->
 		<div v-if="callStore.groupCallAvailable" class="chat-window__incoming-call">
 			<div class="chat-window__incoming-call-info">
-				<span class="chat-window__incoming-call-label">Групповой созвон</span>
+				<span class="chat-window__incoming-call-label">{{ callStore.groupCallAvailable.isVideo ? 'Групповой видеосозвон' : 'Групповой созвон' }}</span>
 				<span class="chat-window__incoming-call-name">{{ getChatNameById(callStore.groupCallAvailable.chatId) }} · Участников: {{ callStore.groupCallAvailable.participants.length }}</span>
 			</div>
 			<div class="chat-window__incoming-call-actions">
@@ -603,7 +691,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 		</div>
 
 		<!-- Активный звонок (всегда виден, пока пользователь в созвоне) -->
-		<div v-if="callStore.activeCall" class="chat-window__active-call">
+		<div v-if="callStore.activeCall && !callStore.isVideoCall" class="chat-window__active-call">
 			<span class="chat-window__active-call-label">
 				{{ callStore.isGroupCall
 					? `${getChatNameById(callStore.activeCall.chatId)} · Групповой звонок (${callStore.activeCall.participants.length})`
@@ -617,6 +705,53 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			<button type="button" class="chat-window__call-action chat-window__call-action--hangup" @click="callStore.hangUp()" aria-label="Завершить">
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
 			</button>
+		</div>
+
+		<!-- Видеозвонок: полноэкранная панель с видео -->
+		<div v-if="callStore.activeCall && callStore.isVideoCall" class="chat-window__video-call">
+			<div class="chat-window__video-call-remote" :class="{ 'chat-window__video-call-remote--grid': callStore.isGroupCall }">
+				<template v-if="callStore.isGroupCall">
+					<div
+						v-for="userId in Object.keys(callStore.remoteStreams)"
+						:key="userId"
+						class="chat-window__video-call-tile"
+					>
+						<video
+							:ref="(el) => setRemoteVideoEl(userId, el)"
+							autoplay
+							playsinline
+							class="chat-window__video-call-video"
+						/>
+					</div>
+					<div v-if="Object.keys(callStore.remoteStreams).length === 0" class="chat-window__video-call-placeholder">
+						<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+						<span>Ожидание видео...</span>
+					</div>
+				</template>
+				<template v-else>
+					<video ref="remoteVideoRef" autoplay playsinline class="chat-window__video-call-video" />
+					<div v-if="!callStore.activeCall?.peerUserId || !callStore.remoteStreams[callStore.activeCall.peerUserId]" class="chat-window__video-call-placeholder">
+						<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+						<span>Ожидание видео...</span>
+					</div>
+				</template>
+			</div>
+			<div class="chat-window__video-call-local">
+				<video ref="localVideoRef" autoplay muted playsinline class="chat-window__video-call-video chat-window__video-call-video--local" />
+			</div>
+			<div class="chat-window__video-call-controls">
+				<button type="button" :class="['chat-window__call-action', { 'chat-window__call-action--muted': callStore.isMuted }]" @click="callStore.setMuted(!callStore.isMuted)" aria-label="Микрофон">
+					<svg v-if="!callStore.isMuted" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+					<svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path></svg>
+				</button>
+				<button type="button" :class="['chat-window__call-action', { 'chat-window__call-action--muted': callStore.isVideoOff }]" @click="callStore.setVideoOff(!callStore.isVideoOff)" aria-label="Камера">
+					<svg v-if="!callStore.isVideoOff" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+					<svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+				</button>
+				<button type="button" class="chat-window__call-action chat-window__call-action--hangup" @click="callStore.hangUp()" aria-label="Завершить">
+					<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+				</button>
+			</div>
 		</div>
 
 		<audio ref="remoteAudioRef" autoplay playsinline />
@@ -790,6 +925,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
 <style scoped lang="scss">
 .chat-window {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1025,6 +1161,91 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
       background: var(--text-secondary);
       color: var(--bg-primary);
     }
+  }
+
+  &__video-call {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__video-call-remote {
+    flex: 1;
+    position: relative;
+    background: #000;
+    min-height: 0;
+
+    &--grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.5rem;
+      padding: 0.5rem;
+      align-content: start;
+    }
+  }
+
+  &__video-call-tile {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background: #111;
+    border-radius: 8px;
+    overflow: hidden;
+
+    .chat-window__video-call-video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  &__video-call-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+
+    &--local {
+      object-fit: cover;
+    }
+  }
+
+  &__video-call-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+  }
+
+  &__video-call-local {
+    position: absolute;
+    right: 1rem;
+    bottom: 5rem;
+    width: 120px;
+    height: 90px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid var(--border-color);
+    background: #000;
+  }
+
+  &__video-call-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 1rem;
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
   }
 
   &__empty {

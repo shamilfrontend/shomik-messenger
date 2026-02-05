@@ -11,6 +11,8 @@ class WebSocketService {
   private typingUsers: Map<string, Set<string>> = new Map();
   /** Групповые созвоны: chatId -> Set участников (userId) */
   private activeGroupCalls: Map<string, Set<string>> = new Map();
+  /** Групповой созвон с видео: chatId -> isVideo */
+  private activeGroupCallVideo: Map<string, boolean> = new Map();
 
   constructor(server: Server) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
@@ -293,7 +295,7 @@ class WebSocketService {
     }
   }
 
-  private async handleCallStart(callerId: string, data: { chatId: string; targetUserId?: string }): Promise<void> {
+  private async handleCallStart(callerId: string, data: { chatId: string; targetUserId?: string; isVideo?: boolean }): Promise<void> {
     try {
       const { chatId, targetUserId } = data;
       const chat = await Chat.findById(chatId);
@@ -302,14 +304,16 @@ class WebSocketService {
       if (!participantIds.includes(callerId)) return;
 
       if (chat.type === 'group' && !targetUserId) {
+        const isVideo = Boolean(data.isVideo);
         if (!this.activeGroupCalls.has(chatId)) {
           this.activeGroupCalls.set(chatId, new Set());
         }
         this.activeGroupCalls.get(chatId)!.add(callerId);
+        this.activeGroupCallVideo.set(chatId, isVideo);
         const participants = Array.from(this.activeGroupCalls.get(chatId)!);
         this.sendToUser(callerId, {
           type: 'call:joined',
-          data: { chatId, participants, initiatorId: callerId }
+          data: { chatId, participants, initiatorId: callerId, isVideo }
         });
         participantIds.forEach((pid: string) => {
           if (pid !== callerId) {
@@ -317,7 +321,7 @@ class WebSocketService {
             if (client) {
               client.send(JSON.stringify({
                 type: 'call:started',
-                data: { chatId, participants, initiatorId: callerId }
+                data: { chatId, participants, initiatorId: callerId, isVideo }
               }));
             }
           }
@@ -333,11 +337,13 @@ class WebSocketService {
           return;
         }
         const caller = await User.findById(callerId).select('username avatar').lean();
+        const isVideo = Boolean(data.isVideo);
         targetClient.send(JSON.stringify({
           type: 'call:incoming',
           data: {
             fromUserId: callerId,
             chatId,
+            isVideo,
             caller: caller ? { id: caller._id.toString(), username: caller.username, avatar: caller.avatar } : null
           }
         }));
@@ -359,9 +365,10 @@ class WebSocketService {
       callSet.add(userId);
       const participants = Array.from(callSet);
       const others = participants.filter((id: string) => id !== userId);
+      const isVideo = this.activeGroupCallVideo.get(chatId) ?? false;
       this.sendToUser(userId, {
         type: 'call:joined',
-        data: { chatId, participants: others }
+        data: { chatId, participants: others, isVideo }
       });
       others.forEach((pid: string) => {
         const client = this.clients.get(pid);
@@ -393,6 +400,7 @@ class WebSocketService {
         });
         if (callSet.size === 0) {
           this.activeGroupCalls.delete(chatId);
+          this.activeGroupCallVideo.delete(chatId);
         }
       }
     });
@@ -415,6 +423,7 @@ class WebSocketService {
     });
     if (callSet.size === 0) {
       this.activeGroupCalls.delete(chatId);
+      this.activeGroupCallVideo.delete(chatId);
     }
   }
 

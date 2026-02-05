@@ -73,7 +73,7 @@ export const useWebSocket = () => {
     chatStore.updateMessageReactions(data.messageId, data.reactions);
   };
 
-  const callIncomingHandler = (data: { fromUserId: string; chatId: string; caller: { id: string; username: string; avatar?: string } | null }) => {
+  const callIncomingHandler = (data: { fromUserId: string; chatId: string; isVideo?: boolean; caller: { id: string; username: string; avatar?: string } | null }) => {
     callStore.setIncomingCall(data);
   };
 
@@ -97,12 +97,12 @@ export const useWebSocket = () => {
     callStore.setCallEnded();
   };
 
-  const callStartedHandler = (data: { chatId: string; participants: string[] }) => {
-    callStore.setGroupCallStarted(data.chatId, data.participants);
+  const callStartedHandler = (data: { chatId: string; participants: string[]; isVideo?: boolean }) => {
+    callStore.setGroupCallStarted(data.chatId, data.participants, data.isVideo);
   };
 
-  const callJoinedHandler = (data: { chatId: string; participants: string[]; initiatorId?: string }) => {
-    callStore.onCallJoinedGroup(data.chatId, data.participants, data.initiatorId);
+  const callJoinedHandler = (data: { chatId: string; participants: string[]; initiatorId?: string; isVideo?: boolean }) => {
+    callStore.onCallJoinedGroup(data.chatId, data.participants, data.initiatorId, data.isVideo);
   };
 
   const callParticipantJoinedHandler = (data: { chatId: string; userId: string }) => {

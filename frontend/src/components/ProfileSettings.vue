@@ -106,6 +106,48 @@
           </div>
         </div>
 
+        <!-- Устройства для звонков -->
+        <div class="profile-settings__section">
+          <h3>Устройства для звонков</h3>
+          <div class="profile-settings__form">
+            <div class="profile-settings__field">
+              <label>Микрофон</label>
+              <select
+                :value="callStore.selectedMicId ?? ''"
+                @change="callStore.setSelectedMic(($event.target as HTMLSelectElement).value || null)"
+                class="profile-settings__select"
+              >
+                <option value="">По умолчанию</option>
+                <option
+                  v-for="dev in callStore.audioDevices"
+                  :key="dev.deviceId"
+                  :value="dev.deviceId"
+                >
+                  {{ dev.label || `Микрофон ${dev.deviceId.slice(0, 8)}` }}
+                </option>
+              </select>
+            </div>
+            <div class="profile-settings__field">
+              <label>Камера</label>
+              <select
+                :value="callStore.selectedCameraId ?? ''"
+                @change="callStore.setSelectedCamera(($event.target as HTMLSelectElement).value || null)"
+                class="profile-settings__select"
+              >
+                <option value="">По умолчанию</option>
+                <option
+                  v-for="dev in callStore.videoDevices"
+                  :key="dev.deviceId"
+                  :value="dev.deviceId"
+                >
+                  {{ dev.label || `Камера ${dev.deviceId.slice(0, 8)}` }}
+                </option>
+              </select>
+            </div>
+            <p class="profile-settings__devices-hint">Выбор применяется к следующим звонкам. Разрешите доступ к микрофону и камере, чтобы видеть названия устройств.</p>
+          </div>
+        </div>
+
         <!-- Секция темы -->
         <div class="profile-settings__section">
           <h3>Тема</h3>
@@ -195,12 +237,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
+import { useCallStore } from '../stores/call.store';
 import { profileService } from '../services/profile.service';
 import { useNotifications } from '../composables/useNotifications';
 import { useSettings } from '../composables/useSettings';
 import { getImageUrl } from '../utils/image';
+
+const callStore = useCallStore();
 
 const props = defineProps<{
   showHeader?: boolean;
@@ -233,6 +278,10 @@ watch(messageTextSize, (newSize) => {
 watch(theme, (newTheme) => {
   tempTheme.value = newTheme;
 }, { immediate: true });
+
+onMounted(() => {
+  callStore.loadDevices();
+});
 
 // Сохранение размера текста
 const saveTextSize = async (): Promise<void> => {
@@ -615,6 +664,27 @@ const changePassword = async (): Promise<void> => {
         cursor: not-allowed;
       }
     }
+
+    select.profile-settings__select {
+      padding: 0.75rem;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 1rem;
+      cursor: pointer;
+
+      &:focus {
+        outline: none;
+        border-color: var(--accent-color);
+      }
+    }
+  }
+
+  &__devices-hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
   }
 
   &__save {
