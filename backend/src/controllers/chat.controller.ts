@@ -1028,10 +1028,11 @@ export const deleteMessage = async (req: AuthRequest, res: Response): Promise<vo
 
     // Если это было последнее сообщение, обновляем lastMessage чата
     // Получаем ID текущего lastMessage (может быть ObjectId или populated объект)
-    const currentLastMessageId = chat.lastMessage 
-      ? (typeof chat.lastMessage === 'object' && '_id' in chat.lastMessage
-          ? (chat.lastMessage as any)._id.toString()
-          : chat.lastMessage.toString())
+    const lastMsg = chat.lastMessage;
+    const currentLastMessageId = lastMsg
+      ? (typeof lastMsg === 'object' && lastMsg !== null && '_id' in lastMsg
+          ? (lastMsg as { _id: { toString(): string } })._id.toString()
+          : String(lastMsg))
       : null;
     
     if (currentLastMessageId === messageId) {
