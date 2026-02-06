@@ -27,6 +27,7 @@ const showUserInfo = ref(false);
 const selectedUser = ref<User | null>(null);
 const showGroupSettings = ref(false);
 const replyToMessage = ref<Message | null>(null);
+const editMessage = ref<Message | null>(null);
 const isMobile = ref(window.innerWidth <= 768);
 const showReactionMenu = ref<string | null>(null);
 /** Позиция меню реакций на мобильных: выше или ниже сообщения (с отступом 50px от краёв viewport) */
@@ -393,6 +394,7 @@ watch(currentChat, () => {
   showUserInfo.value = false;
   selectedUser.value = null;
   replyToMessage.value = null;
+  editMessage.value = null;
   showReactionMenu.value = null;
 });
 
@@ -542,6 +544,38 @@ const canDeleteMessage = (message: Message): boolean => {
   }
   
   return false;
+};
+
+const canEditMessage = (message: Message): boolean => {
+  return message.type === 'text' && isOwnMessage(message);
+};
+
+const handleEditMessage = (message: Message): void => {
+  if (!canEditMessage(message)) return;
+  replyToMessage.value = null;
+  editMessage.value = message;
+  nextTick(() => messageInputRef.value?.focusInput());
+};
+
+const clearEditMessage = (): void => {
+  editMessage.value = null;
+};
+
+const handleStartEditLast = (): void => {
+  if (!currentChat.value || !chatStore.user) return;
+  const ownId = chatStore.user.id;
+  const list = messages.value;
+  for (let i = list.length - 1; i >= 0; i--) {
+    const msg = list[i];
+    if (msg.type !== 'text') continue;
+    const senderId = getMessageSenderId(msg);
+    if (senderId === ownId) {
+      editMessage.value = msg;
+      replyToMessage.value = null;
+      nextTick(() => messageInputRef.value?.focusInput());
+      return;
+    }
+  }
 };
 
 // Обработчик удаления сообщения
@@ -867,7 +901,8 @@ const getReplyToText = (replyTo: Message | string): string => {
 const handleMessageClick = (message: Message, event: MouseEvent): void => {
   // Игнорируем клики на кнопки и интерактивные элементы
   const target = event.target as HTMLElement;
-  if (target.closest('.chat-window__reply-button') || 
+  if (target.closest('.chat-window__reply-button') ||
+      target.closest('.chat-window__edit-button') ||
       target.closest('.chat-window__delete-button') ||
       target.closest('.chat-window__reaction') ||
       target.closest('.chat-window__reaction-menu') ||
@@ -1301,6 +1336,19 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 												<path d="M20 4v7a4 4 0 0 1-4 4H4" />
 											</svg>
 										</button>
+										<!-- Кнопка редактирования сообщения -->
+										<button
+											v-if="canEditMessage(message)"
+											class="chat-window__edit-button"
+											@click.stop="handleEditMessage(message)"
+											title="Редактировать"
+											type="button"
+										>
+											<svg width="16" height="16" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+												<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+											</svg>
+										</button>
 										<!-- Кнопка удаления сообщения -->
 										<button
 											v-if="canDeleteMessage(message)"
@@ -1362,7 +1410,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			v-if="currentChat" 
 			:chat-id="currentChat._id"
 			:reply-to="replyToMessage"
+			:edit-message="editMessage"
 			@clear-reply="clearReplyToMessage"
+			@clear-edit="clearEditMessage"
+			@start-edit-last="handleStartEditLast"
 		/>
 
 		<UserInfoModal
@@ -2186,6 +2237,8 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     }
 
     @media (max-width: 768px) {
+      width: 100%;
+      align-self: stretch;
       padding: 0.5rem 1rem;
       font-size: 0.9375rem;
     }
@@ -2247,6 +2300,42 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     flex-shrink: 0;
     position: relative;
     z-index: 15; // Выше меню реакций (z-index: 10)
+
+    .chat-window__message-wrapper:hover & {
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      opacity: 1;
+      width: 24px;
+      height: 24px;
+    }
+
+    &:hover {
+      color: var(--accent-color);
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  &__edit-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 15;
 
     .chat-window__message-wrapper:hover & {
       opacity: 1;

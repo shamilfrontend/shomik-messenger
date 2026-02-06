@@ -1077,6 +1077,92 @@ export const deleteMessage = async (req: AuthRequest, res: Response): Promise<vo
   }
 };
 
+export const editMessage = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id: chatId, messageId } = req.params;
+    const { content } = req.body;
+
+    if (!content || typeof content !== 'string' || !content.trim()) {
+      res.status(400).json({ error: 'Текст сообщения не может быть пустым' });
+      return;
+    }
+
+    const chat = await Chat.findById(chatId)
+      .populate('participants', 'username avatar status lastSeen email')
+      .populate('admin', 'username avatar');
+
+    if (!chat) {
+      res.status(404).json({ error: 'Чат не найден' });
+      return;
+    }
+
+    if (!chat.participants.some((p: any) => p._id.toString() === req.userId)) {
+      res.status(403).json({ error: 'Нет доступа к этому чату' });
+      return;
+    }
+
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      res.status(404).json({ error: 'Сообщение не найдено' });
+      return;
+    }
+
+    if (message.chatId.toString() !== chatId) {
+      res.status(400).json({ error: 'Сообщение не принадлежит этому чату' });
+      return;
+    }
+
+    if (message.senderId.toString() !== req.userId) {
+      res.status(403).json({ error: 'Можно редактировать только свои сообщения' });
+      return;
+    }
+
+    if (message.type !== 'text') {
+      res.status(400).json({ error: 'Редактировать можно только текстовые сообщения' });
+      return;
+    }
+
+    message.content = content.trim();
+    await message.save();
+
+    const messageDoc = await Message.findById(messageId)
+      .populate('senderId', 'username avatar status lastSeen');
+
+    const messageObj = messageDoc!.toObject() as any;
+    messageObj._id = messageObj._id.toString();
+    messageObj.chatId = messageObj.chatId.toString();
+    if (messageObj.senderId && typeof messageObj.senderId === 'object') {
+      messageObj.senderId = {
+        id: messageObj.senderId._id.toString(),
+        username: messageObj.senderId.username || 'Пользователь',
+        avatar: messageObj.senderId.avatar,
+        status: messageObj.senderId.status,
+        lastSeen: messageObj.senderId.lastSeen
+      };
+    }
+    messageObj.readBy = (messageObj.readBy || []).map((id: any) => id.toString());
+    if (messageObj.reactions && messageObj.reactions instanceof Map) {
+      const reactionsObj: { [key: string]: string[] } = {};
+      messageObj.reactions.forEach((userIds: mongoose.Types.ObjectId[], emoji: string) => {
+        reactionsObj[emoji] = userIds.map((id: mongoose.Types.ObjectId) => id.toString());
+      });
+      messageObj.reactions = reactionsObj;
+    } else if (!messageObj.reactions) {
+      messageObj.reactions = {};
+    }
+
+    if (wsService) {
+      const participantIds = chat.participants.map((p: any) => p._id.toString());
+      wsService.broadcastMessageEdited(chatId, messageObj, participantIds);
+    }
+
+    res.json(messageObj);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const toggleReaction = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id, messageId } = req.params;

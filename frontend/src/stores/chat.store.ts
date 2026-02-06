@@ -257,12 +257,37 @@ export const useChatStore = defineStore('chat', () => {
   const deleteMessage = async (chatId: string, messageId: string): Promise<void> => {
     try {
       await api.delete(`/chats/${chatId}/messages/${messageId}`);
-      // Удаляем сообщение из локального состояния
       removeMessage(messageId);
     } catch (error: any) {
       console.error('Ошибка удаления сообщения:', error.response?.data?.error || error.message);
       throw error;
     }
+  };
+
+  const editMessage = async (chatId: string, messageId: string, content: string): Promise<void> => {
+    try {
+      const response = await api.patch(`/chats/${chatId}/messages/${messageId}`, { content: content.trim() });
+      updateMessageContent(messageId, response.data);
+    } catch (error: any) {
+      console.error('Ошибка редактирования сообщения:', error.response?.data?.error || error.message);
+      throw error;
+    }
+  };
+
+  const updateMessageContent = (messageId: string, updated: Partial<Message>): void => {
+    const index = messages.value.findIndex(msg => msg._id === messageId);
+    if (index !== -1) {
+      const msg = messages.value[index];
+      if (updated.content !== undefined) msg.content = updated.content;
+      if (updated.updatedAt !== undefined) msg.updatedAt = updated.updatedAt;
+      if (updated.reactions !== undefined) msg.reactions = updated.reactions || {};
+    }
+    chats.value.forEach(chat => {
+      if (chat.lastMessage && chat.lastMessage._id === messageId && updated.content !== undefined) {
+        chat.lastMessage.content = updated.content;
+        if (updated.updatedAt !== undefined) chat.lastMessage.updatedAt = updated.updatedAt;
+      }
+    });
   };
 
   const removeMessage = (messageId: string): void => {
@@ -587,6 +612,8 @@ export const useChatStore = defineStore('chat', () => {
     toggleReaction,
     updateMessageReactions,
     deleteMessage,
+    editMessage,
+    updateMessageContent,
     removeMessage
   };
 });

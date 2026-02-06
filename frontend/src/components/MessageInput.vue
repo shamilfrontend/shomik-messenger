@@ -1,5 +1,15 @@
 <template>
   <div class="message-input">
+    <div v-if="props.editMessage" class="message-input__edit">
+      <div class="message-input__edit-content">
+        <div class="message-input__edit-line"></div>
+        <div class="message-input__edit-info">
+          <span class="message-input__edit-label">Редактирование</span>
+          <span class="message-input__edit-text">{{ getEditPreview() }}</span>
+        </div>
+        <button @click="clearEdit" class="message-input__edit-close" type="button">×</button>
+      </div>
+    </div>
     <div v-if="props.replyTo" class="message-input__reply">
       <div class="message-input__reply-content">
         <div class="message-input__reply-line"></div>
@@ -41,9 +51,10 @@
           ref="inputField"
           v-model="message"
           @keydown.enter.exact="handleSend"
+          @keydown.up="handleKeydownUp"
           @input="handleTyping"
           type="text"
-          placeholder="Введите сообщение..."
+          :placeholder="props.editMessage ? 'Введите новый текст...' : 'Введите сообщение...'"
           class="message-input__field"
         />
         <EmojiPicker 
@@ -87,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
+import { ref, nextTick, watch } from 'vue';
 import { useChatStore } from '../stores/chat.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useNotifications } from '../composables/useNotifications';
@@ -98,10 +109,13 @@ import type { Message } from '../types';
 const props = defineProps<{
   chatId: string;
   replyTo?: Message | null;
+  editMessage?: Message | null;
 }>();
 
 const emit = defineEmits<{
   (e: 'clear-reply'): void;
+  (e: 'clear-edit'): void;
+  (e: 'start-edit-last'): void;
 }>();
 
 const chatStore = useChatStore();
@@ -132,37 +146,67 @@ defineExpose({
   inputField
 });
 
+watch(() => props.editMessage, (editMsg) => {
+  if (editMsg && editMsg.type === 'text') {
+    message.value = editMsg.content;
+    nextTick(() => focusInput());
+  }
+}, { immediate: true });
+
 const handleSend = (): void => {
   const trimmedMessage = message.value.trim();
   const hasFile = !!previewFile.value;
   const hasText = trimmedMessage.length > 0;
 
-  // Не отправляем пустые сообщения
-  if (!hasText && !hasFile) {
+  if (props.editMessage) {
+    if (!hasText) return;
+    chatStore.editMessage(props.chatId, props.editMessage._id, trimmedMessage);
+    chatStore.stopTyping(props.chatId);
+    message.value = '';
+    emit('clear-edit');
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+      typingTimeout = null;
+    }
     return;
   }
+
+  if (!hasText && !hasFile) return;
 
   const content = trimmedMessage || previewFile.value?.filename || '';
   const type = previewFile.value?.type === 'image' ? 'image' : previewFile.value ? 'file' : 'text';
   const fileUrl = previewFile.value?.url;
   const replyToId = props.replyTo?._id;
 
-  // Дополнительная проверка: для текстовых сообщений content не должен быть пустым
-  if (type === 'text' && !content) {
-    return;
-  }
+  if (type === 'text' && !content) return;
 
   chatStore.sendMessage(props.chatId, content, type as 'text' | 'image' | 'file', fileUrl, replyToId);
   chatStore.stopTyping(props.chatId);
   message.value = '';
   previewFile.value = null;
-  if (props.replyTo) {
-    emit('clear-reply');
-  }
+  if (props.replyTo) emit('clear-reply');
   if (typingTimeout) {
     clearTimeout(typingTimeout);
     typingTimeout = null;
   }
+};
+
+const getEditPreview = (): string => {
+  if (!props.editMessage || !props.editMessage.content) return '';
+  const text = props.editMessage.content;
+  return text.length > 50 ? text.slice(0, 50) + '…' : text;
+};
+
+const clearEdit = (): void => {
+  message.value = '';
+  emit('clear-edit');
+};
+
+const handleKeydownUp = (e: KeyboardEvent): void => {
+  if (e.key !== 'ArrowUp') return;
+  if (message.value.trim() || props.replyTo || props.editMessage) return;
+  e.preventDefault();
+  emit('start-edit-last');
 };
 
 const getReplySenderName = (): string => {
@@ -471,6 +515,70 @@ const insertEmoji = (emoji: string): void => {
     line-height: 1;
 
     &:hover {
+      color: var(--text-primary);
+    }
+  }
+
+  &__edit {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-primary);
+  }
+
+  &__edit-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  &__edit-line {
+    width: 3px;
+    background: var(--accent-color);
+    border-radius: 2px;
+    flex-shrink: 0;
+    min-height: 36px;
+  }
+
+  &__edit-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  &__edit-label {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--accent-color);
+  }
+
+  &__edit-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__edit-close {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.25rem;
+    cursor: pointer;
+    line-height: 1;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+
+    &:hover {
+      background: var(--bg-secondary);
       color: var(--text-primary);
     }
   }

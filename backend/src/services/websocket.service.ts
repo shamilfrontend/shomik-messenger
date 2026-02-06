@@ -725,6 +725,27 @@ class WebSocketService {
       }
     });
   }
+
+  public broadcastMessageEdited(chatId: string, message: any, participantIds: string[]): void {
+    const messageData = {
+      type: 'message:edited',
+      data: {
+        chatId,
+        message
+      }
+    };
+
+    participantIds.forEach((participantId: string) => {
+      const client = this.clients.get(participantId);
+      if (client) {
+        try {
+          client.send(JSON.stringify(messageData));
+        } catch (error) {
+          console.error(`Ошибка отправки события редактирования сообщения пользователю ${participantId}:`, error);
+        }
+      }
+    });
+  }
 }
 
 export default WebSocketService;

@@ -77,6 +77,14 @@ export const useWebSocket = () => {
     chatStore.removeMessage(data.messageId);
   };
 
+  const messageEditedHandler = (data: { chatId: string; message: Message }) => {
+    chatStore.updateMessageContent(data.message._id, {
+      content: data.message.content,
+      updatedAt: data.message.updatedAt,
+      reactions: data.message.reactions
+    });
+  };
+
   const callIncomingHandler = (data: { fromUserId: string; chatId: string; isVideo?: boolean; caller: { id: string; username: string; avatar?: string } | null }) => {
     callStore.setIncomingCall(data);
   };
@@ -128,6 +136,7 @@ export const useWebSocket = () => {
     websocketService.on('user:updated', userUpdatedHandler);
     websocketService.on('message:reaction', messageReactionHandler);
     websocketService.on('message:deleted', messageDeletedHandler);
+    websocketService.on('message:edited', messageEditedHandler);
     websocketService.on('call:incoming', callIncomingHandler);
     websocketService.on('call:accepted', callAcceptedHandler);
     websocketService.on('call:rejected', callRejectedHandler);
@@ -151,6 +160,7 @@ export const useWebSocket = () => {
     websocketService.off('user:updated', userUpdatedHandler);
     websocketService.off('message:reaction', messageReactionHandler);
     websocketService.off('message:deleted', messageDeletedHandler);
+    websocketService.off('message:edited', messageEditedHandler);
     websocketService.off('call:incoming', callIncomingHandler);
     websocketService.off('call:accepted', callAcceptedHandler);
     websocketService.off('call:rejected', callRejectedHandler);

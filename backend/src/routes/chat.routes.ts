@@ -12,7 +12,8 @@ import {
   getChatMessages, 
   sendMessage,
   toggleReaction,
-  deleteMessage
+  deleteMessage,
+  editMessage
 } from '../controllers/chat.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 
@@ -32,6 +33,7 @@ router.delete('/:id', deleteChat);
 router.get('/:id/messages', getChatMessages);
 router.post('/:id/messages', sendMessage);
 router.delete('/:id/messages/:messageId', deleteMessage);
+router.patch('/:id/messages/:messageId', editMessage);
 router.post('/:id/messages/:messageId/reactions', toggleReaction);
 
 export default router;
