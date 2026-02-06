@@ -1509,8 +1509,8 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			v-if="currentChat && showScrollToBottom"
 			type="button"
 			class="chat-window__scroll-to-bottom"
-			@click="scrollToBottom"
 			aria-label="К последнему сообщению"
+			@click="scrollToBottom"
 		>
 			<svg width="24" height="24" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<polyline points="6 9 12 15 18 9" />
@@ -2699,7 +2699,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
   &__scroll-to-bottom {
     position: absolute;
-    bottom: 5.5rem;
+    bottom: 7.5rem;
     right: 1rem;
     z-index: 20;
     width: 44px;
@@ -2727,7 +2727,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     }
 
     @media (max-width: 768px) {
-      bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
       right: 0.75rem;
       width: 48px;
       height: 48px;
