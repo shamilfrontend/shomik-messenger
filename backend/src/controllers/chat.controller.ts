@@ -1034,11 +1034,11 @@ export const deleteMessage = async (req: AuthRequest, res: Response): Promise<vo
           ? (lastMsg as { _id: { toString(): string } })._id.toString()
           : String(lastMsg))
       : null;
-    
+
     if (currentLastMessageId === messageId) {
       const lastMessage = await Message.findOne({ chatId })
         .sort({ createdAt: -1 });
-      
+
       // Используем updateOne для прямого обновления в БД, чтобы избежать проблем с populated объектами
       if (lastMessage) {
         await Chat.updateOne(
