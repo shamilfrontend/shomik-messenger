@@ -131,8 +131,11 @@ const stopHeaderPositionCheck = (): void => {
 // Закрываем меню реакций и выпадающие списки устройств при клике вне их
 const handleClickOutside = (event: MouseEvent): void => {
   const target = event.target as HTMLElement;
-  if (!target.closest('.chat-window__reaction-menu') && !target.closest('.chat-window__reaction-add')) {
-    showReactionMenu.value = null;
+  // На мобильных устройствах закрываем меню реакций при клике вне его
+  if (isMobile.value) {
+    if (!target.closest('.chat-window__reaction-menu') && !target.closest('.chat-window__message-wrapper')) {
+      showReactionMenu.value = null;
+    }
   }
   if (!target.closest('.chat-window__video-call-device-group')) {
     videoCallMicDropdownOpen.value = false;
@@ -786,12 +789,27 @@ const getReplyToText = (replyTo: Message | string): string => {
   return replyTo.content || '';
 };
 
-const toggleReactionMenu = (messageId: string, event: MouseEvent): void => {
-  event.stopPropagation();
-  if (showReactionMenu.value === messageId) {
-    showReactionMenu.value = null;
-  } else {
-    showReactionMenu.value = messageId;
+// Функция больше не используется, так как кнопка удалена
+// Оставлена для возможного использования в будущем
+// Обработчик клика на сообщение для мобильных устройств
+const handleMessageClick = (message: Message, event: MouseEvent): void => {
+  // Игнорируем клики на кнопки и интерактивные элементы
+  const target = event.target as HTMLElement;
+  if (target.closest('.chat-window__reply-button') || 
+      target.closest('.chat-window__reaction') ||
+      target.closest('.chat-window__reaction-menu') ||
+      target.closest('a')) {
+    return;
+  }
+  
+  // На мобильных устройствах показываем меню реакций при клике на сообщение (только для чужих сообщений)
+  if (isMobile.value && !isOwnMessage(message)) {
+    event.stopPropagation();
+    if (showReactionMenu.value === message._id) {
+      showReactionMenu.value = null;
+    } else {
+      showReactionMenu.value = message._id;
+    }
   }
 };
 
@@ -1080,12 +1098,13 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 					</div>
 				</div>
 				<!-- Обычное сообщение -->
-				<div 
+				<div
 					:id="`message-${message._id}`"
 					:class="['chat-window__message-wrapper', {
 						'chat-window__message-wrapper_me': isOwnMessage(message)
 					}]"
 					@dblclick="handleReplyToMessage(message)"
+					@click="handleMessageClick(message, $event)"
 				>
 					<div
 						:class="['chat-window__message', { 
@@ -1146,57 +1165,62 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 									<div class="chat-window__message-time">
 										{{ formatMessageTime(message.createdAt) }}
 									</div>
-									<div v-if="isOwnMessage(message)" class="chat-window__message-status" :class="`chat-window__message-status--${getReadStatus(message)}`">
-										<!-- Одна галочка (отправлено) -->
-										<svg v-if="getReadStatus(message) === 'sent'" width="16" height="16" viewBox="0 0 16 16" fill="none">
-											<path d="M3 8L6 11L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-										</svg>
-										<!-- Две галочки (доставлено/прочитано) -->
-										<svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
-											<path d="M2 8L5 11L12 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-											<path d="M6 8L9 11L16 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-										</svg>
+									<div class="chat-window__message-footer-right">
+										<div v-if="isOwnMessage(message)" class="chat-window__message-status" :class="`chat-window__message-status--${getReadStatus(message)}`">
+											<!-- Одна галочка (отправлено) -->
+											<svg v-if="getReadStatus(message) === 'sent'" width="16" height="16" viewBox="0 0 16 16" fill="none">
+												<path d="M3 8L6 11L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+											</svg>
+											<!-- Две галочки (доставлено/прочитано) -->
+											<svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
+												<path d="M2 8L5 11L12 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+												<path d="M6 8L9 11L16 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+											</svg>
+										</div>
+										<!-- Кнопка ответа на сообщение -->
+										<button
+											v-if="message.type !== 'system'"
+											class="chat-window__reply-button"
+											@click.stop="handleReplyToMessage(message)"
+											title="Ответить"
+											type="button"
+										>
+											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<polyline points="9 10 4 15 9 20" />
+												<path d="M20 4v7a4 4 0 0 1-4 4H4" />
+											</svg>
+										</button>
 									</div>
 								</div>
 								<!-- Реакции на сообщение -->
-								<div class="chat-window__message-reactions">
-									<div v-if="getReactionsArray(message).length > 0" class="chat-window__reactions-list">
-										<button
-											v-for="reaction in getReactionsArray(message)"
-											:key="reaction.emoji"
-											:class="['chat-window__reaction', { 'chat-window__reaction--active': reaction.hasUser }]"
-											@click="!isOwnMessage(message) && handleReactionClick(message, reaction.emoji)"
-											:title="`${reaction.count} ${reaction.count === 1 ? 'реакция' : 'реакций'}`"
-											:disabled="isOwnMessage(message)"
-											:style="isOwnMessage(message) ? { cursor: 'default', opacity: 1 } : {}"
-										>
-											<span class="chat-window__reaction-emoji">{{ reaction.emoji }}</span>
-											<span class="chat-window__reaction-count">{{ reaction.count }}</span>
-										</button>
-									</div>
-									<!-- Кнопка добавления реакции (только для чужих сообщений) -->
-									<div v-if="!isOwnMessage(message)" class="chat-window__reaction-add-wrapper">
-										<button
-											class="chat-window__reaction-add"
-											@click="toggleReactionMenu(message._id, $event)"
-											:title="showReactionMenu === message._id ? 'Закрыть' : 'Добавить реакцию'"
-										>
-											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-												<path d="M12 5v14M5 12h14"/>
-											</svg>
-										</button>
-										<!-- Меню выбора реакции -->
-										<div v-if="showReactionMenu === message._id" class="chat-window__reaction-menu">
-											<button
-												v-for="emoji in availableReactions"
-												:key="emoji"
-												class="chat-window__reaction-menu-item"
-												@click="handleReactionClick(message, emoji)"
-											>
-												{{ emoji }}
-											</button>
-										</div>
-									</div>
+								<div v-if="getReactionsArray(message).length > 0" class="chat-window__reactions-list">
+									<button
+										v-for="reaction in getReactionsArray(message)"
+										:key="reaction.emoji"
+										:class="['chat-window__reaction', { 'chat-window__reaction--active': reaction.hasUser }]"
+										@click="!isOwnMessage(message) && handleReactionClick(message, reaction.emoji)"
+										:title="`${reaction.count} ${reaction.count === 1 ? 'реакция' : 'реакций'}`"
+										:disabled="isOwnMessage(message)"
+										:style="isOwnMessage(message) ? { cursor: 'default', opacity: 1 } : {}"
+									>
+										<span class="chat-window__reaction-emoji">{{ reaction.emoji }}</span>
+										<span class="chat-window__reaction-count">{{ reaction.count }}</span>
+									</button>
+								</div>
+								<!-- Меню выбора реакции (только для чужих сообщений) -->
+								<!-- На десктопе показывается через CSS :hover, на мобильных через v-if -->
+								<div
+									v-if="!isOwnMessage(message)"
+									:class="['chat-window__reaction-menu', { 'chat-window__reaction-menu--visible': showReactionMenu === message._id }]"
+								>
+									<button
+										v-for="emoji in availableReactions"
+										:key="emoji"
+										class="chat-window__reaction-menu-item"
+										@click="handleReactionClick(message, emoji)"
+									>
+										{{ emoji }}
+									</button>
 								</div>
 							</div>
 						</div>
@@ -1787,7 +1811,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
   &__message {
     display: flex;
     gap: 0.5rem;
-    align-items: flex-end;
+    align-items: flex-start;
     max-width: 70%;
     align-self: flex-start;
 
@@ -2018,17 +2042,54 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
   &__message-footer {
     display: flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: space-between;
     gap: 0.25rem;
     margin-top: 0.25rem;
+    position: relative;
+    z-index: 15; // Выше меню реакций, чтобы кнопка ответа была видна
   }
 
-  &__message-reactions {
+  &__message-footer-right {
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    margin-top: 0.25rem;
-    flex-wrap: wrap;
+    position: relative;
+    z-index: 15; // Выше меню реакций
+		margin-left: 16px;
+  }
+
+  &__reply-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 15; // Выше меню реакций (z-index: 10)
+
+    .chat-window__message-wrapper:hover & {
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      opacity: 1;
+    }
+
+    &:hover {
+      color: var(--accent-color);
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+    }
   }
 
   &__reactions-list {
@@ -2078,41 +2139,13 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     color: var(--accent-color);
   }
 
-  &__reaction-add-wrapper {
-    position: relative;
-  }
-
-  &__reaction-add {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    background: transparent;
-    border: 1px solid var(--border-color);
-    border-radius: 50%;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.2s;
-    opacity: 0;
-
-    .chat-window__message-wrapper:hover & {
-      opacity: 1;
-    }
-
-    &:hover {
-      background: var(--bg-secondary);
-      border-color: var(--accent-color);
-      color: var(--accent-color);
-    }
-  }
+  // Стили для кнопки добавления реакции удалены, так как кнопка больше не используется
+  // Меню реакций теперь показывается при наведении/клике на сообщение
 
   &__reaction-menu {
     position: absolute;
-    bottom: 100%;
-    left: 0;
-    margin-bottom: 0.5rem;
+		top: 50%;
+    left: calc(100% + 16px);
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -2123,8 +2156,34 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     border: 1px solid var(--border-color);
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 10;
+    z-index: 12;
     flex-wrap: nowrap;
+    width: 266px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(5px);
+    transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
+
+    @media (hover: hover) and (pointer: fine) {
+      .chat-window__message-wrapper:hover & {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(-50%);
+      }
+    }
+
+    // На мобильных устройствах показываем только если явно открыто через клик
+    @media (max-width: 768px) {
+      max-width: calc(100% - 20px);
+      opacity: 0;
+      visibility: hidden;
+
+      &--visible {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+    }
   }
 
   &__reaction-menu-item {
