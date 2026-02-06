@@ -385,6 +385,7 @@ onUnmounted(() => {
     background: var(--accent-color);
     color: white;
     font-weight: 600;
+		border-radius: 50%;
   }
 
   &__user-info {

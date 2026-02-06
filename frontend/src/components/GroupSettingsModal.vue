@@ -942,6 +942,7 @@ onUnmounted(() => {
     color: white;
     font-weight: 600;
     font-size: 1rem;
+		border-radius: 50%;
   }
 
   &__participant-name {

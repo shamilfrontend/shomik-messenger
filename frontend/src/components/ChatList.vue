@@ -45,6 +45,7 @@
         :key="chat._id"
         :class="['chat-list__item', { 'chat-list__item--active': currentChat?._id === chat._id }]"
         @click="selectChat(chat)"
+        @contextmenu.prevent="onChatContextMenu(chat, $event)"
       >
         <div class="chat-list__avatar">
           <img
@@ -133,6 +134,14 @@
         <span class="chat-list__nav-label">Профиль</span>
       </button>
     </div>
+
+    <ContextMenu
+      v-model="chatContextMenuVisible"
+      :x="chatContextMenuX"
+      :y="chatContextMenuY"
+      :actions="chatContextMenuActions"
+      @select="onChatContextMenuSelect"
+    />
   </div>
 </template>
 
@@ -141,6 +150,10 @@ import { ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useChatStore } from '../stores/chat.store';
 import { useAuthStore } from '../stores/auth.store';
+import { useConfirm } from '../composables/useConfirm';
+import { useNotifications } from '../composables/useNotifications';
+import ContextMenu from './ContextMenu.vue';
+import type { ContextMenuAction } from './ContextMenu.vue';
 import { Chat, Message } from '../types';
 import { getImageUrl } from '../utils/image';
 import { getComputedStatus } from '../utils/status';
@@ -154,10 +167,47 @@ const emit = defineEmits<{
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
+const { confirm } = useConfirm();
+const { success: notifySuccess, error: notifyError } = useNotifications();
 const router = useRouter();
 const route = useRoute();
 const searchQuery = ref('');
 const activeTab = ref<'private' | 'group'>('private');
+
+const chatContextMenuVisible = ref(false);
+const chatContextMenuX = ref(0);
+const chatContextMenuY = ref(0);
+const chatContextChat = ref<Chat | null>(null);
+
+const chatContextMenuActions = computed((): ContextMenuAction[] => {
+  if (!chatContextChat.value || chatContextChat.value.type !== 'private') return [];
+  return [{ id: 'delete', label: 'Удалить чат' }];
+});
+
+const onChatContextMenu = (chat: Chat, e: MouseEvent): void => {
+  if (chat.type !== 'private') return;
+  chatContextChat.value = chat;
+  chatContextMenuX.value = e.clientX;
+  chatContextMenuY.value = e.clientY;
+  chatContextMenuVisible.value = true;
+};
+
+const onChatContextMenuSelect = async (action: ContextMenuAction): Promise<void> => {
+  const chat = chatContextChat.value;
+  chatContextChat.value = null;
+  if (!chat || action.id !== 'delete') return;
+  const confirmed = await confirm('Удалить этот чат? История сообщений будет удалена.');
+  if (!confirmed) return;
+  try {
+    await chatStore.deleteChat(chat._id);
+    notifySuccess('Чат удалён');
+    if (route.params.id === chat._id) {
+      router.push('/');
+    }
+  } catch (err: any) {
+    notifyError(err.response?.data?.error || 'Не удалось удалить чат');
+  }
+};
 
 const user = computed(() => authStore.user);
 const userAvatar = computed(() => {
@@ -494,6 +544,7 @@ const isProfilePage = computed(() => route.path === '/profile');
     color: white;
     font-weight: 600;
     font-size: 1.25rem;
+		border-radius: 50%;
   }
 
   &__content {

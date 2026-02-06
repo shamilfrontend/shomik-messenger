@@ -2225,6 +2225,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     color: white;
     font-weight: 600;
     font-size: 0.875rem;
+		border-radius: 50%;
   }
 
   &__message-content {

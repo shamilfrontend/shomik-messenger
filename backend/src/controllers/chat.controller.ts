@@ -945,18 +945,20 @@ export const deleteChat = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    if (chat.type !== 'group') {
-      res.status(400).json({ error: 'Можно удалять только групповые чаты' });
-      return;
-    }
-
-    if (chat.admin?.toString() !== req.userId) {
-      res.status(403).json({ error: 'Только администратор может удалять группу' });
-      return;
-    }
-
-    // Сохраняем ID участников перед удалением для отправки события
     const participantIds = chat.participants.map((p: any) => p.toString());
+    const isParticipant = participantIds.includes(req.userId!);
+
+    if (!isParticipant) {
+      res.status(403).json({ error: 'Вы не являетесь участником чата' });
+      return;
+    }
+
+    if (chat.type === 'group') {
+      if (chat.admin?.toString() !== req.userId) {
+        res.status(403).json({ error: 'Только администратор может удалять группу' });
+        return;
+      }
+    }
 
     // Удаляем все сообщения чата
     await Message.deleteMany({ chatId: id });
@@ -964,12 +966,13 @@ export const deleteChat = async (req: AuthRequest, res: Response): Promise<void>
     // Удаляем чат
     await Chat.findByIdAndDelete(id);
 
-    // Отправляем WebSocket событие об удалении группы
     if (wsService) {
       wsService.broadcastChatDeleted(id, participantIds);
     }
 
-    res.json({ message: 'Группа успешно удалена' });
+    res.json({
+      message: chat.type === 'group' ? 'Группа успешно удалена' : 'Чат успешно удалён'
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
