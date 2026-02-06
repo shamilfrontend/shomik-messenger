@@ -257,14 +257,13 @@ const insertEmoji = (emoji: string): void => {
   flex-shrink: 0;
 
   @media (max-width: 768px) {
-    padding: 0.75rem;
-    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
-    position: fixed;
+		padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+		position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     z-index: 10;
-    width: 100%;
+    width: 100vw;
   }
 
   &__container {
@@ -280,7 +279,6 @@ const insertEmoji = (emoji: string): void => {
 
   &__input-wrapper {
     flex: 1;
-    position: relative;
     display: flex;
     align-items: center;
   }

@@ -277,7 +277,7 @@ onUnmounted(() => {
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 1000;
-  width: 320px;
+  width: 100%;
   max-height: 400px;
   display: flex;
   flex-direction: column;
@@ -344,17 +344,38 @@ onUnmounted(() => {
 
   &__emojis {
     display: grid;
-    grid-template-columns: repeat(8, 1fr);
+    grid-template-columns: repeat(20, 1fr);
     gap: 0.25rem;
     padding: 0.5rem;
     overflow-y: auto;
-    max-height: 320px;
+    max-height: 240px;
+
+		@media (max-width: 1450px) {
+			grid-template-columns: repeat(12, 1fr);
+		}
 
     @media (max-width: 1024px) {
-      grid-template-columns: repeat(7, 1fr);
+      grid-template-columns: repeat(6, 1fr);
       gap: 0.5rem;
       padding: 0.75rem;
     }
+
+		@media (max-width: 768px) {
+			grid-template-columns: repeat(9, 1fr);
+		}
+
+		@media (max-width: 575px) {
+			grid-template-columns: repeat(6, 1fr);
+		}
+
+		@media (max-width: 414px) {
+			grid-template-columns: repeat(5, 1fr);
+			gap: 0.25rem;
+		}
+
+		@media (max-width: 360px) {
+			grid-template-columns: repeat(5, 1fr);
+		}
 
     &::-webkit-scrollbar {
       width: 6px;
