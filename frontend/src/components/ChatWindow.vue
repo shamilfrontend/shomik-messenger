@@ -18,6 +18,11 @@ import { useConfirm } from '../composables/useConfirm';
 const chatStore = useChatStore();
 const callStore = useCallStore();
 const { error: notifyError } = useNotifications();
+
+/** В prod кнопки звонков отключены с тултипом «СКОРО БУДЕТ!» */
+const callsDisabledInProd = import.meta.env.PROD;
+const callButtonTitle = (normalTitle: string): string =>
+  callsDisabledInProd ? 'СКОРО БУДЕТ!' : normalTitle;
 const remoteAudioRef = ref<HTMLAudioElement | null>(null);
 const localVideoRef = ref<HTMLVideoElement | null>(null);
 const remoteVideoRef = ref<HTMLVideoElement | null>(null);
@@ -1161,10 +1166,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			<button
 				v-if="currentChat && currentChat.type === 'private' && getOtherParticipant()"
 				@click="handleStartCall"
-				:disabled="callStore.isConnecting || !!callStore.activeCall"
+				:disabled="callsDisabledInProd || callStore.isConnecting || !!callStore.activeCall"
 				class="chat-window__call-button"
-				aria-label="Голосовой звонок"
-				title="Голосовой звонок"
+				:aria-label="callButtonTitle('Голосовой звонок')"
+				:title="callButtonTitle('Голосовой звонок')"
 			>
 				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
@@ -1173,10 +1178,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			<button
 				v-if="currentChat && currentChat.type === 'private' && getOtherParticipant()"
 				@click="handleStartVideoCall"
-				:disabled="callStore.isConnecting || !!callStore.activeCall"
+				:disabled="callsDisabledInProd || callStore.isConnecting || !!callStore.activeCall"
 				class="chat-window__call-button"
-				aria-label="Видеозвонок"
-				title="Видеозвонок"
+				:aria-label="callButtonTitle('Видеозвонок')"
+				:title="callButtonTitle('Видеозвонок')"
 			>
 				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M23 7l-7 5 7 5V7z"></path>
@@ -1186,10 +1191,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			<button
 				v-if="currentChat && currentChat.type === 'group' && !callStore.activeCall && (!callStore.groupCallAvailable || callStore.groupCallAvailable.chatId !== currentChat._id)"
 				@click="handleStartGroupCall"
-				:disabled="callStore.isConnecting"
+				:disabled="callsDisabledInProd || callStore.isConnecting"
 				class="chat-window__call-button"
-				aria-label="Групповой звонок"
-				title="Начать групповой звонок"
+				:aria-label="callButtonTitle('Групповой звонок')"
+				:title="callButtonTitle('Начать групповой звонок')"
 			>
 				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
@@ -1198,10 +1203,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			<button
 				v-if="currentChat && currentChat.type === 'group' && !callStore.activeCall && (!callStore.groupCallAvailable || callStore.groupCallAvailable.chatId !== currentChat._id)"
 				@click="handleStartGroupVideoCall"
-				:disabled="callStore.isConnecting"
+				:disabled="callsDisabledInProd || callStore.isConnecting"
 				class="chat-window__call-button"
-				aria-label="Групповой видеозвонок"
-				title="Начать групповой видеозвонок"
+				:aria-label="callButtonTitle('Групповой видеозвонок')"
+				:title="callButtonTitle('Начать групповой видеозвонок')"
 			>
 				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M23 7l-7 5 7 5V7z"></path>
