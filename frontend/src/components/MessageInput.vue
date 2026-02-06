@@ -62,36 +62,38 @@
           @close="showEmojiPicker = false"
         />
       </div>
-      <div class="message-input__voice-wrapper">
-        <button 
-          @click="showVoiceTooltip = !showVoiceTooltip"
-          @mouseenter="showVoiceTooltip = true"
-          @mouseleave="showVoiceTooltip = false"
-          class="message-input__voice-button"
-          type="button"
-          aria-label="Голосовое сообщение"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-            <line x1="12" y1="19" x2="12" y2="23"></line>
-            <line x1="8" y1="23" x2="16" y2="23"></line>
-          </svg>
-        </button>
-        <div v-if="showVoiceTooltip" class="message-input__voice-tooltip">
-          СКОРО БУДЕТ!
-        </div>
-      </div>
-      <button 
-        @click="handleSend" 
-        class="message-input__button"
-        type="button"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="22" y1="2" x2="11" y2="13"></line>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-        </svg>
-      </button>
+
+			<div class="message-input__voice-wrapper">
+				<button
+					@click="showVoiceTooltip = !showVoiceTooltip"
+					@mouseenter="showVoiceTooltip = true"
+					@mouseleave="showVoiceTooltip = false"
+					class="message-input__voice-button"
+					type="button"
+					aria-label="Голосовое сообщение"
+				>
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+						<path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+						<line x1="12" y1="19" x2="12" y2="23"></line>
+						<line x1="8" y1="23" x2="16" y2="23"></line>
+					</svg>
+				</button>
+				<div v-if="showVoiceTooltip" class="message-input__voice-tooltip">
+					СКОРО БУДЕТ!
+				</div>
+			</div>
+
+			<button
+				@click="handleSend"
+				class="message-input__button"
+				type="button"
+			>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<line x1="22" y1="2" x2="11" y2="13"></line>
+					<polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+				</svg>
+			</button>
     </div>
   </div>
 </template>
@@ -317,19 +319,24 @@ const insertEmoji = (emoji: string): void => {
     width: 100vw;
   }
 
+  @media (max-width: 575px) {
+		padding: 0.375rem 0.375rem calc(0.375rem + env(safe-area-inset-bottom, 0px));
+  }
+
   &__container {
-    display: flex;
+    display: grid;
+		grid-template-columns: 1fr 40px 40px;
     gap: 0.5rem;
-    align-items: flex-end;
+    align-items: center;
     position: relative;
 
     @media (max-width: 768px) {
+			grid-template-columns: 1fr 32px;
       gap: 0.375rem;
     }
   }
 
   &__input-wrapper {
-    flex: 1;
     display: flex;
     align-items: center;
   }
@@ -350,12 +357,6 @@ const insertEmoji = (emoji: string): void => {
     transition: all 0.2s;
     z-index: 1;
 
-    @media (max-width: 768px) {
-      width: 28px;
-      height: 28px;
-      left: 0.375rem;
-    }
-
     &:hover {
       background: var(--bg-secondary);
       color: var(--text-primary);
@@ -365,6 +366,12 @@ const insertEmoji = (emoji: string): void => {
     &:active {
       transform: scale(0.95);
     }
+
+		@media (max-width: 768px) {
+			width: 28px;
+			height: 28px;
+			left: 0.375rem;
+		}
   }
 
   &__field {
@@ -396,12 +403,13 @@ const insertEmoji = (emoji: string): void => {
   }
 
   &__button {
-    width: 40px;
+    min-width: 40px;
     height: 40px;
     background: var(--accent-color);
     border: none;
     border-radius: 50%;
-    color: white;
+    color: #fff;
+		padding: 0;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -410,8 +418,8 @@ const insertEmoji = (emoji: string): void => {
     flex-shrink: 0;
 
     @media (max-width: 768px) {
-      width: 36px;
-      height: 36px;
+      min-width: 32px;
+      height: 32px;
     }
 
     &:hover {
@@ -426,10 +434,14 @@ const insertEmoji = (emoji: string): void => {
   &__voice-wrapper {
     position: relative;
     flex-shrink: 0;
+
+		@media (max-width: 768px) {
+			display: none;
+		}
   }
 
   &__voice-button {
-    width: 40px;
+    min-width: 40px;
     height: 40px;
     background: transparent;
     border: 1px solid var(--border-color);
@@ -443,7 +455,7 @@ const insertEmoji = (emoji: string): void => {
     flex-shrink: 0;
 
     @media (max-width: 768px) {
-      width: 36px;
+      min-width: 36px;
       height: 36px;
     }
 
