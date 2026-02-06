@@ -9,14 +9,16 @@
       <div class="profile-settings__content">
         <!-- Секция аватара -->
         <div class="profile-settings__section">
-          <h3>Фотография профиля</h3>
           <div class="profile-settings__avatar-section">
-            <div class="profile-settings__avatar">
-              <img v-if="getAvatarUrl()" :src="getAvatarUrl()" :alt="user?.username" />
-              <div v-else class="profile-settings__avatar-placeholder">
-                {{ user?.username?.charAt(0).toUpperCase() }}
+            <div class="profile-settings__avatar-wrap">
+              <div class="profile-settings__avatar">
+                <img v-if="getAvatarUrl()" :src="getAvatarUrl()" :alt="user?.username" />
+                <div v-else class="profile-settings__avatar-placeholder">
+                  {{ user?.username?.charAt(0).toUpperCase() }}
+                </div>
               </div>
             </div>
+            <p class="profile-settings__avatar-hint">JPG или PNG, до 200 КБ</p>
             <div class="profile-settings__avatar-controls">
               <input
                 ref="avatarInput"
@@ -45,7 +47,7 @@
           <h3>Персональные данные</h3>
           <div class="profile-settings__form">
             <div class="profile-settings__field">
-              <label>Username</label>
+              <label>Логин пользователя</label>
               <input
                 v-model="formData.username"
                 type="text"
@@ -70,7 +72,7 @@
 
         <!-- Секция настроек -->
         <div class="profile-settings__section">
-          <h3>Настройки</h3>
+          <h3>Оформление</h3>
           <div class="profile-settings__form">
             <div class="profile-settings__field">
               <label>Размер текста</label>
@@ -94,15 +96,51 @@
                   <span>19px</span>
                   <span>20px</span>
                 </div>
+              </div>
+            </div>
+            <div class="profile-settings__field">
+              <label>Тема</label>
+              <div class="profile-settings__theme-options">
                 <button
-                  @click="saveTextSize"
-                  :disabled="tempMessageTextSize === messageTextSize"
-                  class="profile-settings__save-text-size"
+                  v-for="themeOption in themeOptions"
+                  :key="themeOption.value"
+                  type="button"
+                  @click="tempTheme = themeOption.value"
+                  :class="['profile-settings__theme-option', { 'profile-settings__theme-option--active': tempTheme === themeOption.value }]"
                 >
-                  Сохранить
+                  <span class="profile-settings__theme-option-icon">
+                    <svg v-if="themeOption.value === 'system'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                      <line x1="8" y1="21" x2="16" y2="21"></line>
+                      <line x1="12" y1="17" x2="12" y2="21"></line>
+                    </svg>
+                    <svg v-else-if="themeOption.value === 'light'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="5"></circle>
+                      <line x1="12" y1="1" x2="12" y2="3"></line>
+                      <line x1="12" y1="21" x2="12" y2="23"></line>
+                      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                      <line x1="1" y1="12" x2="3" y2="12"></line>
+                      <line x1="21" y1="12" x2="23" y2="12"></line>
+                      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                  </span>
+                  <span class="profile-settings__theme-option-label">{{ themeOption.label }}</span>
                 </button>
               </div>
             </div>
+            <button
+              type="button"
+              @click="saveAppearance"
+              :disabled="!hasAppearanceChanges"
+              class="profile-settings__save profile-settings__save--appearance"
+            >
+              Сохранить
+            </button>
           </div>
         </div>
 
@@ -145,53 +183,6 @@
               </select>
             </div>
             <p class="profile-settings__devices-hint">Выбор применяется к следующим звонкам. Разрешите доступ к микрофону и камере, чтобы видеть названия устройств.</p>
-          </div>
-        </div>
-
-        <!-- Секция темы -->
-        <div class="profile-settings__section">
-          <h3>Тема</h3>
-          <div class="profile-settings__form">
-            <div class="profile-settings__field">
-              <div class="profile-settings__theme-options">
-                <button
-                  v-for="themeOption in themeOptions"
-                  :key="themeOption.value"
-                  @click="tempTheme = themeOption.value"
-                  :class="['profile-settings__theme-option', { 'profile-settings__theme-option--active': tempTheme === themeOption.value }]"
-                >
-                  <span class="profile-settings__theme-option-icon">
-                    <svg v-if="themeOption.value === 'system'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                      <line x1="8" y1="21" x2="16" y2="21"></line>
-                      <line x1="12" y1="17" x2="12" y2="21"></line>
-                    </svg>
-                    <svg v-else-if="themeOption.value === 'light'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="12" cy="12" r="5"></circle>
-                      <line x1="12" y1="1" x2="12" y2="3"></line>
-                      <line x1="12" y1="21" x2="12" y2="23"></line>
-                      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                      <line x1="1" y1="12" x2="3" y2="12"></line>
-                      <line x1="21" y1="12" x2="23" y2="12"></line>
-                      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                    </svg>
-                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                    </svg>
-                  </span>
-                  <span class="profile-settings__theme-option-label">{{ themeOption.label }}</span>
-                </button>
-              </div>
-              <button
-                @click="saveTheme"
-                :disabled="tempTheme === theme"
-                class="profile-settings__save-theme"
-              >
-                Сохранить
-              </button>
-            </div>
           </div>
         </div>
 
@@ -303,16 +294,14 @@ onMounted(() => {
   callStore.loadDevices();
 });
 
-// Сохранение размера текста
-const saveTextSize = async (): Promise<void> => {
-  await setMessageTextSize(tempMessageTextSize.value);
-  notifySuccess('Настройки сохранены');
-};
+const hasAppearanceChanges = computed(() =>
+  tempMessageTextSize.value !== messageTextSize.value || tempTheme.value !== theme.value
+);
 
-// Сохранение темы
-const saveTheme = async (): Promise<void> => {
+const saveAppearance = async (): Promise<void> => {
+  await setMessageTextSize(tempMessageTextSize.value);
   await setTheme(tempTheme.value);
-  notifySuccess('Настройки сохранены');
+  notifySuccess('Настройки оформления сохранены');
 };
 
 const user = computed(() => authStore.user);
@@ -548,14 +537,25 @@ const changePassword = async (): Promise<void> => {
 
   &__content {
     padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
 
     @media (max-width: 768px) {
       padding: 1rem;
+      gap: 1rem;
     }
   }
 
   &__section {
-    margin-bottom: 2rem;
+    margin-bottom: 0;
+
+    @media (min-width: 769px) {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+    }
 
     &:last-child {
       margin-bottom: 0;
@@ -565,6 +565,12 @@ const changePassword = async (): Promise<void> => {
       margin: 0 0 1rem 0;
       color: var(--text-primary);
       font-size: 1.1rem;
+      font-weight: 600;
+
+      @media (min-width: 769px) {
+        margin-bottom: 1.25rem;
+        font-size: 1.15rem;
+      }
     }
   }
 
@@ -572,14 +578,31 @@ const changePassword = async (): Promise<void> => {
     display: flex;
     align-items: center;
     gap: 1.5rem;
+
+    @media (min-width: 769px) {
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    @media (max-width: 575px) {
+      flex-direction: column;
+      width: 100%;
+    }
+  }
+
+  &__avatar-wrap {
+    flex-shrink: 0;
   }
 
   &__avatar {
-    width: 100px;
-    height: 100px;
+    width: 200px;
+    height: 200px;
     border-radius: 50%;
     overflow: hidden;
     flex-shrink: 0;
+    border: 2px solid var(--border-color);
+    transition: box-shadow 0.2s, border-color 0.2s;
 
     img {
       width: 100%;
@@ -598,12 +621,38 @@ const changePassword = async (): Promise<void> => {
     color: white;
     font-weight: 600;
     font-size: 2.5rem;
+
+    @media (min-width: 769px) {
+      font-size: 4rem;
+    }
+  }
+
+  &__avatar-hint {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+
+    @media (max-width: 768px) {
+      display: none;
+    }
   }
 
   &__avatar-controls {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+
+    @media (min-width: 769px) {
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+    }
+
+    @media (max-width: 575px) {
+      width: 100%;
+      align-items: stretch;
+    }
   }
 
   &__avatar-input {
@@ -623,6 +672,13 @@ const changePassword = async (): Promise<void> => {
     justify-content: center;
     transition: all 0.2s;
     padding: 0;
+
+    @media (max-width: 575px) {
+      width: 100%;
+      height: auto;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+    }
 
     &:hover:not(:disabled) {
       background: var(--bg-primary);
@@ -644,6 +700,10 @@ const changePassword = async (): Promise<void> => {
     cursor: pointer;
     font-size: 0.9rem;
     transition: all 0.2s;
+
+    @media (max-width: 575px) {
+      width: 100%;
+    }
 
     &:hover {
       border-color: #ff3b30;
@@ -734,18 +794,18 @@ const changePassword = async (): Promise<void> => {
   &__logout {
     width: 100%;
     padding: 0.75rem 1.5rem;
-    background: transparent;
-    border: 1px solid var(--border-color);
+    background: #dc3545;
+    border: 1px solid #dc3545;
     border-radius: 8px;
-    color: var(--text-primary);
+    color: white;
     font-size: 1rem;
     font-weight: 500;
     cursor: pointer;
     transition: background 0.2s, border-color 0.2s;
 
     &:hover {
-      background: var(--bg-primary);
-      border-color: var(--text-secondary);
+      background: #c82333;
+      border-color: #c82333;
     }
   }
 
@@ -804,29 +864,6 @@ const changePassword = async (): Promise<void> => {
     font-size: 0.9rem;
     color: var(--text-primary);
     font-weight: 500;
-  }
-
-  &__save-text-size,
-  &__save-theme {
-    padding: 0.5rem 1rem;
-    background: var(--accent-color);
-    border: none;
-    border-radius: 8px;
-    color: white;
-    font-size: 0.9rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: opacity 0.2s;
-    margin-top: 0.5rem;
-
-    &:hover:not(:disabled) {
-      opacity: 0.9;
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
   }
 
   &__theme-options {

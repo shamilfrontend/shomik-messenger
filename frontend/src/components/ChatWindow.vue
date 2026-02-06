@@ -793,6 +793,12 @@ const handleHeaderAvatarClick = (): void => {
   }
 };
 
+const handleHeaderTitleClick = (): void => {
+  if (currentChat.value?.type === 'group') {
+    showGroupSettings.value = true;
+  }
+};
+
 const router = useRouter();
 
 const handleSendMessage = async (userId: string): Promise<void> => {
@@ -1138,7 +1144,16 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 						:class="['chat-window__status-indicator', `chat-window__status-indicator--${getComputedStatus(getOtherParticipant())}`]"
 					/>
 				</div>
-				<div class="chat-window__header-text">
+				<div
+					class="chat-window__header-text"
+					:class="{ 'chat-window__header-text--clickable': currentChat && currentChat.type === 'group' }"
+					role="button"
+					tabindex="0"
+					:aria-label="currentChat && currentChat.type === 'group' ? 'Настройки группы' : undefined"
+					@click="handleHeaderTitleClick"
+					@keydown.enter.prevent="handleHeaderTitleClick"
+					@keydown.space.prevent="handleHeaderTitleClick"
+				>
 					<h3>{{ getChatName() }}</h3>
 					<span v-if="getStatus()" class="chat-window__status">{{ getStatus() }}</span>
 				</div>
@@ -1191,18 +1206,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M23 7l-7 5 7 5V7z"></path>
 					<rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-				</svg>
-			</button>
-			<button
-				v-if="currentChat && currentChat.type === 'group'"
-				@click="showGroupSettings = true"
-				class="chat-window__settings-button"
-				aria-label="Настройки группы"
-				title="Настройки группы"
-			>
-				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
-					<circle cx="12" cy="12" r="3"></circle>
 				</svg>
 			</button>
 		</div>
@@ -1655,25 +1658,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     }
   }
 
-  &__settings-button {
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 0.5rem;
-    border-radius: 50%;
-    transition: all 0.2s;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    &:hover {
-      background: var(--bg-primary);
-      color: var(--text-primary);
-    }
-  }
-
   &__avatar {
     width: 40px;
     height: 40px;
@@ -1728,11 +1712,21 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
   &__header-text {
     flex: 1;
+    min-width: 0;
+
+    &--clickable {
+      cursor: pointer;
+
+      &:hover h3 {
+        color: var(--accent-color);
+      }
+    }
 
     h3 {
       margin: 0;
       color: var(--text-primary);
       font-size: 1rem;
+      transition: color 0.2s;
     }
   }
 

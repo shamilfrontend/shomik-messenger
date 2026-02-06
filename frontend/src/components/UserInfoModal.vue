@@ -107,12 +107,29 @@ onUnmounted(() => {
   justify-content: center;
   z-index: 1000;
 
+  @media (max-width: 768px) {
+    align-items: stretch;
+    justify-content: stretch;
+    background: var(--bg-secondary);
+  }
+
   &__container {
     background: var(--bg-secondary);
     border-radius: 12px;
     width: 90%;
     max-width: 400px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+
+    @media (max-width: 768px) {
+      width: 100%;
+      max-width: none;
+      height: 100%;
+      min-height: 100dvh;
+      border-radius: 0;
+      box-shadow: none;
+      display: flex;
+      flex-direction: column;
+    }
   }
 
   &__header {
@@ -121,6 +138,12 @@ onUnmounted(() => {
     align-items: center;
     padding: 1.5rem;
     border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+
+    @media (max-width: 768px) {
+      padding: 1rem 1.25rem;
+      padding-top: max(1rem, env(safe-area-inset-top));
+    }
 
     h2 {
       margin: 0;
@@ -154,6 +177,13 @@ onUnmounted(() => {
     flex-direction: column;
     align-items: center;
     gap: 1.5rem;
+
+    @media (max-width: 768px) {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 1.25rem;
+      padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    }
   }
 
   &__avatar {

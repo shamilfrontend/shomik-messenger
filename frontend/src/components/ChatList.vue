@@ -84,8 +84,8 @@
     <!-- Нижняя навигация -->
     <div class="chat-list__bottom-nav">
       <button
-        @click="activeTab = 'private'"
-        :class="['chat-list__nav-item', { 'chat-list__nav-item--active': activeTab === 'private' }]"
+        @click="goToChats"
+        :class="['chat-list__nav-item', { 'chat-list__nav-item--active': activeTab === 'private' && !isProfilePage }]"
         title="Чаты"
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -97,8 +97,8 @@
         </span>
       </button>
       <button
-        @click="activeTab = 'group'"
-        :class="['chat-list__nav-item', { 'chat-list__nav-item--active': activeTab === 'group' }]"
+        @click="goToGroups"
+        :class="['chat-list__nav-item', { 'chat-list__nav-item--active': activeTab === 'group' && !isProfilePage }]"
         title="Группы"
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -292,6 +292,16 @@ const selectChat = (chat: Chat): void => {
   router.push(`/chat/${chat._id}`);
 };
 
+const goToChats = (): void => {
+  activeTab.value = 'private';
+  router.push('/');
+};
+
+const goToGroups = (): void => {
+  activeTab.value = 'group';
+  router.push('/');
+};
+
 const goToProfile = (): void => {
   router.push('/profile');
 };
@@ -439,8 +449,6 @@ const isProfilePage = computed(() => route.path === '/profile');
   &__avatar {
     width: 50px;
     height: 50px;
-    border-radius: 50%;
-    overflow: visible;
     flex-shrink: 0;
     position: relative;
 		overflow: hidden;

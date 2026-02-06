@@ -11,24 +11,45 @@
         <template v-if="isCurrentUserAdmin">
           <!-- Аватар группы -->
           <div class="group-settings-modal__section">
-            <h3>Аватар группы</h3>
             <div class="group-settings-modal__avatar-section">
-              <div class="group-settings-modal__avatar">
-                <img v-if="getGroupAvatarUrl()" 
-                     :src="getGroupAvatarUrl()" 
-                     :alt="chat.groupName || 'Группа'" />
-                <div v-else class="group-settings-modal__avatar-placeholder">
-                  {{ (chat.groupName || 'Г').charAt(0).toUpperCase() }}
+              <div class="group-settings-modal__avatar-wrap">
+                <div class="group-settings-modal__avatar">
+                  <img v-if="getGroupAvatarUrl()"
+                       :src="getGroupAvatarUrl()"
+                       :alt="chat.groupName || 'Группа'" />
+                  <div v-else class="group-settings-modal__avatar-placeholder">
+                    {{ (chat.groupName || 'Г').charAt(0).toUpperCase() }}
+                  </div>
                 </div>
               </div>
+              <p class="group-settings-modal__avatar-hint">JPG или PNG, до 200 КБ</p>
               <div class="group-settings-modal__avatar-controls">
-                <FileUpload
+                <input
+                  ref="avatarInputRef"
+                  type="file"
                   accept="image/*"
-                  @uploaded="handleAvatarUploaded"
-                  @error="handleUploadError"
+                  class="group-settings-modal__avatar-input"
+                  @change="handleAvatarSelect"
                 />
-                <button v-if="chat.groupAvatar || avatarPreview" 
-                        @click="removeAvatar" 
+                <button
+                  type="button"
+                  class="group-settings-modal__avatar-button group-settings-modal__avatar-button--primary"
+                  :disabled="updatingAvatar"
+                  @click="triggerAvatarSelect"
+                >
+                  <template v-if="!updatingAvatar">
+                    <svg class="group-settings-modal__avatar-button-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="17 8 12 3 7 8"></polyline>
+                      <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    Загрузить фото
+                  </template>
+                  <span v-else class="group-settings-modal__avatar-button-loading">Загрузка…</span>
+                </button>
+                <button v-if="chat.groupAvatar || avatarPreview"
+                        type="button"
+                        @click="removeAvatar"
                         class="group-settings-modal__remove-avatar">
                   Удалить аватар
                 </button>
@@ -134,7 +155,6 @@
 
           <!-- Удаление группы -->
           <div class="group-settings-modal__section group-settings-modal__section--danger">
-            <h3>Опасная зона</h3>
             <button
               @click="confirmDelete"
               :disabled="deleting"
@@ -215,7 +235,6 @@ import { useAuthStore } from '../stores/auth.store';
 import { useChat } from '../composables/useChat';
 import { useNotifications } from '../composables/useNotifications';
 import { useConfirm } from '../composables/useConfirm';
-import FileUpload from './FileUpload.vue';
 import { Chat, User } from '../types';
 import { getImageUrl } from '../utils/image';
 import { getComputedStatus } from '../utils/status';
@@ -247,6 +266,21 @@ const deleting = ref(false);
 const leaving = ref(false);
 const avatarPreview = ref<string | null>(null);
 const updatingAvatar = ref(false);
+const avatarInputRef = ref<HTMLInputElement | null>(null);
+
+const MAX_AVATAR_SIZE = 200 * 1024; // 200 КБ
+
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+};
 
 const canUpdateName = computed(() => {
   return groupName.value.trim().length > 0 && groupName.value.trim() !== props.chat.groupName;
@@ -442,25 +476,39 @@ const deleteGroup = async (): Promise<void> => {
   }
 };
 
-const handleAvatarUploaded = async (data: { url: string; filename: string; type: string }): Promise<void> => {
-  avatarPreview.value = data.url;
+const triggerAvatarSelect = (): void => {
+  avatarInputRef.value?.click();
+};
+
+const handleAvatarSelect = async (event: Event): Promise<void> => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+  if (file.size > MAX_AVATAR_SIZE) {
+    notifyError('Размер файла не должен превышать 200 КБ');
+    target.value = '';
+    return;
+  }
+  if (!file.type.startsWith('image/')) {
+    notifyError('Выберите изображение');
+    target.value = '';
+    return;
+  }
   updatingAvatar.value = true;
   try {
-    const updatedChat = await chatStore.updateGroupAvatar(props.chat._id, data.url);
+    const base64String = await fileToBase64(file);
+    avatarPreview.value = base64String;
+    const updatedChat = await chatStore.updateGroupAvatar(props.chat._id, base64String);
     notifySuccess('Аватар группы обновлен');
     emit('updated', updatedChat);
     avatarPreview.value = null;
   } catch (error: any) {
-    const errorMsg = error.response?.data?.error || 'Ошибка обновления аватара';
-    notifyError(errorMsg);
+    notifyError(error.response?.data?.error || 'Ошибка обновления аватара');
     avatarPreview.value = null;
   } finally {
     updatingAvatar.value = false;
+    target.value = '';
   }
-};
-
-const handleUploadError = (error: string): void => {
-  notifyError(error);
 };
 
 const removeAvatar = async (): Promise<void> => {
@@ -622,29 +670,36 @@ onUnmounted(() => {
 
   &__avatar-section {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 1.5rem;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+  }
 
-    @media (max-width: 768px) {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 1rem;
-    }
+  &__avatar-wrap {
+    flex-shrink: 0;
   }
 
   &__avatar {
-    width: 100px;
-    height: 100px;
+    width: 300px;
+    height: 300px;
     border-radius: 50%;
     overflow: hidden;
-    flex-shrink: 0;
-    border: 2px solid var(--border-color);
+    border: 3px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: box-shadow 0.2s, border-color 0.2s;
 
     @media (max-width: 768px) {
-      width: 240px;
-      height: 240px;
-			margin-left: auto;
-			margin-right: auto;
+      width: 160px;
+      height: 160px;
+    }
+
+    &:hover {
+      border-color: var(--accent-color);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
     }
 
     img {
@@ -660,37 +715,91 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--accent-color);
+    background: linear-gradient(135deg, var(--accent-color) 0%, color-mix(in srgb, var(--accent-color) 80%, #333) 100%);
     color: white;
     font-weight: 600;
-    font-size: 2.5rem;
+    font-size: 5rem;
 
     @media (max-width: 768px) {
-      font-size: 2rem;
+      font-size: 3rem;
     }
+  }
+
+  &__avatar-hint {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
   }
 
   &__avatar-controls {
     display: flex;
-    flex-direction: column;
-		align-items: center;
-    gap: 0.75rem;
-		width: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  &__avatar-input {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &__avatar-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+
+    &--primary {
+      background: var(--accent-color);
+      color: white;
+      border-color: var(--accent-color);
+
+      &:hover:not(:disabled) {
+        opacity: 0.9;
+        filter: brightness(1.05);
+      }
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  &__avatar-button-icon {
+    flex-shrink: 0;
+  }
+
+  &__avatar-button-loading {
+    font-size: 0.9rem;
   }
 
   &__remove-avatar {
     padding: 0.5rem 1rem;
-    background: var(--bg-primary);
+    background: transparent;
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    color: var(--text-primary);
+    color: var(--text-secondary);
     font-size: 0.9rem;
     cursor: pointer;
     transition: all 0.2s;
 
     &:hover {
-      background: var(--bg-secondary);
+      background: var(--bg-primary);
       border-color: var(--text-secondary);
+      color: var(--text-primary);
     }
   }
 
@@ -698,6 +807,15 @@ onUnmounted(() => {
     display: flex;
     gap: 0.5rem;
     align-items: center;
+
+    @media (max-width: 575px) {
+      flex-direction: column;
+      width: 100%;
+
+      input {
+        width: 100%;
+      }
+    }
 
     input {
       flex: 1;
@@ -725,6 +843,10 @@ onUnmounted(() => {
     cursor: pointer;
     transition: opacity 0.2s;
     white-space: nowrap;
+
+    @media (max-width: 575px) {
+      width: 100%;
+    }
 
     &:hover:not(:disabled) {
       opacity: 0.9;
