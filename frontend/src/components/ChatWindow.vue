@@ -1368,8 +1368,9 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 						<span class="chat-window__system-time">{{ formatMessageTime(message.createdAt) }}</span>
 					</div>
 				</div>
-				<!-- Обычное сообщение -->
+				<!-- Обычное сообщение (не системное) -->
 				<div
+					v-else
 					:id="`message-${message._id}`"
 					:class="['chat-window__message-wrapper', {
 						'chat-window__message-wrapper_me': isOwnMessage(message)

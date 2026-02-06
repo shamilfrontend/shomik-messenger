@@ -810,9 +810,8 @@ export const removeParticipants = async (req: AuthRequest, res: Response): Promi
       
       wsService.broadcastMessage(messageObj, remainingParticipantIds);
       
-      // Отправляем событие об удалении чата удаленным участникам
-      // чтобы они удалили чат из своего списка
-      wsService.broadcastChatDeleted(chat._id.toString(), participantIds);
+      // Удалённым участникам — событие «исключён из группы» (редирект на / и уведомление с названием)
+      wsService.broadcastRemovedFromGroup(chat._id.toString(), chat.groupName || 'Группа', participantIds);
     }
 
     res.json(chatObj);

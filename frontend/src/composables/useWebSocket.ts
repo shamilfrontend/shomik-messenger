@@ -1,14 +1,18 @@
 import { onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useChatStore } from '../stores/chat.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useCallStore } from '../stores/call.store';
+import { useNotifications } from './useNotifications';
 import websocketService from '../services/websocket';
 import { Message, Chat, User } from '../types';
 
 export const useWebSocket = () => {
+  const router = useRouter();
   const chatStore = useChatStore();
   const authStore = useAuthStore();
   const callStore = useCallStore();
+  const { success: notifySuccess } = useNotifications();
 
   // Сохраняем ссылки на обработчики для правильной отписки
   const messageNewHandler = (message: Message) => {
@@ -57,6 +61,15 @@ export const useWebSocket = () => {
 
   const chatDeletedHandler = (data: { chatId: string }) => {
     chatStore.removeChatFromList(data.chatId);
+  };
+
+  const chatRemovedFromGroupHandler = (data: { chatId: string; groupName: string }) => {
+    const wasViewingThisChat = chatStore.currentChat?._id === data.chatId;
+    chatStore.removeChatFromList(data.chatId);
+    if (wasViewingThisChat) {
+      router.push('/');
+      notifySuccess(`Вас исключили из группы «${data.groupName}»`);
+    }
   };
 
   const userUpdatedHandler = (user: User) => {
@@ -133,6 +146,7 @@ export const useWebSocket = () => {
     websocketService.on('chat:created', chatCreatedHandler);
     websocketService.on('chat:updated', chatUpdatedHandler);
     websocketService.on('chat:deleted', chatDeletedHandler);
+    websocketService.on('chat:removed-from-group', chatRemovedFromGroupHandler);
     websocketService.on('user:updated', userUpdatedHandler);
     websocketService.on('message:reaction', messageReactionHandler);
     websocketService.on('message:deleted', messageDeletedHandler);
@@ -157,6 +171,7 @@ export const useWebSocket = () => {
     websocketService.off('chat:created', chatCreatedHandler);
     websocketService.off('chat:updated', chatUpdatedHandler);
     websocketService.off('chat:deleted', chatDeletedHandler);
+    websocketService.off('chat:removed-from-group', chatRemovedFromGroupHandler);
     websocketService.off('user:updated', userUpdatedHandler);
     websocketService.off('message:reaction', messageReactionHandler);
     websocketService.off('message:deleted', messageDeletedHandler);

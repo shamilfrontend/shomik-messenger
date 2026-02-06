@@ -629,7 +629,6 @@ class WebSocketService {
       data: { chatId }
     };
 
-    // Отправляем событие всем участникам чата
     participantIds.forEach((participantId: string) => {
       const client = this.clients.get(participantId);
       if (client) {
@@ -637,6 +636,25 @@ class WebSocketService {
           client.send(JSON.stringify(chatData));
         } catch (error) {
           console.error(`Ошибка отправки события chat:deleted пользователю ${participantId}:`, error);
+        }
+      }
+    });
+  }
+
+  /** Отправка удалённым участникам группы: их исключили из группы (редирект + уведомление с названием). */
+  public broadcastRemovedFromGroup(chatId: string, groupName: string, removedParticipantIds: string[]): void {
+    const payload = {
+      type: 'chat:removed-from-group',
+      data: { chatId, groupName }
+    };
+
+    removedParticipantIds.forEach((participantId: string) => {
+      const client = this.clients.get(participantId);
+      if (client) {
+        try {
+          client.send(JSON.stringify(payload));
+        } catch (error) {
+          console.error(`Ошибка отправки chat:removed-from-group пользователю ${participantId}:`, error);
         }
       }
     });
