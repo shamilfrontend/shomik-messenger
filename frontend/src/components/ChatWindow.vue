@@ -1483,8 +1483,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
       width: 100%;
       /* Создаем новый слой композиции для надежной работы на мобильных */
       transform: translateZ(0);
-      -webkit-transform: translateZ(0);
-      -webkit-backface-visibility: hidden;
       backface-visibility: hidden;
       will-change: transform, top;
       /* Учитываем safe area для устройств с вырезом */
@@ -1685,7 +1683,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
       top: calc(73px + env(safe-area-inset-top, 0px));
       z-index: 99;
       transform: translateZ(0);
-      -webkit-transform: translateZ(0);
     }
   }
 
@@ -2183,8 +2180,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    line-clamp: 2;
   }
 
   &__message-bubble {

@@ -464,6 +464,8 @@ const handleUploadError = (error: string): void => {
 };
 
 const removeAvatar = async (): Promise<void> => {
+  const confirmed = await confirm('Удалить аватар группы?');
+  if (!confirmed) return;
   updatingAvatar.value = true;
   try {
     const updatedChat = await chatStore.updateGroupAvatar(props.chat._id, '');
@@ -628,8 +630,10 @@ onUnmounted(() => {
     border: 2px solid var(--border-color);
 
     @media (max-width: 768px) {
-      width: 80px;
-      height: 80px;
+      width: 240px;
+      height: 240px;
+			margin-left: auto;
+			margin-right: auto;
     }
 
     img {
@@ -658,7 +662,9 @@ onUnmounted(() => {
   &__avatar-controls {
     display: flex;
     flex-direction: column;
+		align-items: center;
     gap: 0.75rem;
+		width: 100%;
   }
 
   &__remove-avatar {

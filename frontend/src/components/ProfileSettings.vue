@@ -251,12 +251,17 @@ import { useCallStore } from '../stores/call.store';
 import { profileService } from '../services/profile.service';
 import { useNotifications } from '../composables/useNotifications';
 import { useSettings } from '../composables/useSettings';
+import { useConfirm } from '../composables/useConfirm';
 import { getImageUrl } from '../utils/image';
 
 const router = useRouter();
 const callStore = useCallStore();
 
-const handleLogout = (): void => {
+const { confirm } = useConfirm();
+
+const handleLogout = async (): Promise<void> => {
+  const confirmed = await confirm('Вы уверены, что хотите выйти из аккаунта?');
+  if (!confirmed) return;
   authStore.logout();
   emit('close');
   router.push('/login');
@@ -424,6 +429,8 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 const removeAvatar = async (): Promise<void> => {
+  const confirmed = await confirm('Удалить фотографию профиля?');
+  if (!confirmed) return;
   try {
     await profileService.updateProfile({ avatar: '' });
     avatarPreview.value = null;
@@ -754,11 +761,9 @@ const changePassword = async (): Promise<void> => {
     background: var(--bg-primary);
     border-radius: 3px;
     outline: none;
-    -webkit-appearance: none;
     appearance: none;
 
     &::-webkit-slider-thumb {
-      -webkit-appearance: none;
       appearance: none;
       width: 18px;
       height: 18px;

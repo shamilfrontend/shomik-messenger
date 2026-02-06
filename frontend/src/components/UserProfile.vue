@@ -38,6 +38,7 @@
 import { computed, ref } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
 import { useAuth } from '../composables/useAuth';
+import { useConfirm } from '../composables/useConfirm';
 import ProfileSettings from './ProfileSettings.vue';
 
 const emit = defineEmits<{
@@ -46,6 +47,7 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore();
 const { logout } = useAuth();
+const { confirm } = useConfirm();
 const showSettings = ref(false);
 
 const user = computed(() => authStore.user);
@@ -57,7 +59,9 @@ const avatarUrl = computed(() => {
   return getImageUrl(user.value?.avatar) || null;
 });
 
-const handleLogout = (): void => {
+const handleLogout = async (): Promise<void> => {
+  const confirmed = await confirm('Вы уверены, что хотите выйти из аккаунта?');
+  if (!confirmed) return;
   logout();
 };
 </script>
