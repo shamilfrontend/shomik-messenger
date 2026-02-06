@@ -4,6 +4,7 @@
   "private": true,
   "description": "Shomik Messenger - Backend and Frontend",
   "scripts": {
+    "build": "cd backend && yarn build && cd ../frontend && yarn build && cd ..",
     "pm2:dev": "npx pm2 start ecosystem.config.cjs --env dev --only shomik-backend-dev,shomik-frontend-dev",
     "pm2:prod": "npx pm2 start ecosystem.config.cjs --env production --only shomik-backend,shomik-frontend",
     "pm2:stop": "npx pm2 stop all",

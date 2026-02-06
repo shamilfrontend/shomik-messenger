@@ -191,7 +191,7 @@ class WebSocketService {
       await chat.save();
 
       // Преобразуем _id в id для senderId и replyTo
-      const messageObj = message.toObject();
+      const messageObj = message.toObject() as any;
       if (messageObj.senderId && typeof messageObj.senderId === 'object') {
         messageObj.senderId = {
           id: messageObj.senderId._id.toString(),

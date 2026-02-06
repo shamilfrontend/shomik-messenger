@@ -7,7 +7,7 @@ const router = Router();
 
 router.use(authMiddleware);
 
-router.post('/file', upload.single('file'), (req: AuthRequest, res: Response) => {
+router.post('/file', upload.single('file') as any, (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
       res.status(400).json({ error: 'Файл не загружен' });

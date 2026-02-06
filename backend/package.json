@@ -1,6 +1,7 @@
 {
   "name": "shimik-messenger-backend",
   "version": "1.0.0",
+  "license": "MIT",
   "description": "Backend for messenger",
   "main": "dist/server.js",
   "scripts": {

@@ -8,7 +8,7 @@ import { wsService } from '../server';
 
 // Функция для преобразования чата в нужный формат
 const formatChat = (chat: any): any => {
-  const chatObj = chat.toObject();
+  const chatObj = chat.toObject() as any;
   chatObj.participants = chatObj.participants.map((p: any) => ({
     id: p._id.toString(),
     username: p.username,
@@ -39,7 +39,7 @@ export const getChats = async (req: AuthRequest, res: Response): Promise<void> =
 
     // Преобразуем участников: _id -> id
     const chatsWithId = chats.map(chat => {
-      const chatObj = chat.toObject();
+      const chatObj = chat.toObject() as any;
       chatObj.participants = chatObj.participants.map((p: any) => ({
         id: p._id.toString(),
         username: p.username,
@@ -59,7 +59,7 @@ export const getChats = async (req: AuthRequest, res: Response): Promise<void> =
     });
 
     // Получаем информацию об активных групповых звонках для групповых чатов пользователя
-    const groupChatIds = chatsWithId.filter((c) => c.type === 'group').map((c) => c._id);
+    const groupChatIds = chatsWithId.filter((c) => c.type === 'group').map((c) => c._id.toString());
     const activeGroupCalls = wsService.getActiveGroupCallsForChats(groupChatIds);
 
     res.json({ chats: chatsWithId, activeGroupCalls });
@@ -133,7 +133,7 @@ export const createChat = async (req: AuthRequest, res: Response): Promise<void>
         await existingChat.populate('admin', 'username avatar');
         
         // Преобразуем участников: _id -> id
-        const chatObj = existingChat.toObject();
+        const chatObj = existingChat.toObject() as any;
         chatObj.participants = chatObj.participants.map((p: any) => ({
           id: p._id.toString(),
           username: p.username,
@@ -202,7 +202,7 @@ export const createChat = async (req: AuthRequest, res: Response): Promise<void>
       await chat.save();
 
       // Преобразуем системное сообщение для отправки через WebSocket
-      const messageObj = systemMessage.toObject();
+      const messageObj = systemMessage.toObject() as any;
       messageObj._id = messageObj._id.toString();
       messageObj.chatId = messageObj.chatId.toString();
       if (messageObj.senderId && typeof messageObj.senderId === 'object') {
@@ -224,7 +224,7 @@ export const createChat = async (req: AuthRequest, res: Response): Promise<void>
     }
 
     // Преобразуем участников: _id -> id
-    const chatObj = chat.toObject();
+    const chatObj = chat.toObject() as any;
     chatObj.participants = chatObj.participants.map((p: any) => ({
       id: p._id.toString(),
       username: p.username,
@@ -284,7 +284,7 @@ export const getChatById = async (req: AuthRequest, res: Response): Promise<void
     }
 
     // Преобразуем участников: _id -> id
-    const chatObj = chat.toObject();
+    const chatObj = chat.toObject() as any;
     chatObj.participants = chatObj.participants.map((p: any) => ({
       id: p._id.toString(),
       username: p.username,
@@ -378,7 +378,7 @@ export const addParticipants = async (req: AuthRequest, res: Response): Promise<
     await chat.save();
 
     // Преобразуем системное сообщение для отправки через WebSocket
-    const messageObj = systemMessage.toObject();
+    const messageObj = systemMessage.toObject() as any;
     messageObj._id = messageObj._id.toString();
     messageObj.chatId = messageObj.chatId.toString();
     if (messageObj.senderId && typeof messageObj.senderId === 'object') {
@@ -454,7 +454,7 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
 
     // Преобразуем _id в id для senderId и replyTo, а также reactions
     const messagesWithId = messages.map(msg => {
-      const messageObj = msg.toObject();
+      const messageObj = msg.toObject() as any;
       if (messageObj.senderId && typeof messageObj.senderId === 'object') {
         messageObj.senderId = {
           id: messageObj.senderId._id.toString(),
@@ -554,7 +554,7 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
     await chat.save();
 
     // Преобразуем _id в id для senderId и replyTo
-    const messageObj = message.toObject();
+    const messageObj = message.toObject() as any;
     if (messageObj.senderId && typeof messageObj.senderId === 'object') {
       messageObj.senderId = {
         id: messageObj.senderId._id.toString(),
@@ -753,7 +753,7 @@ export const removeParticipants = async (req: AuthRequest, res: Response): Promi
     await chat.save();
 
     // Преобразуем системное сообщение для отправки через WebSocket
-    const messageObj = systemMessage.toObject();
+    const messageObj = systemMessage.toObject() as any;
     messageObj._id = messageObj._id.toString();
     messageObj.chatId = messageObj.chatId.toString();
     if (messageObj.senderId && typeof messageObj.senderId === 'object') {
@@ -831,7 +831,7 @@ export const leaveGroup = async (req: AuthRequest, res: Response): Promise<void>
 
       // Отправляем WebSocket событие об удалении группы
       if (wsService) {
-        wsService.broadcastChatDeleted(id, [req.userId]);
+        wsService.broadcastChatDeleted(id, [req.userId!]);
       }
 
       res.json({ message: 'Группа удалена' });
@@ -867,7 +867,7 @@ export const leaveGroup = async (req: AuthRequest, res: Response): Promise<void>
     await chat.save();
 
     // Преобразуем системное сообщение для отправки через WebSocket
-    const messageObj = systemMessage.toObject();
+    const messageObj = systemMessage.toObject() as any;
     messageObj._id = messageObj._id.toString();
     messageObj.chatId = messageObj.chatId.toString();
     if (messageObj.senderId && typeof messageObj.senderId === 'object') {
@@ -897,7 +897,7 @@ export const leaveGroup = async (req: AuthRequest, res: Response): Promise<void>
       wsService.broadcastMessage(messageObj, remainingParticipantIds);
       
       // Отправляем событие об удалении чата выходящему пользователю
-      wsService.broadcastChatDeleted(chat._id.toString(), [req.userId]);
+      wsService.broadcastChatDeleted(chat._id.toString(), [req.userId!]);
     }
 
     res.json({ message: 'Вы вышли из группы' });
@@ -989,10 +989,10 @@ export const toggleReaction = async (req: AuthRequest, res: Response): Promise<v
 
     // Инициализируем reactions если его нет
     if (!message.reactions) {
-      message.reactions = new Map();
+      (message as any).reactions = new Map<string, mongoose.Types.ObjectId[]>();
     }
 
-    const reactionsMap = message.reactions as Map<string, mongoose.Types.ObjectId[]>;
+    const reactionsMap = (message.reactions as unknown) as Map<string, mongoose.Types.ObjectId[]>;
     const userIdObj = new mongoose.Types.ObjectId(req.userId);
 
     // Проверяем, стоит ли уже у пользователя эта реакция (снять или заменить)
@@ -1027,12 +1027,12 @@ export const toggleReaction = async (req: AuthRequest, res: Response): Promise<v
       reactionsMap.set(emoji, updated);
     }
 
-    message.reactions = reactionsMap;
+    (message as any).reactions = reactionsMap;
     await message.save();
 
     // Преобразуем Map в объект для ответа
     const reactionsObj: { [key: string]: string[] } = {};
-    reactionsMap.forEach((userIds, emojiKey) => {
+    reactionsMap.forEach((userIds: mongoose.Types.ObjectId[], emojiKey: string) => {
       reactionsObj[emojiKey] = userIds.map((id: mongoose.Types.ObjectId) => id.toString());
     });
 
