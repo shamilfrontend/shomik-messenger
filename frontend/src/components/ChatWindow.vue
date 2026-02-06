@@ -450,9 +450,23 @@ watch(
   }
 );
 
+const showScrollToBottom = ref(false);
+const SCROLL_TO_BOTTOM_THRESHOLD = 100;
+
+const onMessagesScroll = (): void => {
+  const el = messagesContainer.value;
+  if (!el) return;
+  const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_TO_BOTTOM_THRESHOLD;
+  showScrollToBottom.value = !atBottom;
+};
+
 const scrollToBottom = (): void => {
   if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+    messagesContainer.value.scrollTo({
+      top: messagesContainer.value.scrollHeight,
+      behavior: 'smooth'
+    });
+    showScrollToBottom.value = false;
   }
 };
 
@@ -1219,7 +1233,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
 		<audio ref="remoteAudioRef" autoplay />
 
-		<div v-if="currentChat" class="chat-window__messages" ref="messagesContainer">
+		<div v-if="currentChat" class="chat-window__messages" ref="messagesContainer" @scroll="onMessagesScroll">
 			<template v-for="message in messages" :key="message._id">
 				<!-- Системное сообщение -->
 				<div
@@ -1404,6 +1418,18 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				<span>{{ getTypingText() }}</span>
 			</div>
 		</div>
+
+		<button
+			v-if="currentChat && showScrollToBottom"
+			type="button"
+			class="chat-window__scroll-to-bottom"
+			@click="scrollToBottom"
+			aria-label="К последнему сообщению"
+		>
+			<svg width="24" height="24" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<polyline points="6 9 12 15 18 9" />
+			</svg>
+		</button>
 
 		<MessageInput 
 			ref="messageInputRef"
@@ -2581,6 +2607,43 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     color: var(--text-secondary);
     font-size: 0.85rem;
     font-style: italic;
+  }
+
+  &__scroll-to-bottom {
+    position: absolute;
+    bottom: 5.5rem;
+    right: 1rem;
+    z-index: 20;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    color: var(--text-primary);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: opacity 0.2s, transform 0.2s;
+
+    &:hover {
+      background: var(--bg-primary);
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+
+    @media (max-width: 768px) {
+      bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+      right: 0.75rem;
+      width: 48px;
+      height: 48px;
+    }
   }
 }
 </style>

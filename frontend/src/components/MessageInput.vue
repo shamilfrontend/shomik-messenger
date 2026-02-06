@@ -313,7 +313,7 @@ const insertEmoji = (emoji: string): void => {
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 10;
+    z-index: 20;
     width: 100vw;
   }
 

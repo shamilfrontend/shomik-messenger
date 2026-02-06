@@ -516,6 +516,12 @@ onUnmounted(() => {
   justify-content: center;
   z-index: 1000;
 
+  @media (max-width: 768px) {
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 0;
+  }
+
   &__content {
     width: 90%;
     max-width: 600px;
@@ -527,10 +533,15 @@ onUnmounted(() => {
     overflow: hidden;
 
     @media (max-width: 768px) {
-      width: 95%;
+      width: 100%;
       max-width: none;
-      max-height: 95vh;
-      border-radius: 8px;
+      height: 100%;
+      max-height: none;
+      min-height: 100dvh;
+      min-height: 100vh;
+      border-radius: 0;
+      padding-top: env(safe-area-inset-top, 0);
+      padding-bottom: env(safe-area-inset-bottom, 0);
     }
   }
 
