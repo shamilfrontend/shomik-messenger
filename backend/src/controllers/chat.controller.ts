@@ -35,9 +35,11 @@ const formatChat = (chat: any): any => {
         lastSeen: chatObj.lastMessage.senderId.lastSeen
       };
     }
-    // Преобразуем _id в строку
-    if (chatObj.lastMessage._id) {
-      chatObj.lastMessage._id = chatObj.lastMessage._id.toString();
+    // Не присваиваем _id вложенному объекту (getter-only). Создаём новый объект с _id-строкой.
+    const lm = chatObj.lastMessage;
+    const idStr = lm._id != null ? (typeof lm._id === 'object' && 'toString' in lm._id ? (lm._id as { toString(): string }).toString() : String(lm._id)) : undefined;
+    if (idStr !== undefined) {
+      chatObj.lastMessage = { ...lm, _id: idStr };
     }
   }
   return chatObj;
@@ -977,10 +979,9 @@ export const deleteMessage = async (req: AuthRequest, res: Response): Promise<vo
   try {
     const { id: chatId, messageId } = req.params;
 
-    // Загружаем чат без populate lastMessage, чтобы избежать проблем с присвоением
+    // Загружаем чат без populate lastMessage и admin — admin нужен как ObjectId для проверки прав
     const chat = await Chat.findById(chatId)
-      .populate('participants', 'username avatar status lastSeen email')
-      .populate('admin', 'username avatar');
+      .populate('participants', 'username avatar status lastSeen email');
 
     if (!chat) {
       res.status(404).json({ error: 'Чат не найден' });

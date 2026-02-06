@@ -4,9 +4,11 @@
       :class="{ 'chat-view__list--hidden': (showChatWindow || showProfile) && isMobile }"
       @new-chat="showNewChat = true"
       @new-group="showNewGroup = true"
+      @scroll-to-bottom-request="handleScrollToBottomRequest"
     />
-    <ChatWindow 
+    <ChatWindow
       v-if="showChatWindow && !showProfile"
+      ref="chatWindowRef"
       @back="handleBack"
       :class="{ 'chat-view__window--full': showChatWindow && isMobile }"
     />
@@ -29,6 +31,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch, computed, onUnmounted } from 'vue';
+import type { ComponentPublicInstance } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ChatList from '../components/ChatList.vue';
 import ChatWindow from '../components/ChatWindow.vue';
@@ -43,6 +46,7 @@ import { User } from '../types';
 const chatStore = useChatStore();
 const route = useRoute();
 const router = useRouter();
+const chatWindowRef = ref<ComponentPublicInstance<{ scrollToBottom: () => void }> | null>(null);
 const showNewChat = ref(false);
 const showNewGroup = ref(false);
 const isMobile = ref(window.innerWidth <= 768);
@@ -55,6 +59,10 @@ const handleResize = (): void => {
 
 const handleBack = (): void => {
   router.push('/');
+};
+
+const handleScrollToBottomRequest = (): void => {
+  chatWindowRef.value?.scrollToBottom?.();
 };
 
 onMounted(async () => {

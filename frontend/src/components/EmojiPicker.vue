@@ -12,14 +12,19 @@
         </button>
       </div>
       <div class="emoji-picker__emojis">
-        <button
-          v-for="emoji in getCurrentCategoryEmojis()"
-          :key="emoji"
-          @click="selectEmoji(emoji)"
-          class="emoji-picker__emoji"
-        >
-          {{ emoji }}
-        </button>
+        <p v-if="activeCategory === 'recent' && recentEmojis.length === 0" class="emoji-picker__empty">
+          Недавно использованных эмодзи пока нет
+        </p>
+        <template v-else>
+          <button
+            v-for="emoji in getCurrentCategoryEmojis()"
+            :key="emoji"
+            @click="selectEmoji(emoji)"
+            class="emoji-picker__emoji"
+          >
+            {{ emoji }}
+          </button>
+        </template>
       </div>
     </div>
   </div>
@@ -27,6 +32,32 @@
 
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue';
+
+const RECENT_EMOJIS_KEY = 'shomik-recent-emojis';
+const RECENT_EMOJIS_MAX = 24;
+
+const loadRecentEmojis = (): string[] => {
+  try {
+    const raw = localStorage.getItem(RECENT_EMOJIS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed) && parsed.every((e): e is string => typeof e === 'string')) {
+        return parsed.slice(0, RECENT_EMOJIS_MAX);
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+};
+
+const saveRecentEmojis = (list: string[]): void => {
+  try {
+    localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(list.slice(0, RECENT_EMOJIS_MAX)));
+  } catch {
+    // ignore
+  }
+};
 
 const props = defineProps<{
   isOpen: boolean;
@@ -37,9 +68,11 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
-const activeCategory = ref('smileys');
+const recentEmojis = ref<string[]>(loadRecentEmojis());
+const activeCategory = ref(recentEmojis.value.length > 0 ? 'recent' : 'smileys');
 
 const categories = [
+  { name: 'recent', icon: '🕐' },
   { name: 'smileys', icon: '😀' },
   { name: 'gestures', icon: '👋' },
   { name: 'people', icon: '👤' },
@@ -238,10 +271,20 @@ const emojis: Record<string, string[]> = {
 };
 
 const getCurrentCategoryEmojis = (): string[] => {
+  if (activeCategory.value === 'recent') {
+    return recentEmojis.value;
+  }
   return emojis[activeCategory.value] || [];
 };
 
+const addToRecent = (emoji: string): void => {
+  const next = [emoji, ...recentEmojis.value.filter((e) => e !== emoji)].slice(0, RECENT_EMOJIS_MAX);
+  recentEmojis.value = next;
+  saveRecentEmojis(next);
+};
+
 const selectEmoji = (emoji: string): void => {
+  addToRecent(emoji);
   emit('select', emoji);
 };
 
@@ -340,6 +383,15 @@ onUnmounted(() => {
       background: var(--accent-color);
       opacity: 0.8;
     }
+  }
+
+  &__empty {
+    grid-column: 1 / -1;
+    padding: 1.5rem 0.5rem;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    text-align: center;
   }
 
   &__emojis {

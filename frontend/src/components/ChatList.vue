@@ -146,9 +146,10 @@ import { getImageUrl } from '../utils/image';
 import { getComputedStatus } from '../utils/status';
 import type { User } from '../types';
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'new-chat'): void;
   (e: 'new-group'): void;
+  (e: 'scroll-to-bottom-request'): void;
 }>();
 
 const chatStore = useChatStore();
@@ -284,6 +285,10 @@ const unreadGroupChatsCount = computed((): number => {
 });
 
 const selectChat = (chat: Chat): void => {
+  if (chatStore.currentChat?._id === chat._id) {
+    emit('scroll-to-bottom-request');
+    return;
+  }
   router.push(`/chat/${chat._id}`);
 };
 
@@ -438,6 +443,7 @@ const isProfilePage = computed(() => route.path === '/profile');
     overflow: visible;
     flex-shrink: 0;
     position: relative;
+		overflow: hidden;
 
     img {
       width: 100%;

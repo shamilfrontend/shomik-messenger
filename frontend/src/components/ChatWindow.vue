@@ -8,6 +8,7 @@ import MessageInput from './MessageInput.vue';
 import UserInfoModal from './UserInfoModal.vue';
 import GroupSettingsModal from './GroupSettingsModal.vue';
 import MessageViewModal from './MessageViewModal.vue';
+import ContextMenu from './ContextMenu.vue';
 import type { Message, User } from '../types';
 import { getImageUrl } from '../utils/image';
 import { isUserOnline, getComputedStatus } from '../utils/status';
@@ -34,11 +35,14 @@ const showReactionMenu = ref<string | null>(null);
 const reactionMenuPosition = ref<'above' | 'below'>('below');
 const showMessageView = ref(false);
 const selectedMessage = ref<Message | null>(null);
+const contextMenuVisible = ref(false);
+const contextMenuX = ref(0);
+const contextMenuY = ref(0);
+const contextMenuMessage = ref<Message | null>(null);
 const availableReactions = ['👍', '😂', '🔥', '❤️', '👎', '👀', '💯'];
 const videoCallMicDropdownOpen = ref(false);
 const videoCallCameraDropdownOpen = ref(false);
 const headerRef = ref<HTMLElement | null>(null);
-const chatWindowRef = ref<HTMLElement | null>(null);
 const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null);
 
 const handleResize = (): void => {
@@ -56,7 +60,7 @@ const handleViewportResize = (): void => {
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
   }
-  
+
   // Используем requestAnimationFrame для плавного обновления
   rafId = requestAnimationFrame(() => {
     if (!headerRef.value) return;
@@ -382,20 +386,16 @@ const groupVideoGridStyle = computed(() => {
   return { '--grid-cols': String(cols) };
 });
 
-watch(messages, () => {
-  nextTick(() => {
-    scrollToBottom();
-  });
-}, { deep: true });
-
-// Закрываем модальные окна при смене чата
-watch(currentChat, () => {
+// Скролл к последнему сообщению после загрузки при открытии чата
+const scrollAfterMessagesLoaded = ref(false);
+watch(currentChat, (newChat) => {
   showGroupSettings.value = false;
   showUserInfo.value = false;
   selectedUser.value = null;
   replyToMessage.value = null;
   editMessage.value = null;
   showReactionMenu.value = null;
+  if (newChat) scrollAfterMessagesLoaded.value = true;
 });
 
 watch(
@@ -451,24 +451,82 @@ watch(
 );
 
 const showScrollToBottom = ref(false);
+const userWasAtBottom = ref(true);
 const SCROLL_TO_BOTTOM_THRESHOLD = 100;
+const SCROLL_LOAD_OLDER_THRESHOLD = 150;
 
-const onMessagesScroll = (): void => {
+const onMessagesScroll = async (): Promise<void> => {
   const el = messagesContainer.value;
-  if (!el) return;
+  if (!el || !currentChat.value) return;
   const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_TO_BOTTOM_THRESHOLD;
+  userWasAtBottom.value = atBottom;
   showScrollToBottom.value = !atBottom;
-};
 
-const scrollToBottom = (): void => {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTo({
-      top: messagesContainer.value.scrollHeight,
-      behavior: 'smooth'
-    });
-    showScrollToBottom.value = false;
+  if (
+    el.scrollTop <= SCROLL_LOAD_OLDER_THRESHOLD &&
+    chatStore.hasMoreOlderMessages &&
+    !chatStore.loadingOlderMessages
+  ) {
+    const oldScrollHeight = el.scrollHeight;
+    const oldScrollTop = el.scrollTop;
+    const loaded = await chatStore.loadOlderMessages(currentChat.value._id);
+    if (loaded && messagesContainer.value) {
+      nextTick(() => {
+        const container = messagesContainer.value;
+        if (container) {
+          container.scrollTop = oldScrollTop + (container.scrollHeight - oldScrollHeight);
+        }
+      });
+    }
   }
 };
+
+const scrollToBottom = (smooth = true): void => {
+  const el = messagesContainer.value;
+  if (!el) return;
+  const target = el.scrollHeight;
+  if (smooth) {
+    el.scrollTo({ top: target, behavior: 'smooth' });
+  } else {
+    el.scrollTop = target;
+  }
+  userWasAtBottom.value = true;
+  showScrollToBottom.value = false;
+};
+
+defineExpose({ scrollToBottom });
+
+// Скролл вниз при первой загрузке чата: несколько попыток после отрисовки
+const runInitialScrollToBottom = (): void => {
+  const attempt = (): void => {
+    scrollToBottom(false);
+  };
+  nextTick(() => {
+    attempt();
+    requestAnimationFrame(() => {
+      attempt();
+      setTimeout(attempt, 50);
+      setTimeout(attempt, 150);
+    });
+  });
+};
+
+// Скролл вниз: при открытии чата и когда пользователь отправил сообщение
+watch(
+  () => messages.value.length,
+  (newLen, oldLen) => {
+    if (scrollAfterMessagesLoaded.value && messages.value.length > 0 && currentChat.value) {
+      scrollAfterMessagesLoaded.value = false;
+      runInitialScrollToBottom();
+      return;
+    }
+    if (oldLen !== undefined && newLen > oldLen && messages.value.length > 0) {
+      if (userWasAtBottom.value) {
+        nextTick(() => scrollToBottom(true));
+      }
+    }
+  }
+);
 
 const getChatName = (): string => {
   if (!currentChat.value) return '';
@@ -617,18 +675,21 @@ const MAX_MESSAGE_LENGTH = 500;
 
 // Проверка, нужно ли обрезать сообщение
 const shouldTruncateMessage = (message: Message): boolean => {
-  // Обрезаем только текстовые сообщения
-  if (message.type !== 'text') {
+  const content = message.content;
+  if (typeof content !== 'string' || content.length <= MAX_MESSAGE_LENGTH) {
     return false;
   }
-  return message.content.length > MAX_MESSAGE_LENGTH;
+  // Обрезаем только текстовые сообщения (тип text или не задан)
+  if (message.type === 'image' || message.type === 'file' || message.type === 'system') {
+    return false;
+  }
+  return true;
 };
 
 // Получение обрезанного текста сообщения
 const getTruncatedText = (content: string): string => {
-  if (content.length <= MAX_MESSAGE_LENGTH) {
-    return content;
-  }
+  if (typeof content !== 'string') return String(content ?? '');
+  if (content.length <= MAX_MESSAGE_LENGTH) return content;
   return content.slice(0, MAX_MESSAGE_LENGTH) + '...';
 };
 
@@ -717,6 +778,19 @@ const openUserInfo = (message: Message): void => {
 const closeUserInfo = (): void => {
   showUserInfo.value = false;
   selectedUser.value = null;
+};
+
+const handleHeaderAvatarClick = (): void => {
+  if (!currentChat.value) return;
+  if (currentChat.value.type === 'private') {
+    const other = getOtherParticipant();
+    if (other) {
+      selectedUser.value = other;
+      showUserInfo.value = true;
+    }
+  } else {
+    showGroupSettings.value = true;
+  }
 };
 
 const router = useRouter();
@@ -837,6 +911,48 @@ const handleGroupDeleted = (): void => {
   router.push('/');
 };
 
+interface MessageContextAction {
+  id: string;
+  label: string;
+  disabled?: boolean;
+}
+
+const getMessageContextMenuActions = (message: Message): MessageContextAction[] => {
+  const actions: MessageContextAction[] = [];
+  if (message.type !== 'system') {
+    actions.push({ id: 'reply', label: 'Ответить' });
+  }
+  if (canEditMessage(message)) {
+    actions.push({ id: 'edit', label: 'Редактировать' });
+  }
+  if (canDeleteMessage(message)) {
+    actions.push({ id: 'delete', label: 'Удалить' });
+  }
+  return actions;
+};
+
+const onMessageContextMenu = (message: Message, e: MouseEvent): void => {
+  const actions = getMessageContextMenuActions(message);
+  if (actions.length === 0) return;
+  e.preventDefault();
+  contextMenuMessage.value = message;
+  contextMenuX.value = e.clientX;
+  contextMenuY.value = e.clientY;
+  contextMenuVisible.value = true;
+};
+
+const onContextMenuSelect = (action: MessageContextAction): void => {
+  const msg = contextMenuMessage.value;
+  if (!msg) return;
+  if (action.id === 'reply') handleReplyToMessage(msg);
+  else if (action.id === 'edit') handleEditMessage(msg);
+  else if (action.id === 'delete') handleDeleteMessage(msg);
+};
+
+const contextMenuActions = computed(() =>
+  contextMenuMessage.value ? getMessageContextMenuActions(contextMenuMessage.value) : []
+);
+
 const handleReplyToMessage = (message: Message): void => {
   // Не позволяем отвечать на системные сообщения
   if (message.type === 'system') {
@@ -906,7 +1022,7 @@ const getReplyToText = (replyTo: Message | string): string => {
   if (replyTo.type === 'file') {
     return '📎 Файл';
   }
-  return replyTo.content || '';
+  return getTruncatedText(replyTo.content || '');
 };
 
 // Функция больше не используется, так как кнопка удалена
@@ -915,10 +1031,7 @@ const getReplyToText = (replyTo: Message | string): string => {
 const handleMessageClick = (message: Message, event: MouseEvent): void => {
   // Игнорируем клики на кнопки и интерактивные элементы
   const target = event.target as HTMLElement;
-  if (target.closest('.chat-window__reply-button') ||
-      target.closest('.chat-window__edit-button') ||
-      target.closest('.chat-window__delete-button') ||
-      target.closest('.chat-window__reaction') ||
+  if (target.closest('.chat-window__reaction') ||
       target.closest('.chat-window__reaction-menu') ||
       target.closest('a')) {
     return;
@@ -998,7 +1111,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 </script>
 
 <template>
-	<div ref="chatWindowRef" class="chat-window">
+	<div class="chat-window">
 		<div v-if="currentChat" ref="headerRef" class="chat-window__header">
 			<button 
 				v-if="isMobile" 
@@ -1011,7 +1124,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				</svg>
 			</button>
 			<div class="chat-window__header-info">
-				<div class="chat-window__avatar">
+				<div class="chat-window__avatar" role="button" tabindex="0" @click="handleHeaderAvatarClick" @keydown.enter="handleHeaderAvatarClick" @keydown.space.prevent="handleHeaderAvatarClick">
 					<img
 						v-if="getAvatar()"
 						:src="getAvatar()"
@@ -1023,7 +1136,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 					<span
 						v-if="currentChat && currentChat.type === 'private' && getOtherParticipant()"
 						:class="['chat-window__status-indicator', `chat-window__status-indicator--${getComputedStatus(getOtherParticipant())}`]"
-					></span>
+					/>
 				</div>
 				<div class="chat-window__header-text">
 					<h3>{{ getChatName() }}</h3>
@@ -1253,6 +1366,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 					}]"
 					@dblclick="handleReplyToMessage(message)"
 					@click="handleMessageClick(message, $event)"
+					@contextmenu.prevent="onMessageContextMenu(message, $event)"
 				>
 					<div
 						:class="['chat-window__message', { 
@@ -1337,45 +1451,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 												<path d="M6 8L9 11L16 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 											</svg>
 										</div>
-										<!-- Кнопка ответа на сообщение -->
-										<button
-											v-if="message.type !== 'system'"
-											class="chat-window__reply-button"
-											@click.stop="handleReplyToMessage(message)"
-											title="Ответить"
-											type="button"
-										>
-											<svg width="16" height="16" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-												<polyline points="9 10 4 15 9 20" />
-												<path d="M20 4v7a4 4 0 0 1-4 4H4" />
-											</svg>
-										</button>
-										<!-- Кнопка редактирования сообщения -->
-										<button
-											v-if="canEditMessage(message)"
-											class="chat-window__edit-button"
-											@click.stop="handleEditMessage(message)"
-											title="Редактировать"
-											type="button"
-										>
-											<svg width="16" height="16" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-												<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-												<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-											</svg>
-										</button>
-										<!-- Кнопка удаления сообщения -->
-										<button
-											v-if="canDeleteMessage(message)"
-											class="chat-window__delete-button"
-											@click.stop="handleDeleteMessage(message)"
-											title="Удалить"
-											type="button"
-										>
-											<svg width="16" height="16" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-												<polyline points="3 6 5 6 21 6" />
-												<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-											</svg>
-										</button>
 									</div>
 								</div>
 								<!-- Реакции на сообщение -->
@@ -1440,6 +1515,14 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			@clear-reply="clearReplyToMessage"
 			@clear-edit="clearEditMessage"
 			@start-edit-last="handleStartEditLast"
+		/>
+
+		<ContextMenu
+			v-model="contextMenuVisible"
+			:x="contextMenuX"
+			:y="contextMenuY"
+			:actions="contextMenuActions"
+			@select="onContextMenuSelect"
 		/>
 
 		<UserInfoModal
@@ -1598,6 +1681,8 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     overflow: visible;
     flex-shrink: 0;
     position: relative;
+    overflow: hidden;
+    cursor: pointer;
 
     img {
       width: 100%;

@@ -13,6 +13,9 @@ export const useChatStore = defineStore('chat', () => {
   const messages = ref<Message[]>([]);
   const typingUsers = ref<Map<string, Set<string>>>(new Map());
   const unreadCounts = ref<Map<string, number>>(new Map());
+  const loadingOlderMessages = ref(false);
+  const hasMoreOlderMessages = ref(true);
+  const MESSAGES_PAGE_SIZE = 50;
 
   const user = computed(() => authStore.user);
 
@@ -92,20 +95,52 @@ export const useChatStore = defineStore('chat', () => {
 
   const loadMessages = async (chatId: string): Promise<void> => {
     try {
-      const response = await api.get(`/chats/${chatId}/messages`);
-      // Проверяем, что чат все еще открыт (защита от race condition при быстром переключении)
-      if (currentChat.value?._id !== chatId) {
-        return;
-      }
-      // Инициализируем реакции для каждого сообщения
-      messages.value = response.data.map((msg: Message) => ({
+      hasMoreOlderMessages.value = true;
+      const response = await api.get(`/chats/${chatId}/messages`, {
+        params: { limit: MESSAGES_PAGE_SIZE }
+      });
+      if (currentChat.value?._id !== chatId) return;
+      const list = (response.data as Message[]).map((msg: Message) => ({
         ...msg,
         reactions: msg.reactions || {}
       }));
-      // Помечаем все сообщения как прочитанные при открытии чата
+      messages.value = list;
+      if (list.length < MESSAGES_PAGE_SIZE) {
+        hasMoreOlderMessages.value = false;
+      }
       markChatAsRead(chatId);
     } catch (error) {
       console.error('Ошибка загрузки сообщений:', error);
+    }
+  };
+
+  const loadOlderMessages = async (chatId: string): Promise<boolean> => {
+    if (loadingOlderMessages.value || !hasMoreOlderMessages.value || currentChat.value?._id !== chatId) {
+      return false;
+    }
+    const oldest = messages.value[0];
+    if (!oldest?.createdAt) return false;
+    const before = typeof oldest.createdAt === 'string' ? oldest.createdAt : oldest.createdAt.toISOString();
+    loadingOlderMessages.value = true;
+    try {
+      const response = await api.get(`/chats/${chatId}/messages`, {
+        params: { limit: MESSAGES_PAGE_SIZE, before }
+      });
+      if (currentChat.value?._id !== chatId) return false;
+      const list = (response.data as Message[]).map((msg: Message) => ({
+        ...msg,
+        reactions: msg.reactions || {}
+      }));
+      if (list.length < MESSAGES_PAGE_SIZE) {
+        hasMoreOlderMessages.value = false;
+      }
+      messages.value = [...list, ...messages.value];
+      return true;
+    } catch (error) {
+      console.error('Ошибка загрузки старых сообщений:', error);
+      return false;
+    } finally {
+      loadingOlderMessages.value = false;
     }
   };
 
@@ -115,10 +150,10 @@ export const useChatStore = defineStore('chat', () => {
 
   const setCurrentChat = (chat: Chat | null): void => {
     currentChat.value = chat;
+    hasMoreOlderMessages.value = true;
+    messages.value = [];
     if (chat) {
       loadMessages(chat._id);
-    } else {
-      messages.value = [];
     }
   };
 
@@ -590,6 +625,9 @@ export const useChatStore = defineStore('chat', () => {
     addChat,
     updateChat,
     loadMessages,
+    loadOlderMessages,
+    loadingOlderMessages,
+    hasMoreOlderMessages,
     sendMessage,
     setCurrentChat,
     addMessage,
