@@ -143,8 +143,8 @@ const handleSendMessage = (): void => {
   }
 
   &__avatar {
-    width: 120px;
-    height: 120px;
+    width: 300px;
+    height: 300px;
     border-radius: 50%;
     overflow: visible;
     position: relative;
