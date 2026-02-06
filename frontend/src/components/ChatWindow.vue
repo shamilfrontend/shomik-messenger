@@ -1259,9 +1259,9 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
   }
 
   &__video-call {
-    position: absolute;
+    position: fixed;
     inset: 0;
-    z-index: 20;
+    z-index: 9999;
     background: var(--bg-primary);
     display: flex;
     flex-direction: column;

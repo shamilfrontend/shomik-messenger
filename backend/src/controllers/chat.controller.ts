@@ -58,7 +58,11 @@ export const getChats = async (req: AuthRequest, res: Response): Promise<void> =
       return chatObj;
     });
 
-    res.json(chatsWithId);
+    // Получаем информацию об активных групповых звонках для групповых чатов пользователя
+    const groupChatIds = chatsWithId.filter((c) => c.type === 'group').map((c) => c._id);
+    const activeGroupCalls = wsService.getActiveGroupCallsForChats(groupChatIds);
+
+    res.json({ chats: chatsWithId, activeGroupCalls });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

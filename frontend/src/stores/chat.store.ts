@@ -19,7 +19,22 @@ export const useChatStore = defineStore('chat', () => {
   const loadChats = async (): Promise<void> => {
     try {
       const response = await api.get('/chats');
-      chats.value = response.data;
+      // Поддерживаем старый формат (массив чатов) и новый (объект с chats и activeGroupCalls)
+      const responseData = response.data;
+      if (Array.isArray(responseData)) {
+        chats.value = responseData;
+      } else {
+        chats.value = responseData.chats || responseData;
+        // Обрабатываем информацию об активных групповых звонках
+        if (responseData.activeGroupCalls && Array.isArray(responseData.activeGroupCalls)) {
+          // Используем динамический импорт, чтобы избежать циклических зависимостей
+          const callStoreModule = await import('./call.store');
+          const callStore = callStoreModule.useCallStore();
+          responseData.activeGroupCalls.forEach((call: { chatId: string; participants: string[]; isVideo?: boolean }) => {
+            callStore.setGroupCallStarted(call.chatId, call.participants, call.isVideo);
+          });
+        }
+      }
       // Подсчитываем непрочитанные сообщения для каждого чата на основе lastMessage
       chats.value.forEach(chat => {
         if (chat.lastMessage && user.value) {

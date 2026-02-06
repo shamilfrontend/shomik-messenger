@@ -56,6 +56,12 @@ class WebSocketService {
       data: { userId }
     }));
 
+    // Отправляем информацию об активных групповых звонках в чатах пользователя
+    // Задержка, чтобы убедиться, что обработчики событий на фронтенде подписаны
+    setTimeout(() => {
+      void this.notifyActiveGroupCalls(userId);
+    }, 500);
+
     authWs.on('message', (data: Buffer) => {
       try {
         const message = JSON.parse(data.toString());
@@ -406,6 +412,36 @@ class WebSocketService {
     });
   }
 
+  private async notifyActiveGroupCalls(userId: string): Promise<void> {
+    try {
+      // Находим все групповые чаты, где пользователь является участником
+      const userChats = await Chat.find({
+        participants: userId,
+        type: 'group'
+      }).select('_id participants');
+
+      // Проверяем каждый чат на наличие активного звонка
+      for (const chat of userChats) {
+        const chatId = chat._id.toString();
+        const callSet = this.activeGroupCalls.get(chatId);
+        if (callSet && callSet.size > 0) {
+          const participants = Array.from(callSet).map((pid: string) => pid.toString());
+          const isVideo = this.activeGroupCallVideo.get(chatId) ?? false;
+          // Отправляем событие о существующем звонке
+          const client = this.clients.get(userId);
+          if (client) {
+            client.send(JSON.stringify({
+              type: 'call:started',
+              data: { chatId, participants, isVideo }
+            }));
+          }
+        }
+      }
+    } catch (err) {
+      console.error('notifyActiveGroupCalls error:', err);
+    }
+  }
+
   private async notifyGroupCallEnded(chatId: string): Promise<void> {
     try {
       const chat = await Chat.findById(chatId);
@@ -445,10 +481,8 @@ class WebSocketService {
         this.activeGroupCalls.delete(chatId);
         this.activeGroupCallVideo.delete(chatId);
       }
-      this.sendToUser(userId, {
-        type: 'call:started',
-        data: { chatId, participants, isVideo }
-      });
+      // Не отправляем call:started пользователю, который сам вышел из звонка
+      // Он уже завершил звонок и не должен видеть возможность переподключиться
     }
   }
 
@@ -509,6 +543,19 @@ class WebSocketService {
     if (client) {
       client.send(JSON.stringify(data));
     }
+  }
+
+  public getActiveGroupCallsForChats(chatIds: string[]): Array<{ chatId: string; participants: string[]; isVideo: boolean }> {
+    const result: Array<{ chatId: string; participants: string[]; isVideo: boolean }> = [];
+    chatIds.forEach((chatId) => {
+      const callSet = this.activeGroupCalls.get(chatId);
+      if (callSet && callSet.size > 0) {
+        const participants = Array.from(callSet).map((pid: string) => pid.toString());
+        const isVideo = this.activeGroupCallVideo.get(chatId) ?? false;
+        result.push({ chatId, participants, isVideo });
+      }
+    });
+    return result;
   }
 
   public broadcastChatCreated(chat: any): void {
