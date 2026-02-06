@@ -1025,6 +1025,8 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
+  min-height: -webkit-fill-available;
   background: var(--bg-primary);
 
   &__header {
@@ -1034,6 +1036,19 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+
+    @media (max-width: 768px) {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      width: 100%;
+    }
   }
 
   &__back-button {
@@ -1181,6 +1196,13 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+    flex-shrink: 0;
+
+    @media (max-width: 768px) {
+      position: sticky;
+      top: 73px;
+      z-index: 9;
+    }
   }
 
   &__incoming-call-info {
@@ -1211,6 +1233,13 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    flex-shrink: 0;
+
+    @media (max-width: 768px) {
+      position: sticky;
+      top: 73px;
+      z-index: 9;
+    }
   }
 
   &__active-call-label {
@@ -1471,7 +1500,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
     @media (max-width: 768px) {
       padding: 0.75rem;
+      padding-top: calc(0.75rem + 73px);
+      padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
       gap: 0.5rem;
+      margin-top: 0;
     }
   }
 

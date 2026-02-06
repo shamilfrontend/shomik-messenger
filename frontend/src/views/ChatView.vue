@@ -139,6 +139,8 @@ const handleGroupCreated = async (chatId: string): Promise<void> => {
 .chat-view {
   display: flex;
   height: 100vh;
+  height: 100dvh;
+  min-height: -webkit-fill-available;
   background: var(--bg-primary);
   position: relative;
   overflow: hidden;

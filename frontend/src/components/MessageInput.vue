@@ -87,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, nextTick } from 'vue';
+import { ref, nextTick } from 'vue';
 import { useChatStore } from '../stores/chat.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useNotifications } from '../composables/useNotifications';
@@ -114,43 +114,36 @@ const showEmojiPicker = ref(false);
 const showVoiceTooltip = ref(false);
 let typingTimeout: ReturnType<typeof setTimeout> | null = null;
 
-// Автофокус при открытии чата
-const focusInput = async (): Promise<void> => {
-  await nextTick();
-  if (inputField.value) {
-    inputField.value.focus();
-  }
-};
-
-// Устанавливаем фокус при изменении chatId
-watch(() => props.chatId, () => {
-  focusInput();
-}, { immediate: true });
-
-onMounted(() => {
-  focusInput();
-});
-
 const handleSend = (): void => {
-  const content = message.value.trim() || previewFile.value?.filename || 'Файл';
+  const trimmedMessage = message.value.trim();
+  const hasFile = !!previewFile.value;
+  const hasText = trimmedMessage.length > 0;
+
+  // Не отправляем пустые сообщения
+  if (!hasText && !hasFile) {
+    return;
+  }
+
+  const content = trimmedMessage || previewFile.value?.filename || '';
   const type = previewFile.value?.type === 'image' ? 'image' : previewFile.value ? 'file' : 'text';
   const fileUrl = previewFile.value?.url;
   const replyToId = props.replyTo?._id;
 
-  if (content) {
-    chatStore.sendMessage(props.chatId, content, type as 'text' | 'image' | 'file', fileUrl, replyToId);
-    chatStore.stopTyping(props.chatId);
-    message.value = '';
-    previewFile.value = null;
-    if (props.replyTo) {
-      emit('clear-reply');
-    }
-    if (typingTimeout) {
-      clearTimeout(typingTimeout);
-      typingTimeout = null;
-    }
-    // Возвращаем фокус на поле ввода после отправки
-    focusInput();
+  // Дополнительная проверка: для текстовых сообщений content не должен быть пустым
+  if (type === 'text' && !content) {
+    return;
+  }
+
+  chatStore.sendMessage(props.chatId, content, type as 'text' | 'image' | 'file', fileUrl, replyToId);
+  chatStore.stopTyping(props.chatId);
+  message.value = '';
+  previewFile.value = null;
+  if (props.replyTo) {
+    emit('clear-reply');
+  }
+  if (typingTimeout) {
+    clearTimeout(typingTimeout);
+    typingTimeout = null;
   }
 };
 
@@ -243,9 +236,17 @@ const insertEmoji = (emoji: string): void => {
   padding: 1rem;
   border-top: 1px solid var(--border-color);
   background: var(--bg-secondary);
+  flex-shrink: 0;
 
   @media (max-width: 768px) {
     padding: 0.75rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    width: 100%;
   }
 
   &__container {
