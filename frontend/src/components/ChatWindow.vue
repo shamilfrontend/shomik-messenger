@@ -1647,7 +1647,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
       top: calc(73px + env(safe-area-inset-top, 0px));
       z-index: 99;
       transform: translateZ(0);
-      -webkit-transform: translateZ(0);
     }
   }
 
@@ -2191,9 +2190,8 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
   &__message-bubble {
     padding: 0.5rem 0.75rem;
     background: var(--bg-secondary);
-    border-radius: 12px;
-    border-bottom-left-radius: 4px;
-    color: var(--text-primary);
+		border-radius: 12px 12px 12px 4px;
+		color: var(--text-primary);
     position: relative;
     word-wrap: break-word;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
@@ -2210,6 +2208,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     font-size: var(--message-text-size);
     word-wrap: break-word;
     overflow-wrap: break-word;
+    white-space: pre-wrap;
   }
 
   &__message-expand-button {
@@ -2267,7 +2266,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     align-items: center;
     justify-content: space-between;
     gap: 0.25rem;
-    margin-top: 0.25rem;
+    margin-top: 0.5rem;
     position: relative;
     z-index: 15; // Выше меню реакций, чтобы кнопка ответа была видна
   }
@@ -2307,8 +2306,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
     @media (max-width: 768px) {
       opacity: 1;
-      width: 24px;
-      height: 24px;
     }
 
     &:hover {
@@ -2343,8 +2340,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
     @media (max-width: 768px) {
       opacity: 1;
-      width: 24px;
-      height: 24px;
     }
 
     &:hover {
@@ -2379,8 +2374,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
     @media (max-width: 768px) {
       opacity: 1;
-      width: 24px;
-      height: 24px;
     }
 
     &:hover {

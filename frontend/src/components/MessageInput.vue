@@ -47,13 +47,12 @@
             <line x1="15" y1="9" x2="15.01" y2="9"></line>
           </svg>
         </button>
-        <input
+        <textarea
           ref="inputField"
           v-model="message"
-          @keydown.enter.exact="handleSend"
-          @keydown.up="handleKeydownUp"
+          @keydown="handleKeydown"
           @input="handleTyping"
-          type="text"
+          rows="1"
           :placeholder="props.editMessage ? 'Введите новый текст...' : 'Введите сообщение...'"
           class="message-input__field"
         />
@@ -123,7 +122,7 @@ const authStore = useAuthStore();
 const { error: notifyError } = useNotifications();
 const message = ref('');
 const previewFile = ref<{ url: string; filename: string; type: string } | null>(null);
-const inputField = ref<HTMLInputElement | null>(null);
+const inputField = ref<HTMLTextAreaElement | null>(null);
 const showEmojiPicker = ref(false);
 const showVoiceTooltip = ref(false);
 let typingTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -202,11 +201,19 @@ const clearEdit = (): void => {
   emit('clear-edit');
 };
 
-const handleKeydownUp = (e: KeyboardEvent): void => {
-  if (e.key !== 'ArrowUp') return;
-  if (message.value.trim() || props.replyTo || props.editMessage) return;
-  e.preventDefault();
-  emit('start-edit-last');
+const handleKeydown = (e: KeyboardEvent): void => {
+  if (e.key === 'ArrowUp') {
+    if (!message.value.trim() && !props.replyTo && !props.editMessage) {
+      e.preventDefault();
+      emit('start-edit-last');
+    }
+    return;
+  }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    handleSend();
+  }
+  // Shift+Enter — стандартное поведение textarea, вставка переноса строки
 };
 
 const getReplySenderName = (): string => {
@@ -313,7 +320,7 @@ const insertEmoji = (emoji: string): void => {
   &__container {
     display: flex;
     gap: 0.5rem;
-    align-items: center;
+    align-items: flex-end;
     position: relative;
 
     @media (max-width: 768px) {
@@ -362,14 +369,22 @@ const insertEmoji = (emoji: string): void => {
 
   &__field {
     flex: 1;
+    min-height: 44px;
+    max-height: 120px;
     padding: 0.75rem 1rem 0.75rem 2.75rem;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: 24px;
     color: var(--text-primary);
     font-size: 0.95rem;
+    font-family: inherit;
+    line-height: 1.4;
+    resize: none;
+    overflow-y: auto;
 
     @media (max-width: 768px) {
+      min-height: 40px;
+      max-height: 100px;
       padding: 0.625rem 0.875rem 0.625rem 2.5rem;
       font-size: 0.875rem;
     }
