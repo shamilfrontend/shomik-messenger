@@ -508,10 +508,19 @@ const isGroupAdmin = computed((): boolean => {
   return adminId === chatStore.user?.id;
 });
 
+const isSenderIdUser = (senderId: User | string): senderId is User =>
+  typeof senderId === 'object' && senderId !== null && 'id' in senderId;
+
+const getMessageSenderId = (message: Message): string =>
+  isSenderIdUser(message.senderId) ? message.senderId.id : message.senderId;
+
+const isMessageSenderUser = (message: Message): boolean => isSenderIdUser(message.senderId);
+
+const getMessageSenderStatus = (message: Message): 'online' | 'offline' | 'away' =>
+  isSenderIdUser(message.senderId) ? getComputedStatus(message.senderId) : 'offline';
+
 const isOwnMessage = (message: Message): boolean => {
-  const senderId = typeof message.senderId === 'string' 
-    ? message.senderId 
-    : message.senderId.id;
+  const senderId = getMessageSenderId(message);
   return senderId === chatStore.user?.id;
 };
 
@@ -592,20 +601,14 @@ const isUnreadMessage = (message: Message): boolean => {
 };
 
 const getMessageSender = (message: Message): string => {
-  if (typeof message.senderId === 'string') {
-    return 'Пользователь';
-  }
-  if (!message.senderId) {
+  if (!isSenderIdUser(message.senderId)) {
     return 'Пользователь';
   }
   return message.senderId.username || 'Пользователь';
 };
 
 const getMessageAvatar = (message: Message): string | undefined => {
-  if (typeof message.senderId === 'string') {
-    return undefined;
-  }
-  if (!message.senderId) {
+  if (!isSenderIdUser(message.senderId)) {
     return undefined;
   }
   return getImageUrl(message.senderId.avatar);
@@ -635,39 +638,30 @@ const openUserInfo = (message: Message): void => {
     return;
   }
 
-  // Получаем ID отправителя сообщения
-  const senderId = typeof message.senderId === 'string' 
-    ? message.senderId 
-    : message.senderId.id;
+  const senderId = getMessageSenderId(message);
 
-  // Проверяем, что это не текущий пользователь
   if (senderId === chatStore.user?.id) {
     console.error('openUserInfo: попытка открыть информацию о себе');
     return;
   }
 
-  // Получаем информацию о пользователе из сообщения
-  if (typeof message.senderId === 'string') {
-    // Если senderId - это строка, нужно найти пользователя в участниках чата
-    const participant = currentChat.value?.participants.find(p => {
-      const participantId = typeof p === 'string' ? p : p.id;
-      return participantId === senderId && participantId !== chatStore.user?.id;
-    });
-    
-    if (participant && typeof participant !== 'string') {
-      selectedUser.value = participant;
-      showUserInfo.value = true;
-    } else {
-      console.error('openUserInfo: участник не найден для senderId:', senderId);
-    }
-  } else {
-    // Если senderId - это объект User
-    // Проверяем, что это не текущий пользователь
+  if (isSenderIdUser(message.senderId)) {
     if (message.senderId.id !== chatStore.user?.id) {
       selectedUser.value = message.senderId;
       showUserInfo.value = true;
     } else {
       console.error('openUserInfo: попытка открыть информацию о себе');
+    }
+  } else {
+    const participant = currentChat.value?.participants.find(p => {
+      const participantId = typeof p === 'string' ? p : p.id;
+      return participantId === senderId && participantId !== chatStore.user?.id;
+    });
+    if (participant && typeof participant !== 'string') {
+      selectedUser.value = participant;
+      showUserInfo.value = true;
+    } else {
+      console.error('openUserInfo: участник не найден для senderId:', senderId);
     }
   }
 };
@@ -846,7 +840,7 @@ const getReplyToSenderName = (replyTo: Message | string): string => {
   if (!replyTo.senderId) {
     return 'Пользователь';
   }
-  if (typeof replyTo.senderId === 'string') {
+  if (!isSenderIdUser(replyTo.senderId)) {
     return 'Пользователь';
   }
   const senderId = replyTo.senderId.id;
@@ -963,7 +957,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				class="chat-window__back-button"
 				aria-label="Назад"
 			>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2">
 					<path d="M19 12H5M12 19l-7-7 7-7"/>
 				</svg>
 			</button>
@@ -995,7 +989,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				aria-label="Голосовой звонок"
 				title="Голосовой звонок"
 			>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
 				</svg>
 			</button>
@@ -1007,7 +1001,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				aria-label="Видеозвонок"
 				title="Видеозвонок"
 			>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M23 7l-7 5 7 5V7z"></path>
 					<rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
 				</svg>
@@ -1020,7 +1014,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				aria-label="Групповой звонок"
 				title="Начать групповой звонок"
 			>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
 				</svg>
 			</button>
@@ -1032,7 +1026,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				aria-label="Групповой видеозвонок"
 				title="Начать групповой видеозвонок"
 			>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M23 7l-7 5 7 5V7z"></path>
 					<rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
 				</svg>
@@ -1044,7 +1038,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				aria-label="Настройки группы"
 				title="Настройки группы"
 			>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
 					<circle cx="12" cy="12" r="3"></circle>
 				</svg>
@@ -1063,12 +1057,12 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			</div>
 			<div class="chat-window__incoming-call-actions">
 				<button type="button" class="chat-window__call-action chat-window__call-action--reject" @click="handleRejectCall" aria-label="Отклонить">
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<svg width="24" height="24" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2">
 						<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
 					</svg>
 				</button>
 				<button type="button" class="chat-window__call-action chat-window__call-action--accept" @click="handleAcceptCall" aria-label="Принять">
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<svg width="24" height="24" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2">
 						<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
 					</svg>
 				</button>
@@ -1083,7 +1077,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			</div>
 			<div class="chat-window__incoming-call-actions">
 				<button type="button" class="chat-window__call-action chat-window__call-action--accept" @click="handleJoinGroupCall" :disabled="callStore.isConnecting" aria-label="Присоединиться">
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<svg width="24" height="24" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2">
 						<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
 					</svg>
 				</button>
@@ -1099,11 +1093,11 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				}}
 			</span>
 			<button type="button" :class="['chat-window__call-action', { 'chat-window__call-action--muted': callStore.isMuted }]" @click="callStore.setMuted(!callStore.isMuted)" aria-label="Микрофон">
-				<svg v-if="!callStore.isMuted" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-				<svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path></svg>
+				<svg v-if="!callStore.isMuted" width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+				<svg v-else width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path></svg>
 			</button>
 			<button type="button" class="chat-window__call-action chat-window__call-action--hangup" @click="callStore.hangUp()" aria-label="Завершить">
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
 			</button>
 		</div>
 
@@ -1132,7 +1126,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 						>{{ getParticipantUsername(callStore.activeCall.chatId, userId) }}</span>
 					</div>
 					<div v-if="Object.keys(callStore.remoteStreams).length === 0" class="chat-window__video-call-placeholder">
-						<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+						<svg width="64" height="64" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
 						<span>Ожидание видео...</span>
 					</div>
 				</template>
@@ -1145,7 +1139,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 						>{{ getParticipantUsername(callStore.activeCall.chatId, callStore.activeCall.peerUserId) }}</span>
 					</div>
 					<div v-if="!callStore.activeCall?.peerUserId || !callStore.remoteStreams[callStore.activeCall.peerUserId]" class="chat-window__video-call-placeholder">
-						<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+						<svg width="64" height="64" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
 						<span>Ожидание видео...</span>
 					</div>
 				</template>
@@ -1156,11 +1150,11 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			<div class="chat-window__video-call-controls">
 				<div class="chat-window__video-call-device-group">
 					<button type="button" :class="['chat-window__call-action', { 'chat-window__call-action--muted': callStore.isMuted }]" @click="callStore.setMuted(!callStore.isMuted)" aria-label="Микрофон">
-						<svg v-if="!callStore.isMuted" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-						<svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path></svg>
+						<svg v-if="!callStore.isMuted" width="22" height="22" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+						<svg v-else width="22" height="22" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path></svg>
 					</button>
 					<button type="button" class="chat-window__video-call-device-trigger" :class="{ 'chat-window__video-call-device-trigger--open': videoCallMicDropdownOpen }" aria-label="Выбор микрофона" @click="videoCallMicDropdownOpen = !videoCallMicDropdownOpen; videoCallCameraDropdownOpen = false">
-						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+						<svg width="12" height="12" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
 					</button>
 					<div v-if="videoCallMicDropdownOpen" class="chat-window__video-call-device-dropdown">
 						<button type="button" class="chat-window__video-call-device-item" :class="{ 'chat-window__video-call-device-item--active': !callStore.selectedMicId }" @click="callStore.switchAudioInput(null); videoCallMicDropdownOpen = false">По умолчанию</button>
@@ -1170,11 +1164,11 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
 				<div v-if="callStore.activeCall?.isVideo" class="chat-window__video-call-device-group">
 					<button type="button" :class="['chat-window__call-action', { 'chat-window__call-action--muted': callStore.isVideoOff }]" @click="callStore.setVideoOff(!callStore.isVideoOff)" aria-label="Камера">
-						<svg v-if="!callStore.isVideoOff" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
-						<svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+						<svg v-if="!callStore.isVideoOff" width="22" height="22" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+						<svg v-else width="22" height="22" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
 					</button>
 					<button type="button" class="chat-window__video-call-device-trigger" :class="{ 'chat-window__video-call-device-trigger--open': videoCallCameraDropdownOpen }" aria-label="Выбор камеры" @click="videoCallCameraDropdownOpen = !videoCallCameraDropdownOpen; videoCallMicDropdownOpen = false">
-						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+						<svg width="12" height="12" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
 					</button>
 					<div v-if="videoCallCameraDropdownOpen" class="chat-window__video-call-device-dropdown">
 						<button type="button" class="chat-window__video-call-device-item" :class="{ 'chat-window__video-call-device-item--active': !callStore.selectedCameraId }" @click="callStore.switchVideoInput(null); videoCallCameraDropdownOpen = false">По умолчанию</button>
@@ -1183,12 +1177,12 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				</div>
 
 				<button type="button" class="chat-window__call-action chat-window__call-action--hangup" @click="callStore.hangUp()" aria-label="Завершить">
-					<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+					<svg width="22" height="22" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
 				</button>
 			</div>
 		</div>
 
-		<audio ref="remoteAudioRef" autoplay playsinline />
+		<audio ref="remoteAudioRef" autoplay />
 
 		<div v-if="currentChat" class="chat-window__messages" ref="messagesContainer">
 			<template v-for="message in messages" :key="message._id">
@@ -1231,9 +1225,9 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 								{{ getMessageSender(message).charAt(0).toUpperCase() }}
 							</div>
 							<span
-								v-if="typeof message.senderId !== 'string' && message.senderId"
-								:class="['chat-window__status-indicator', `chat-window__status-indicator--${getComputedStatus(message.senderId)}`]"
-							></span>
+								v-if="isMessageSenderUser(message)"
+								:class="['chat-window__status-indicator', `chat-window__status-indicator--${getMessageSenderStatus(message)}`]"
+							/>
 						</div>
 						<div class="chat-window__message-content" :data-message-id="message._id">
 							<div 
@@ -1285,11 +1279,11 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 									<div class="chat-window__message-footer-right">
 										<div v-if="isOwnMessage(message)" class="chat-window__message-status" :class="`chat-window__message-status--${getReadStatus(message)}`">
 											<!-- Одна галочка (отправлено) -->
-											<svg v-if="getReadStatus(message) === 'sent'" width="16" height="16" viewBox="0 0 16 16" fill="none">
+											<svg v-if="getReadStatus(message) === 'sent'" width="16" height="16" viewBox="0 0 16 16" style="fill: none">
 												<path d="M3 8L6 11L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 											</svg>
 											<!-- Две галочки (доставлено/прочитано) -->
-											<svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
+											<svg v-else width="16" height="16" viewBox="0 0 16 16" style="fill: none">
 												<path d="M2 8L5 11L12 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 												<path d="M6 8L9 11L16 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 											</svg>
@@ -1302,7 +1296,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 											title="Ответить"
 											type="button"
 										>
-											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+											<svg width="16" height="16" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<polyline points="9 10 4 15 9 20" />
 												<path d="M20 4v7a4 4 0 0 1-4 4H4" />
 											</svg>
@@ -1315,7 +1309,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 											title="Удалить"
 											type="button"
 										>
-											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+											<svg width="16" height="16" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<polyline points="3 6 5 6 21 6" />
 												<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 											</svg>
