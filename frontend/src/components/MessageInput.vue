@@ -114,6 +114,24 @@ const showEmojiPicker = ref(false);
 const showVoiceTooltip = ref(false);
 let typingTimeout: ReturnType<typeof setTimeout> | null = null;
 
+// Expose метод для фокуса извне
+const focusInput = (): void => {
+  if (inputField.value) {
+    inputField.value.focus();
+  }
+};
+
+// Expose метод для проверки фокуса
+const hasFocus = (): boolean => {
+  return document.activeElement === inputField.value;
+};
+
+defineExpose({
+  focusInput,
+  hasFocus,
+  inputField
+});
+
 const handleSend = (): void => {
   const trimmedMessage = message.value.trim();
   const hasFile = !!previewFile.value;

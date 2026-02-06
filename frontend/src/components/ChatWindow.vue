@@ -32,6 +32,7 @@ const videoCallMicDropdownOpen = ref(false);
 const videoCallCameraDropdownOpen = ref(false);
 const headerRef = ref<HTMLElement | null>(null);
 const chatWindowRef = ref<HTMLElement | null>(null);
+const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null);
 
 const handleResize = (): void => {
   isMobile.value = window.innerWidth <= 768;
@@ -136,6 +137,76 @@ const handleClickOutside = (event: MouseEvent): void => {
   if (!target.closest('.chat-window__video-call-device-group')) {
     videoCallMicDropdownOpen.value = false;
     videoCallCameraDropdownOpen.value = false;
+  }
+};
+
+// Обработчик автофокуса при начале ввода текста
+const handleGlobalKeyDown = (event: KeyboardEvent): void => {
+  // Проверяем, что чат открыт
+  if (!currentChat.value) return;
+  
+  // Проверяем, что модальные окна не открыты
+  if (showUserInfo.value || showGroupSettings.value) return;
+  
+  // Проверяем, что фокус не на поле ввода сообщения
+  if (messageInputRef.value?.hasFocus()) return;
+  
+  // Проверяем, что фокус не на других input/textarea элементах
+  const activeElement = document.activeElement;
+  if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+    return;
+  }
+  
+  // Проверяем, что фокус не на contentEditable элементах
+  if (activeElement && activeElement.contentEditable === 'true') {
+    return;
+  }
+  
+  // Проверяем, что фокус не на элементах с классом модальных окон или выпадающих меню
+  if (activeElement && (
+    activeElement.closest('.group-settings-modal') ||
+    activeElement.closest('.user-info-modal') ||
+    activeElement.closest('.chat-window__reaction-menu') ||
+    activeElement.closest('.chat-window__video-call-device-dropdown')
+  )) {
+    return;
+  }
+  
+  // Проверяем, что нажата печатная клавиша (не служебная)
+  // Игнорируем служебные клавиши: Escape, Tab, Arrow keys, F-keys, Ctrl, Alt, Meta, Shift
+  const isPrintableKey = event.key.length === 1 && 
+    !event.ctrlKey && 
+    !event.metaKey && 
+    !event.altKey &&
+    event.key !== 'Escape' &&
+    event.key !== 'Tab' &&
+    !event.key.startsWith('Arrow') &&
+    !event.key.startsWith('F') &&
+    event.key !== 'Enter' &&
+    event.key !== 'Backspace' &&
+    event.key !== 'Delete';
+  
+  if (isPrintableKey && messageInputRef.value?.inputField) {
+    // Предотвращаем стандартное поведение для этого символа
+    event.preventDefault();
+    
+    // Ставим фокус на поле ввода
+    messageInputRef.value.focusInput();
+    
+    // Вставляем символ в поле ввода
+    const input = messageInputRef.value.inputField;
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    const currentValue = input.value;
+    const newValue = currentValue.slice(0, start) + event.key + currentValue.slice(end);
+    
+    // Обновляем значение напрямую в input и триггерим событие input для обновления v-model
+    input.value = newValue;
+    input.setSelectionRange(start + 1, start + 1);
+    
+    // Триггерим событие input для обновления v-model
+    const inputEvent = new Event('input', { bubbles: true });
+    input.dispatchEvent(inputEvent);
   }
 };
 
@@ -246,6 +317,9 @@ onMounted(() => {
     }
   });
   
+  // Обработчик автофокуса при начале ввода текста
+  document.addEventListener('keydown', handleGlobalKeyDown);
+  
   nextTick(() => {
     callStore.setRemoteAudioRef(remoteAudioRef.value);
     callStore.setLocalVideoRef(localVideoRef.value);
@@ -276,6 +350,9 @@ onUnmounted(() => {
   
   // Останавливаем периодическую проверку
   stopHeaderPositionCheck();
+  
+  // Удаляем обработчик автофокуса
+  document.removeEventListener('keydown', handleGlobalKeyDown);
   
   callStore.setRemoteAudioRef(null);
   callStore.setLocalVideoRef(null);
@@ -1133,6 +1210,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 		</div>
 
 		<MessageInput 
+			ref="messageInputRef"
 			v-if="currentChat" 
 			:chat-id="currentChat._id"
 			:reply-to="replyToMessage"
