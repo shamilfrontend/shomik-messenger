@@ -30,9 +30,22 @@ const showReactionMenu = ref<string | null>(null);
 const availableReactions = ['👍', '😂', '🔥', '❤️', '👎', '👀', '💯'];
 const videoCallMicDropdownOpen = ref(false);
 const videoCallCameraDropdownOpen = ref(false);
+const headerRef = ref<HTMLElement | null>(null);
 
 const handleResize = (): void => {
   isMobile.value = window.innerWidth <= 768;
+};
+
+// Обработчик изменения высоты viewport для мобильных устройств
+const handleViewportResize = (): void => {
+  if (isMobile.value && headerRef.value) {
+    // Принудительно обновляем позицию header'а при изменении высоты viewport
+    const viewportHeight = window.visualViewport?.height || window.innerHeight;
+    // Убеждаемся, что header всегда виден
+    if (headerRef.value) {
+      headerRef.value.style.top = '0px';
+    }
+  }
 };
 
 // Закрываем меню реакций и выпадающие списки устройств при клике вне их
@@ -129,6 +142,13 @@ const handleJoinGroupCall = async (): Promise<void> => {
 onMounted(() => {
   window.addEventListener('resize', handleResize);
   document.addEventListener('click', handleClickOutside);
+  // Отслеживаем изменение высоты viewport на мобильных устройствах
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', handleViewportResize);
+    window.visualViewport.addEventListener('scroll', handleViewportResize);
+  }
+  // Fallback для устройств без visualViewport API
+  window.addEventListener('resize', handleViewportResize);
   nextTick(() => {
     callStore.setRemoteAudioRef(remoteAudioRef.value);
     callStore.setLocalVideoRef(localVideoRef.value);
@@ -138,6 +158,11 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
   document.removeEventListener('click', handleClickOutside);
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', handleViewportResize);
+    window.visualViewport.removeEventListener('scroll', handleViewportResize);
+  }
+  window.removeEventListener('resize', handleViewportResize);
   callStore.setRemoteAudioRef(null);
   callStore.setLocalVideoRef(null);
 });
@@ -617,7 +642,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
 <template>
 	<div class="chat-window">
-		<div v-if="currentChat" class="chat-window__header">
+		<div v-if="currentChat" ref="headerRef" class="chat-window__header">
 			<button 
 				v-if="isMobile" 
 				@click="handleBack" 
@@ -1028,6 +1053,13 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
   height: 100dvh;
   min-height: -webkit-fill-available;
   background: var(--bg-primary);
+  /* Предотвращаем изменение высоты при открытии клавиатуры на мобильных */
+  @media (max-width: 768px) {
+    height: 100dvh;
+    height: -webkit-fill-available;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
 
   &__header {
     padding: 1rem;
@@ -1042,12 +1074,25 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     z-index: 10;
 
     @media (max-width: 768px) {
-      position: fixed;
+      position: sticky;
       top: 0;
       left: 0;
       right: 0;
-      z-index: 10;
+      z-index: 100;
       width: 100%;
+      /* Создаем новый слой композиции для надежной работы на мобильных */
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+      /* Учитываем safe area для устройств с вырезом */
+      padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+      padding-bottom: 1rem;
+      padding-left: calc(1rem + env(safe-area-inset-left, 0px));
+      padding-right: calc(1rem + env(safe-area-inset-right, 0px));
+      /* Фиксируем header даже при прокрутке */
+      position: -webkit-sticky;
+      position: sticky;
     }
   }
 
@@ -1200,8 +1245,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
     @media (max-width: 768px) {
       position: sticky;
-      top: 73px;
-      z-index: 9;
+      top: calc(73px + env(safe-area-inset-top, 0px));
+      z-index: 99;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
     }
   }
 
@@ -1237,8 +1284,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
     @media (max-width: 768px) {
       position: sticky;
-      top: 73px;
-      z-index: 9;
+      top: calc(73px + env(safe-area-inset-top, 0px));
+      z-index: 99;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
     }
   }
 
@@ -1500,7 +1549,8 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
     @media (max-width: 768px) {
       padding: 0.75rem;
-      padding-top: calc(0.75rem + 73px);
+      /* Учитываем высоту header'а + safe area */
+      padding-top: calc(0.75rem + 73px + env(safe-area-inset-top, 0px));
       padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
       gap: 0.5rem;
       margin-top: 0;
