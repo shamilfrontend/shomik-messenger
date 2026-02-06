@@ -10,6 +10,7 @@
         <div class="new-chat-modal__field">
           <label>Поиск пользователей</label>
           <input
+            ref="searchInputRef"
             v-model="searchQuery"
             @input="handleSearch"
             type="text"
@@ -69,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useChat } from '../composables/useChat';
 import { User } from '../types';
 import { getImageUrl } from '../utils/image';
@@ -85,10 +86,17 @@ const emit = defineEmits<{
 }>();
 
 const { searchUsers, loading, error } = useChat();
+const searchInputRef = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
 const searchResults = ref<User[]>([]);
 const showSkeleton = ref(false);
 const isLoading = ref(false);
+
+watch(() => props.isOpen, (open) => {
+  if (open) {
+    nextTick(() => searchInputRef.value?.focus());
+  }
+});
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 let skeletonTimeout: ReturnType<typeof setTimeout> | null = null;

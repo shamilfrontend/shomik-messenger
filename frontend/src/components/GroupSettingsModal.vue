@@ -76,7 +76,40 @@
           <!-- Участники группы -->
           <div class="group-settings-modal__section">
             <h3>Участники ({{ chat.participants.length }})</h3>
-            
+
+            <!-- Добавление участников -->
+            <div class="group-settings-modal__add-section">
+              <h4>Добавить участников</h4>
+              <div class="group-settings-modal__search">
+                <input
+                  v-model="searchQuery"
+                  @input="handleSearch"
+                  type="text"
+                  placeholder="Поиск пользователей..."
+                />
+              </div>
+              <div v-if="searchResults.length > 0" class="group-settings-modal__search-results">
+                <div
+                  v-for="user in searchResults"
+                  :key="user.id"
+                  @click="addParticipant(user)"
+                  class="group-settings-modal__search-result"
+                >
+                  <div class="group-settings-modal__participant-avatar">
+                    <img v-if="getImageUrl(user.avatar)" :src="getImageUrl(user.avatar)" :alt="user.username" />
+                    <div v-else class="group-settings-modal__participant-avatar-placeholder">
+                      {{ user.username.charAt(0).toUpperCase() }}
+                    </div>
+                    <span
+                      :class="['group-settings-modal__status-indicator', `group-settings-modal__status-indicator--${getComputedStatus(user)}`]"
+                    ></span>
+                  </div>
+                  <div class="group-settings-modal__participant-name">{{ user.username }}</div>
+                  <button class="group-settings-modal__add-button">+</button>
+                </div>
+              </div>
+            </div>
+
             <!-- Список текущих участников -->
             <div class="group-settings-modal__participants">
               <div
@@ -116,39 +149,6 @@
                 >
                   ×
                 </button>
-              </div>
-            </div>
-
-            <!-- Добавление участников -->
-            <div class="group-settings-modal__add-section">
-              <h4>Добавить участников</h4>
-              <div class="group-settings-modal__search">
-                <input
-                  v-model="searchQuery"
-                  @input="handleSearch"
-                  type="text"
-                  placeholder="Поиск пользователей..."
-                />
-              </div>
-              <div v-if="searchResults.length > 0" class="group-settings-modal__search-results">
-                <div
-                  v-for="user in searchResults"
-                  :key="user.id"
-                  @click="addParticipant(user)"
-                  class="group-settings-modal__search-result"
-                >
-                  <div class="group-settings-modal__participant-avatar">
-                    <img v-if="getImageUrl(user.avatar)" :src="getImageUrl(user.avatar)" :alt="user.username" />
-                    <div v-else class="group-settings-modal__participant-avatar-placeholder">
-                      {{ user.username.charAt(0).toUpperCase() }}
-                    </div>
-                    <span
-                      :class="['group-settings-modal__status-indicator', `group-settings-modal__status-indicator--${getComputedStatus(user)}`]"
-                    ></span>
-                  </div>
-                  <div class="group-settings-modal__participant-name">{{ user.username }}</div>
-                  <button class="group-settings-modal__add-button">+</button>
-                </div>
               </div>
             </div>
           </div>
@@ -684,8 +684,8 @@ onUnmounted(() => {
   }
 
   &__avatar {
-    width: 300px;
-    height: 300px;
+    width: 200px;
+    height: 200px;
     border-radius: 50%;
     overflow: hidden;
     border: 3px solid var(--border-color);
@@ -695,11 +695,6 @@ onUnmounted(() => {
     @media (max-width: 768px) {
       width: 160px;
       height: 160px;
-    }
-
-    &:hover {
-      border-color: var(--accent-color);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
     }
 
     img {
@@ -991,8 +986,7 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    margin-top: 1rem;
-    padding-top: 1rem;
+    padding-top: 0.5rem;
     border-top: 1px solid var(--border-color);
   }
 

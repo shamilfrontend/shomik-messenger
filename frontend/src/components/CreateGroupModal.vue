@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 
 import { useChat } from '../composables/useChat';
 import { useChatStore } from '../stores/chat.store';
@@ -21,11 +21,18 @@ const chatStore = useChatStore();
 const { searchUsers, loading, error } = useChat();
 const { success: notifySuccess, error: notifyError } = useNotifications();
 
+const groupNameInputRef = ref<HTMLInputElement | null>(null);
 const groupName = ref('');
 const searchQuery = ref('');
 const searchResults = ref<User[]>([]);
 const selectedParticipants = ref<User[]>([]);
 const creating = ref(false);
+
+watch(() => props.isOpen, (open) => {
+  if (open) {
+    nextTick(() => groupNameInputRef.value?.focus());
+  }
+});
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -121,6 +128,7 @@ onUnmounted(() => {
         <div class="create-group-modal__field">
           <label>Название группы</label>
           <input
+            ref="groupNameInputRef"
             v-model="groupName"
             type="text"
             placeholder="Введите название группы"

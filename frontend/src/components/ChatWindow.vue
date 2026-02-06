@@ -393,13 +393,16 @@ const groupVideoGridStyle = computed(() => {
 
 // Скролл к последнему сообщению после загрузки при открытии чата
 const scrollAfterMessagesLoaded = ref(false);
-watch(currentChat, (newChat) => {
-  showGroupSettings.value = false;
-  showUserInfo.value = false;
-  selectedUser.value = null;
-  replyToMessage.value = null;
-  editMessage.value = null;
-  showReactionMenu.value = null;
+watch(currentChat, (newChat, oldChat) => {
+  const chatIdChanged = !oldChat || !newChat || oldChat._id !== newChat._id;
+  if (chatIdChanged) {
+    showGroupSettings.value = false;
+    showUserInfo.value = false;
+    selectedUser.value = null;
+    replyToMessage.value = null;
+    editMessage.value = null;
+    showReactionMenu.value = null;
+  }
   if (newChat) scrollAfterMessagesLoaded.value = true;
 });
 
@@ -913,7 +916,6 @@ const handleBack = (): void => {
 
 const handleGroupUpdated = (updatedChat: any): void => {
   chatStore.updateChat(updatedChat);
-  showGroupSettings.value = false;
 };
 
 const handleGroupDeleted = (): void => {
