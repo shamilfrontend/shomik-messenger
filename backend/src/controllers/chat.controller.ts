@@ -973,6 +973,110 @@ export const deleteChat = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
+export const deleteMessage = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id: chatId, messageId } = req.params;
+
+    // Загружаем чат без populate lastMessage, чтобы избежать проблем с присвоением
+    const chat = await Chat.findById(chatId)
+      .populate('participants', 'username avatar status lastSeen email')
+      .populate('admin', 'username avatar');
+
+    if (!chat) {
+      res.status(404).json({ error: 'Чат не найден' });
+      return;
+    }
+
+    // Проверяем, что пользователь является участником чата
+    if (!chat.participants.some((p: any) => p._id.toString() === req.userId)) {
+      res.status(403).json({ error: 'Нет доступа к этому чату' });
+      return;
+    }
+
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      res.status(404).json({ error: 'Сообщение не найдено' });
+      return;
+    }
+
+    // Проверяем, что сообщение принадлежит этому чату
+    if (message.chatId.toString() !== chatId) {
+      res.status(400).json({ error: 'Сообщение не принадлежит этому чату' });
+      return;
+    }
+
+    // Проверяем права на удаление:
+    // 1. Пользователь может удалять свои сообщения
+    // 2. Админ группы может удалять любые сообщения в группе
+    const isOwnMessage = message.senderId.toString() === req.userId;
+    const isGroupAdmin = chat.type === 'group' && chat.admin?.toString() === req.userId;
+
+    if (!isOwnMessage && !isGroupAdmin) {
+      res.status(403).json({ error: 'Недостаточно прав для удаления этого сообщения' });
+      return;
+    }
+
+    // Нельзя удалять системные сообщения
+    if (message.type === 'system') {
+      res.status(400).json({ error: 'Нельзя удалять системные сообщения' });
+      return;
+    }
+
+    // Удаляем сообщение
+    await Message.findByIdAndDelete(messageId);
+
+    // Если это было последнее сообщение, обновляем lastMessage чата
+    // Получаем ID текущего lastMessage (может быть ObjectId или populated объект)
+    const currentLastMessageId = chat.lastMessage 
+      ? (typeof chat.lastMessage === 'object' && '_id' in chat.lastMessage
+          ? (chat.lastMessage as any)._id.toString()
+          : chat.lastMessage.toString())
+      : null;
+    
+    if (currentLastMessageId === messageId) {
+      const lastMessage = await Message.findOne({ chatId })
+        .sort({ createdAt: -1 });
+      
+      // Используем updateOne для прямого обновления в БД, чтобы избежать проблем с populated объектами
+      if (lastMessage) {
+        await Chat.updateOne(
+          { _id: chatId },
+          { $set: { lastMessage: lastMessage._id } }
+        );
+      } else {
+        await Chat.updateOne(
+          { _id: chatId },
+          { $unset: { lastMessage: '' } }
+        );
+      }
+      
+      // Обновляем локальный объект для дальнейшего использования
+      chat.lastMessage = lastMessage ? lastMessage._id as any : undefined;
+    }
+
+    // Отправляем WebSocket событие об удалении сообщения
+    if (wsService) {
+      wsService.broadcastMessageDeleted(chatId, messageId, chat.participants.map((p: any) => p._id.toString()));
+      
+      // Перезагружаем чат для получения актуального lastMessage и отправки обновления
+      const updatedChat = await Chat.findById(chatId)
+        .populate('participants', 'username avatar status lastSeen email')
+        .populate('lastMessage')
+        .populate('admin', 'username avatar');
+      
+      if (updatedChat) {
+        const chatObj = formatChat(updatedChat);
+        wsService.broadcastChatUpdated(chatObj);
+      }
+    }
+
+    res.json({ success: true, messageId });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const toggleReaction = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id, messageId } = req.params;

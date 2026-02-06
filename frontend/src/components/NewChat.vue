@@ -69,13 +69,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useChat } from '../composables/useChat';
 import { User } from '../types';
 import { getImageUrl } from '../utils/image';
 import { isUserOnline, getComputedStatus } from '../utils/status';
 
-defineProps<{
+const props = defineProps<{
   isOpen: boolean;
 }>();
 
@@ -160,6 +160,20 @@ const close = (): void => {
   isLoading.value = false;
   emit('close');
 };
+
+const handleKeyDown = (event: KeyboardEvent): void => {
+  if (event.key === 'Escape' && props.isOpen) {
+    close();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown);
+});
 </script>
 
 <style scoped lang="scss">

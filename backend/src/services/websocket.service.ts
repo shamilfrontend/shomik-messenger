@@ -704,6 +704,27 @@ class WebSocketService {
       }
     });
   }
+
+  public broadcastMessageDeleted(chatId: string, messageId: string, participantIds: string[]): void {
+    const messageData = {
+      type: 'message:deleted',
+      data: {
+        chatId,
+        messageId
+      }
+    };
+
+    participantIds.forEach((participantId: string) => {
+      const client = this.clients.get(participantId);
+      if (client) {
+        try {
+          client.send(JSON.stringify(messageData));
+        } catch (error) {
+          console.error(`Ошибка отправки события удаления сообщения пользователю ${participantId}:`, error);
+        }
+      }
+    });
+  }
 }
 
 export default WebSocketService;

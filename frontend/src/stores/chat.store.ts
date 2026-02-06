@@ -254,6 +254,47 @@ export const useChatStore = defineStore('chat', () => {
     }
   };
 
+  const deleteMessage = async (chatId: string, messageId: string): Promise<void> => {
+    try {
+      await api.delete(`/chats/${chatId}/messages/${messageId}`);
+      // Удаляем сообщение из локального состояния
+      removeMessage(messageId);
+    } catch (error: any) {
+      console.error('Ошибка удаления сообщения:', error.response?.data?.error || error.message);
+      throw error;
+    }
+  };
+
+  const removeMessage = (messageId: string): void => {
+    // Удаляем сообщение из списка сообщений
+    const index = messages.value.findIndex(msg => msg._id === messageId);
+    if (index !== -1) {
+      messages.value.splice(index, 1);
+    }
+    
+    // Если это было последнее сообщение, обновляем lastMessage в чатах
+    chats.value.forEach(chat => {
+      if (chat.lastMessage && chat.lastMessage._id === messageId) {
+        // Находим новое последнее сообщение в текущем чате
+        const chatMessages = messages.value.filter(msg => msg.chatId === chat._id);
+        if (chatMessages.length > 0) {
+          const lastMsg = chatMessages[chatMessages.length - 1];
+          chat.lastMessage = {
+            _id: lastMsg._id,
+            content: lastMsg.content,
+            senderId: lastMsg.senderId,
+            type: lastMsg.type,
+            createdAt: lastMsg.createdAt,
+            readBy: lastMsg.readBy,
+            reactions: lastMsg.reactions || {}
+          };
+        } else {
+          chat.lastMessage = undefined;
+        }
+      }
+    });
+  };
+
   const updateMessageReactions = (messageId: string, reactions: { [emoji: string]: string[] }): void => {
     const messageIndex = messages.value.findIndex(msg => msg._id === messageId);
     if (messageIndex !== -1) {
@@ -544,6 +585,8 @@ export const useChatStore = defineStore('chat', () => {
     removeChatFromList,
     updateUserInChats,
     toggleReaction,
-    updateMessageReactions
+    updateMessageReactions,
+    deleteMessage,
+    removeMessage
   };
 });

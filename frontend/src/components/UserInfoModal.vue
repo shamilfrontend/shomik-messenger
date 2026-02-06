@@ -37,10 +37,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted, watch } from 'vue';
 import { User } from '../types';
 import { getImageUrl } from '../utils/image';
-import { isUserOnline, getComputedStatus } from '../utils/status';
+import { getComputedStatus } from '../utils/status';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -78,6 +78,20 @@ const handleSendMessage = (): void => {
   emit('send-message', props.user.id);
   emit('close');
 };
+
+const handleKeyDown = (event: KeyboardEvent): void => {
+  if (event.key === 'Escape' && props.isOpen) {
+    emit('close');
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown);
+});
 </script>
 
 <style scoped lang="scss">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 
 import { useChat } from '../composables/useChat';
 import { useChatStore } from '../stores/chat.store';
@@ -8,7 +8,7 @@ import type { User } from '../types';
 import { getImageUrl } from '../utils/image';
 import { isUserOnline, getComputedStatus } from '../utils/status';
 
-defineProps<{
+const props = defineProps<{
 	isOpen: boolean;
 }>();
 
@@ -93,6 +93,20 @@ const close = (): void => {
 	selectedParticipants.value = [];
 	emit('close');
 };
+
+const handleKeyDown = (event: KeyboardEvent): void => {
+	if (event.key === 'Escape' && props.isOpen) {
+		close();
+	}
+};
+
+onMounted(() => {
+	document.addEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+	document.removeEventListener('keydown', handleKeyDown);
+});
 </script>
 
 <template>

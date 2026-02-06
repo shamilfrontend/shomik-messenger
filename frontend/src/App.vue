@@ -1,6 +1,7 @@
 <template>
   <router-view />
   <NotificationToast />
+  <ConfirmModal />
 </template>
 
 <script setup lang="ts">
@@ -8,6 +9,7 @@ import { onMounted } from 'vue';
 
 import { useAuthStore } from './stores/auth.store';
 import NotificationToast from './components/NotificationToast.vue';
+import ConfirmModal from './components/ConfirmModal.vue';
 
 const authStore = useAuthStore();
 

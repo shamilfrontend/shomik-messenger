@@ -208,12 +208,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useChatStore } from '../stores/chat.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useChat } from '../composables/useChat';
 import { useNotifications } from '../composables/useNotifications';
+import { useConfirm } from '../composables/useConfirm';
 import FileUpload from './FileUpload.vue';
 import { Chat, User } from '../types';
 import { getImageUrl } from '../utils/image';
@@ -235,6 +236,7 @@ const chatStore = useChatStore();
 const authStore = useAuthStore();
 const { searchUsers } = useChat();
 const { success: notifySuccess, error: notifyError } = useNotifications();
+const { confirm } = useConfirm();
 
 const groupName = ref(props.chat.groupName || '');
 const searchQuery = ref('');
@@ -342,7 +344,8 @@ const removeParticipant = async (participant: User | string): Promise<void> => {
   const participantId = typeof participant === 'string' ? participant : participant.id;
   const participantName = typeof participant === 'string' ? 'участника' : participant.username;
 
-  if (!confirm(`Удалить ${participantName} из группы?`)) {
+  const confirmed = await confirm(`Удалить ${participantName} из группы?`);
+  if (!confirmed) {
     return;
   }
 
@@ -359,8 +362,9 @@ const removeParticipant = async (participant: User | string): Promise<void> => {
   }
 };
 
-const confirmLeave = (): void => {
-  if (!confirm('Вы уверены, что хотите выйти из группы?')) {
+const confirmLeave = async (): Promise<void> => {
+  const confirmed = await confirm('Вы уверены, что хотите выйти из группы?');
+  if (!confirmed) {
     return;
   }
   leaveGroup();
@@ -409,8 +413,14 @@ const leaveGroup = async (): Promise<void> => {
   }
 };
 
-const confirmDelete = (): void => {
-  if (!confirm('Вы уверены, что хотите удалить группу? Это действие нельзя отменить.')) {
+const confirmDelete = async (): Promise<void> => {
+  const confirmed = await confirm({
+    title: 'Удаление группы',
+    message: 'Вы уверены, что хотите удалить группу? Это действие нельзя отменить.',
+    confirmText: 'Удалить',
+    cancelText: 'Отмена'
+  });
+  if (!confirmed) {
     return;
   }
   deleteGroup();
@@ -475,6 +485,20 @@ const close = (): void => {
   avatarPreview.value = null;
   emit('close');
 };
+
+const handleKeyDown = (event: KeyboardEvent): void => {
+  if (event.key === 'Escape' && props.isOpen) {
+    close();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown);
+});
 </script>
 
 <style scoped lang="scss">

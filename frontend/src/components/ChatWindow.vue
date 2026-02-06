@@ -7,10 +7,12 @@ import { useCallStore } from '../stores/call.store';
 import MessageInput from './MessageInput.vue';
 import UserInfoModal from './UserInfoModal.vue';
 import GroupSettingsModal from './GroupSettingsModal.vue';
+import MessageViewModal from './MessageViewModal.vue';
 import type { Message, User } from '../types';
 import { getImageUrl } from '../utils/image';
 import { isUserOnline, getComputedStatus } from '../utils/status';
 import { useNotifications } from '../composables/useNotifications';
+import { useConfirm } from '../composables/useConfirm';
 
 const chatStore = useChatStore();
 const callStore = useCallStore();
@@ -27,6 +29,10 @@ const showGroupSettings = ref(false);
 const replyToMessage = ref<Message | null>(null);
 const isMobile = ref(window.innerWidth <= 768);
 const showReactionMenu = ref<string | null>(null);
+/** Позиция меню реакций на мобильных: выше или ниже сообщения (с отступом 50px от краёв viewport) */
+const reactionMenuPosition = ref<'above' | 'below'>('below');
+const showMessageView = ref(false);
+const selectedMessage = ref<Message | null>(null);
 const availableReactions = ['👍', '😂', '🔥', '❤️', '👎', '👀', '💯'];
 const videoCallMicDropdownOpen = ref(false);
 const videoCallCameraDropdownOpen = ref(false);
@@ -509,6 +515,78 @@ const isOwnMessage = (message: Message): boolean => {
   return senderId === chatStore.user?.id;
 };
 
+// Проверка прав на удаление сообщения
+const canDeleteMessage = (message: Message): boolean => {
+  // Нельзя удалять системные сообщения
+  if (message.type === 'system') {
+    return false;
+  }
+  
+  // Пользователь может удалять свои сообщения
+  if (isOwnMessage(message)) {
+    return true;
+  }
+  
+  // Админ группы может удалять любые сообщения в группе
+  if (currentChat.value?.type === 'group' && isGroupAdmin.value) {
+    return true;
+  }
+  
+  return false;
+};
+
+// Обработчик удаления сообщения
+const handleDeleteMessage = async (message: Message): Promise<void> => {
+  if (!currentChat.value || !canDeleteMessage(message)) {
+    return;
+  }
+  
+  const { confirm } = useConfirm();
+  const confirmed = await confirm('Вы уверены, что хотите удалить это сообщение?');
+  
+  if (!confirmed) {
+    return;
+  }
+  
+  try {
+    await chatStore.deleteMessage(currentChat.value._id, message._id);
+  } catch (error: any) {
+    notifyError(error.response?.data?.error || 'Не удалось удалить сообщение');
+  }
+};
+
+// Константа для максимальной длины сообщения
+const MAX_MESSAGE_LENGTH = 500;
+
+// Проверка, нужно ли обрезать сообщение
+const shouldTruncateMessage = (message: Message): boolean => {
+  // Обрезаем только текстовые сообщения
+  if (message.type !== 'text') {
+    return false;
+  }
+  return message.content.length > MAX_MESSAGE_LENGTH;
+};
+
+// Получение обрезанного текста сообщения
+const getTruncatedText = (content: string): string => {
+  if (content.length <= MAX_MESSAGE_LENGTH) {
+    return content;
+  }
+  return content.slice(0, MAX_MESSAGE_LENGTH) + '...';
+};
+
+// Открытие модального окна для просмотра полного сообщения
+const openMessageView = (message: Message): void => {
+  selectedMessage.value = message;
+  showMessageView.value = true;
+};
+
+// Закрытие модального окна
+const closeMessageView = (): void => {
+  showMessageView.value = false;
+  selectedMessage.value = null;
+};
+
 const isUnreadMessage = (message: Message): boolean => {
   return chatStore.isMessageUnread(message);
 };
@@ -796,6 +874,7 @@ const handleMessageClick = (message: Message, event: MouseEvent): void => {
   // Игнорируем клики на кнопки и интерактивные элементы
   const target = event.target as HTMLElement;
   if (target.closest('.chat-window__reply-button') || 
+      target.closest('.chat-window__delete-button') ||
       target.closest('.chat-window__reaction') ||
       target.closest('.chat-window__reaction-menu') ||
       target.closest('a')) {
@@ -809,7 +888,33 @@ const handleMessageClick = (message: Message, event: MouseEvent): void => {
       showReactionMenu.value = null;
     } else {
       showReactionMenu.value = message._id;
+      reactionMenuPosition.value = 'below';
+      nextTick(() => updateReactionMenuPosition(message));
     }
+  }
+};
+
+const VIEWPORT_EDGE_MARGIN = 50;
+
+const updateReactionMenuPosition = (message: Message): void => {
+  if (!messagesContainer.value || !isMobile.value) return;
+  const contentEl = messagesContainer.value.querySelector(`[data-message-id="${message._id}"]`) as HTMLElement | null;
+  const menuEl = messagesContainer.value.querySelector('.chat-window__reaction-menu--visible') as HTMLElement | null;
+  if (!contentEl) return;
+  const rect = contentEl.getBoundingClientRect();
+  const vh = window.visualViewport?.height ?? window.innerHeight;
+  const gap = 8; // 0.5rem
+  const menuHeight = menuEl ? menuEl.getBoundingClientRect().height : 90;
+  const spaceAbove = rect.top - gap - menuHeight;
+  const spaceBelow = vh - rect.bottom - gap - menuHeight;
+  const canShowAbove = spaceAbove >= VIEWPORT_EDGE_MARGIN;
+  const canShowBelow = spaceBelow >= VIEWPORT_EDGE_MARGIN;
+  if (canShowAbove && !canShowBelow) {
+    reactionMenuPosition.value = 'above';
+  } else if (!canShowAbove && canShowBelow) {
+    reactionMenuPosition.value = 'below';
+  } else {
+    reactionMenuPosition.value = spaceBelow >= spaceAbove ? 'below' : 'above';
   }
 };
 
@@ -1130,7 +1235,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 								:class="['chat-window__status-indicator', `chat-window__status-indicator--${getComputedStatus(message.senderId)}`]"
 							></span>
 						</div>
-						<div class="chat-window__message-content">
+						<div class="chat-window__message-content" :data-message-id="message._id">
 							<div 
 								v-if="shouldShowSender(message)" 
 								class="chat-window__message-sender"
@@ -1160,7 +1265,19 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 								<div v-else-if="message.type === 'file' && message.fileUrl" class="chat-window__message-file">
 									<a :href="getImageUrl(message.fileUrl) || message.fileUrl" target="_blank">{{ message.content }}</a>
 								</div>
-								<div v-else class="chat-window__message-text">{{ message.content }}</div>
+								<div v-else class="chat-window__message-text-wrapper">
+									<div class="chat-window__message-text">
+										{{ shouldTruncateMessage(message) ? getTruncatedText(message.content) : message.content }}
+									</div>
+									<button
+										v-if="shouldTruncateMessage(message)"
+										class="chat-window__message-expand-button"
+										@click.stop="openMessageView(message)"
+										type="button"
+									>
+										Открыть полностью
+									</button>
+								</div>
 								<div class="chat-window__message-footer">
 									<div class="chat-window__message-time">
 										{{ formatMessageTime(message.createdAt) }}
@@ -1190,6 +1307,19 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 												<path d="M20 4v7a4 4 0 0 1-4 4H4" />
 											</svg>
 										</button>
+										<!-- Кнопка удаления сообщения -->
+										<button
+											v-if="canDeleteMessage(message)"
+											class="chat-window__delete-button"
+											@click.stop="handleDeleteMessage(message)"
+											title="Удалить"
+											type="button"
+										>
+											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<polyline points="3 6 5 6 21 6" />
+												<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+											</svg>
+										</button>
 									</div>
 								</div>
 								<!-- Реакции на сообщение -->
@@ -1211,7 +1341,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 								<!-- На десктопе показывается через CSS :hover, на мобильных через v-if -->
 								<div
 									v-if="!isOwnMessage(message)"
-									:class="['chat-window__reaction-menu', { 'chat-window__reaction-menu--visible': showReactionMenu === message._id }]"
+									:class="['chat-window__reaction-menu', { 'chat-window__reaction-menu--visible': showReactionMenu === message._id, 'chat-window__reaction-menu--above': showReactionMenu === message._id && reactionMenuPosition === 'above' }]"
 								>
 									<button
 										v-for="emoji in availableReactions"
@@ -1255,6 +1385,12 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			@close="showGroupSettings = false"
 			@updated="handleGroupUpdated"
 			@deleted="handleGroupDeleted"
+		/>
+
+		<MessageViewModal
+			:is-open="showMessageView"
+			:message="selectedMessage"
+			@close="closeMessageView"
 		/>
 	</div>
 </template>
@@ -1766,6 +1902,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     gap: 0.75rem;
 
     @media (max-width: 768px) {
+      overflow-x: hidden;
       padding: 0.75rem;
       /* Учитываем высоту header'а + safe area (примерно 73px + safe area) */
       padding-top: calc(0.75rem + 73px + env(safe-area-inset-top, 0px));
@@ -1945,6 +2082,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     flex-direction: column;
     gap: 0.25rem;
     min-width: 0;
+    position: relative; // Для позиционирования меню реакций
   }
 
   &__message-sender {
@@ -2016,9 +2154,47 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   }
 
+  &__message-text-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
   &__message-text {
-    margin-bottom: 0.25rem;
+    margin-bottom: 0;
     font-size: var(--message-text-size);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  &__message-expand-button {
+    align-self: flex-start;
+    padding: 0.375rem 0.75rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 0.25rem;
+    -webkit-tap-highlight-color: transparent;
+
+    &:hover {
+      background: var(--bg-primary);
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+
+    @media (max-width: 768px) {
+      padding: 0.5rem 1rem;
+      font-size: 0.9375rem;
+    }
   }
 
   &__message-image {
@@ -2056,6 +2232,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     position: relative;
     z-index: 15; // Выше меню реакций
 		margin-left: 16px;
+
+    @media (max-width: 768px) {
+      gap: 0.625rem;
+    }
   }
 
   &__reply-button {
@@ -2067,7 +2247,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     padding: 0;
     background: transparent;
     border: none;
-    color: var(--text-secondary);
+    color: #fff;
     cursor: pointer;
     transition: all 0.2s;
     flex-shrink: 0;
@@ -2080,10 +2260,48 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
     @media (max-width: 768px) {
       opacity: 1;
+      width: 24px;
+      height: 24px;
     }
 
     &:hover {
       color: var(--accent-color);
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  &__delete-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 15; // Выше меню реакций (z-index: 10)
+
+    .chat-window__message-wrapper:hover & {
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      opacity: 1;
+      width: 24px;
+      height: 24px;
+    }
+
+    &:hover {
+      color: #ef4444; // Красный цвет при наведении
     }
 
     svg {
@@ -2144,8 +2362,9 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
   &__reaction-menu {
     position: absolute;
-		top: 50%;
-    left: calc(100% + 16px);
+    bottom: calc(100% + 0.5rem);
+    right: 0;
+    left: auto;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -2158,30 +2377,57 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 12;
     flex-wrap: nowrap;
-    width: 266px;
+    max-width: calc(100% - 80px);
     opacity: 0;
     visibility: hidden;
     transform: translateY(5px);
-    transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
+    transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
 
     @media (hover: hover) and (pointer: fine) {
       .chat-window__message-wrapper:hover & {
         opacity: 1;
         visibility: visible;
-        transform: translateY(-50%);
+        transform: translateY(0);
       }
     }
 
     // На мобильных устройствах показываем только если явно открыто через клик
+    // Позиция выше/ниже сообщения выбирается с отступом 50px от краёв viewport
     @media (max-width: 768px) {
-      max-width: calc(100% - 20px);
+      z-index: 1001; // Выше шапки чата (1000) и футера с кнопками (15)
+      left: 0;
+      right: auto;
+      max-width: 200px;
+      width: max-content;
+      min-width: 0;
+      flex-wrap: wrap;
+      padding: 0.625rem;
+      gap: 0.375rem;
       opacity: 0;
       visibility: hidden;
+      transition: opacity 0.15s ease, visibility 0.15s ease, transform 0.15s ease;
+      box-sizing: border-box;
+
+      // По умолчанию — снизу от сообщения
+      top: calc(100% + 0.5rem);
+      bottom: auto;
+      transform: translateY(-6px) scale(0.96);
 
       &--visible {
         opacity: 1;
         visibility: visible;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
+      }
+
+      // Вариант: сверху от сообщения (когда снизу не хватает места)
+      &--above {
+        top: auto;
+        bottom: calc(100% + 0.5rem);
+        transform: translateY(6px) scale(0.96);
+
+        &.chat-window__reaction-menu--visible {
+          transform: translateY(0) scale(1);
+        }
       }
     }
   }
@@ -2199,9 +2445,22 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     font-size: 1.5rem;
     cursor: pointer;
     transition: background 0.2s;
+    flex-shrink: 0;
 
     &:hover {
       background: var(--bg-primary);
+    }
+
+    @media (max-width: 768px) {
+      width: 36px;
+      height: 36px;
+      font-size: 1.75rem;
+      border-radius: 10px;
+      
+      &:active {
+        background: var(--bg-primary);
+        transform: scale(0.95);
+      }
     }
   }
 
