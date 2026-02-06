@@ -473,6 +473,29 @@ export const useChatStore = defineStore('chat', () => {
   };
 
   const updateChat = (updatedChat: Chat): void => {
+    // Проверяем и нормализуем lastMessage.senderId если он есть
+    if (updatedChat.lastMessage && updatedChat.lastMessage.senderId) {
+      // Если senderId это объект без username, пытаемся найти его в участниках чата
+      if (typeof updatedChat.lastMessage.senderId === 'object' && !updatedChat.lastMessage.senderId.username) {
+        const senderId = updatedChat.lastMessage.senderId.id || updatedChat.lastMessage.senderId._id;
+        if (senderId) {
+          const participant = updatedChat.participants.find(p => {
+            const pId = typeof p === 'string' ? p : p.id;
+            return pId === senderId;
+          });
+          if (participant && typeof participant !== 'string') {
+            updatedChat.lastMessage.senderId = {
+              ...updatedChat.lastMessage.senderId,
+              username: participant.username || 'Пользователь',
+              avatar: participant.avatar,
+              status: participant.status,
+              lastSeen: participant.lastSeen
+            };
+          }
+        }
+      }
+    }
+    
     // Обновляем чат в списке
     const index = chats.value.findIndex(c => c._id === updatedChat._id);
     if (index !== -1) {

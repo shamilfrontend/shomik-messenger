@@ -31,20 +31,99 @@ const availableReactions = ['👍', '😂', '🔥', '❤️', '👎', '👀', '�
 const videoCallMicDropdownOpen = ref(false);
 const videoCallCameraDropdownOpen = ref(false);
 const headerRef = ref<HTMLElement | null>(null);
+const chatWindowRef = ref<HTMLElement | null>(null);
 
 const handleResize = (): void => {
   isMobile.value = window.innerWidth <= 768;
 };
 
 // Обработчик изменения высоты viewport для мобильных устройств
+let rafId: number | null = null;
+let lastViewportTop = 0;
+
 const handleViewportResize = (): void => {
-  if (isMobile.value && headerRef.value) {
-    // Принудительно обновляем позицию header'а при изменении высоты viewport
-    const viewportHeight = window.visualViewport?.height || window.innerHeight;
-    // Убеждаемся, что header всегда виден
-    if (headerRef.value) {
-      headerRef.value.style.top = '0px';
+  if (!isMobile.value || !headerRef.value) return;
+  
+  // Отменяем предыдущий запрос анимации, если он есть
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+  }
+  
+  // Используем requestAnimationFrame для плавного обновления
+  rafId = requestAnimationFrame(() => {
+    if (!headerRef.value) return;
+    
+    // Получаем реальную высоту и позицию viewport
+    const visualViewport = window.visualViewport;
+    let viewportTop = 0;
+    
+    if (visualViewport) {
+      // Используем visualViewport API для точного определения позиции
+      viewportTop = visualViewport.offsetTop;
+    } else {
+      // Fallback: вычисляем позицию на основе изменения высоты окна
+      const currentHeight = window.innerHeight;
+      const screenHeight = window.screen.height;
+      // Если высота уменьшилась, значит открылась клавиатура
+      if (currentHeight < screenHeight * 0.75) {
+        viewportTop = 0; // Header должен быть в самом верху
+      }
     }
+    
+    // Обновляем только если позиция изменилась
+    if (viewportTop !== lastViewportTop) {
+      lastViewportTop = viewportTop;
+      
+      // Принудительно фиксируем header в верхней части видимой области
+      headerRef.value.style.position = 'fixed';
+      headerRef.value.style.top = `${viewportTop}px`;
+      headerRef.value.style.left = '0';
+      headerRef.value.style.right = '0';
+      headerRef.value.style.zIndex = '1000';
+      headerRef.value.style.width = '100%';
+      headerRef.value.style.transform = 'translateZ(0)';
+      headerRef.value.style.webkitTransform = 'translateZ(0)';
+    }
+    
+    rafId = null;
+  });
+};
+
+// Обработчик фокуса на input поле (когда открывается клавиатура)
+const handleInputFocus = (): void => {
+  if (isMobile.value && headerRef.value) {
+    // Несколько проверок с задержками для надежности
+    setTimeout(() => handleViewportResize(), 50);
+    setTimeout(() => handleViewportResize(), 150);
+    setTimeout(() => handleViewportResize(), 300);
+  }
+};
+
+// Обработчик потери фокуса (когда закрывается клавиатура)
+const handleInputBlur = (): void => {
+  if (isMobile.value && headerRef.value) {
+    setTimeout(() => handleViewportResize(), 50);
+    setTimeout(() => handleViewportResize(), 150);
+    setTimeout(() => handleViewportResize(), 300);
+  }
+};
+
+// Периодическая проверка позиции header'а (fallback)
+let checkInterval: number | null = null;
+const startHeaderPositionCheck = (): void => {
+  if (checkInterval !== null) return;
+  
+  checkInterval = window.setInterval(() => {
+    if (isMobile.value && headerRef.value) {
+      handleViewportResize();
+    }
+  }, 500); // Проверяем каждые 500ms
+};
+
+const stopHeaderPositionCheck = (): void => {
+  if (checkInterval !== null) {
+    clearInterval(checkInterval);
+    checkInterval = null;
   }
 };
 
@@ -142,6 +221,7 @@ const handleJoinGroupCall = async (): Promise<void> => {
 onMounted(() => {
   window.addEventListener('resize', handleResize);
   document.addEventListener('click', handleClickOutside);
+  
   // Отслеживаем изменение высоты viewport на мобильных устройствах
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', handleViewportResize);
@@ -149,20 +229,54 @@ onMounted(() => {
   }
   // Fallback для устройств без visualViewport API
   window.addEventListener('resize', handleViewportResize);
+  window.addEventListener('orientationchange', handleViewportResize);
+  
+  // Отслеживаем фокус на input полях для обнаружения открытия клавиатуры
+  document.addEventListener('focusin', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
+      handleInputFocus();
+    }
+  });
+  
+  document.addEventListener('focusout', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
+      handleInputBlur();
+    }
+  });
+  
   nextTick(() => {
     callStore.setRemoteAudioRef(remoteAudioRef.value);
     callStore.setLocalVideoRef(localVideoRef.value);
+    // Инициализируем позицию header'а
+    handleViewportResize();
+    // Запускаем периодическую проверку позиции header'а на мобильных
+    if (isMobile.value) {
+      startHeaderPositionCheck();
+    }
   });
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
   document.removeEventListener('click', handleClickOutside);
+  
   if (window.visualViewport) {
     window.visualViewport.removeEventListener('resize', handleViewportResize);
     window.visualViewport.removeEventListener('scroll', handleViewportResize);
   }
   window.removeEventListener('resize', handleViewportResize);
+  window.removeEventListener('orientationchange', handleViewportResize);
+  
+  // Отменяем pending requestAnimationFrame
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+  }
+  
+  // Останавливаем периодическую проверку
+  stopHeaderPositionCheck();
+  
   callStore.setRemoteAudioRef(null);
   callStore.setLocalVideoRef(null);
 });
@@ -641,7 +755,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 </script>
 
 <template>
-	<div class="chat-window">
+	<div ref="chatWindowRef" class="chat-window">
 		<div v-if="currentChat" ref="headerRef" class="chat-window__header">
 			<button 
 				v-if="isMobile" 
@@ -1058,7 +1172,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     height: 100dvh;
     height: -webkit-fill-available;
     max-height: 100dvh;
-    overflow: hidden;
+    /* Не используем overflow: hidden, чтобы не блокировать прокрутку сообщений */
+    position: relative;
+    /* Фиксируем контейнер, чтобы он не менял размер при открытии клавиатуры */
+    touch-action: pan-y;
   }
 
   &__header {
@@ -1074,25 +1191,24 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     z-index: 10;
 
     @media (max-width: 768px) {
-      position: sticky;
+      /* JavaScript будет управлять позиционированием через inline стили */
+      position: fixed;
       top: 0;
       left: 0;
       right: 0;
-      z-index: 100;
+      z-index: 1000;
       width: 100%;
       /* Создаем новый слой композиции для надежной работы на мобильных */
       transform: translateZ(0);
       -webkit-transform: translateZ(0);
       -webkit-backface-visibility: hidden;
       backface-visibility: hidden;
+      will-change: transform, top;
       /* Учитываем safe area для устройств с вырезом */
       padding-top: calc(1rem + env(safe-area-inset-top, 0px));
       padding-bottom: 1rem;
       padding-left: calc(1rem + env(safe-area-inset-left, 0px));
       padding-right: calc(1rem + env(safe-area-inset-right, 0px));
-      /* Фиксируем header даже при прокрутке */
-      position: -webkit-sticky;
-      position: sticky;
     }
   }
 
@@ -1549,11 +1665,13 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
     @media (max-width: 768px) {
       padding: 0.75rem;
-      /* Учитываем высоту header'а + safe area */
+      /* Учитываем высоту header'а + safe area (примерно 73px + safe area) */
       padding-top: calc(0.75rem + 73px + env(safe-area-inset-top, 0px));
       padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
       gap: 0.5rem;
       margin-top: 0;
+      /* Убеждаемся, что контент не скрывается под header'ом */
+      scroll-padding-top: calc(73px + env(safe-area-inset-top, 0px));
     }
   }
 

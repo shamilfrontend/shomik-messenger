@@ -72,7 +72,7 @@
             </div>
           </div>
           <div class="chat-list__preview">
-            <span v-if="chat.lastMessage" :class="['chat-list__message', { 'chat-list__message--unread': getUnreadCount(chat._id) > 0 }]">
+            <span v-if="chat.lastMessage && chat.lastMessage.content" :class="['chat-list__message', { 'chat-list__message--unread': getUnreadCount(chat._id) > 0 }]">
               {{ getSenderName(chat.lastMessage) }}: {{ chat.lastMessage.content }}
             </span>
             <span v-else class="chat-list__empty">Нет сообщений</span>
@@ -242,7 +242,10 @@ const getSenderName = (message: Message): string => {
   if (typeof message.senderId === 'string') {
     return 'Пользователь';
   }
-  return message.senderId.username;
+  if (!message.senderId || typeof message.senderId !== 'object') {
+    return 'Пользователь';
+  }
+  return message.senderId.username || 'Пользователь';
 };
 
 const formatTime = (date?: Date | string): string => {

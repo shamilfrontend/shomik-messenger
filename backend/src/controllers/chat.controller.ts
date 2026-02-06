@@ -24,6 +24,22 @@ const formatChat = (chat: any): any => {
       avatar: chatObj.admin.avatar
     };
   }
+  // Обрабатываем lastMessage если он есть
+  if (chatObj.lastMessage && typeof chatObj.lastMessage === 'object') {
+    if (chatObj.lastMessage.senderId && typeof chatObj.lastMessage.senderId === 'object') {
+      chatObj.lastMessage.senderId = {
+        id: chatObj.lastMessage.senderId._id.toString(),
+        username: chatObj.lastMessage.senderId.username || 'Пользователь',
+        avatar: chatObj.lastMessage.senderId.avatar,
+        status: chatObj.lastMessage.senderId.status,
+        lastSeen: chatObj.lastMessage.senderId.lastSeen
+      };
+    }
+    // Преобразуем _id в строку
+    if (chatObj.lastMessage._id) {
+      chatObj.lastMessage._id = chatObj.lastMessage._id.toString();
+    }
+  }
   return chatObj;
 };
 
@@ -666,6 +682,16 @@ export const updateGroupAvatar = async (req: AuthRequest, res: Response): Promis
     await chat.save();
     await chat.populate('participants', 'username avatar status lastSeen email');
     await chat.populate('admin', 'username avatar');
+    // Populate lastMessage с senderId для корректного отображения
+    if (chat.lastMessage) {
+      await chat.populate({
+        path: 'lastMessage',
+        populate: {
+          path: 'senderId',
+          select: 'username avatar status lastSeen'
+        }
+      });
+    }
 
     const chatObj = formatChat(chat);
 
