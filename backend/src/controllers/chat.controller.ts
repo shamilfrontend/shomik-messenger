@@ -441,9 +441,12 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
           select: 'username'
         }
       })
-      .sort({ createdAt: 1 })
+      .sort({ createdAt: -1 })
       .limit(Number(limit))
       .exec();
+    
+    // Переворачиваем массив, чтобы сообщения были в хронологическом порядке (от старых к новым)
+    messages.reverse();
 
     // Преобразуем _id в id для senderId и replyTo, а также reactions
     const messagesWithId = messages.map(msg => {

@@ -78,6 +78,10 @@ export const useChatStore = defineStore('chat', () => {
   const loadMessages = async (chatId: string): Promise<void> => {
     try {
       const response = await api.get(`/chats/${chatId}/messages`);
+      // Проверяем, что чат все еще открыт (защита от race condition при быстром переключении)
+      if (currentChat.value?._id !== chatId) {
+        return;
+      }
       // Инициализируем реакции для каждого сообщения
       messages.value = response.data.map((msg: Message) => ({
         ...msg,
