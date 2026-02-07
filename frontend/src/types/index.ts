@@ -20,6 +20,7 @@ export interface Chat {
   groupAvatar?: string;
   admin?: User;
   lastMessage?: Message;
+  pinnedMessage?: Message;
   createdAt: Date;
   updatedAt: Date;
 }

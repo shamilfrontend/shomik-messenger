@@ -494,6 +494,18 @@ export const useChatStore = defineStore('chat', () => {
     removeChatFromList(chatId);
   };
 
+  const updatePinnedMessage = async (chatId: string, messageId: string | null): Promise<Chat> => {
+    try {
+      const response = await api.patch(`/chats/${chatId}/pinned-message`, { messageId: messageId || undefined });
+      const updatedChat = response.data;
+      updateChat(updatedChat);
+      return updatedChat;
+    } catch (error: any) {
+      console.error('Ошибка закрепления сообщения:', error.response?.data?.error || error.message);
+      throw error;
+    }
+  };
+
   const removeChatFromList = (chatId: string): void => {
     chats.value = chats.value.filter(c => c._id !== chatId);
     // Если удаленный чат был открыт, закрываем его
@@ -655,6 +667,7 @@ export const useChatStore = defineStore('chat', () => {
     leaveGroup,
     deleteChat,
     removeChatFromList,
+    updatePinnedMessage,
     updateUserInChats,
     toggleReaction,
     updateMessageReactions,

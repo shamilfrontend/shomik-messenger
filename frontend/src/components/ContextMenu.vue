@@ -51,6 +51,10 @@
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
               <polyline points="9 12 11 14 15 10"></polyline>
             </svg>
+            <!-- pin / unpin (pushpin) -->
+            <svg v-else-if="action.icon === 'pin' || action.icon === 'unpin'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 12V4h1V2H7v2h1v8l-4 4v2h16v-2l-4-4z"/>
+            </svg>
           </span>
           <span class="context-menu__label">{{ action.label }}</span>
         </button>
@@ -67,7 +71,7 @@ export interface ContextMenuAction {
   label: string;
   disabled?: boolean;
   /** Иконка — компонент (VNode / h) или имя для встроенных иконок */
-  icon?: 'reply' | 'copy' | 'edit' | 'delete' | 'trash' | 'select';
+  icon?: 'reply' | 'copy' | 'edit' | 'delete' | 'trash' | 'select' | 'pin' | 'unpin';
 }
 
 const props = withDefaults(

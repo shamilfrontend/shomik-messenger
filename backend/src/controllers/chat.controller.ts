@@ -6,6 +6,23 @@ import User from '../models/User.model';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { wsService } from '../server';
 
+const formatMessageForChat = (msg: any): any => {
+  if (!msg || typeof msg !== 'object') return msg;
+  const m = { ...msg };
+  if (m.senderId && typeof m.senderId === 'object') {
+    m.senderId = {
+      id: m.senderId._id.toString(),
+      username: m.senderId.username || 'Пользователь',
+      avatar: m.senderId.avatar,
+      status: m.senderId.status,
+      lastSeen: m.senderId.lastSeen
+    };
+  }
+  const idStr = m._id != null ? (typeof m._id === 'object' && 'toString' in m._id ? (m._id as { toString(): string }).toString() : String(m._id)) : undefined;
+  if (idStr !== undefined) m._id = idStr;
+  return m;
+};
+
 // Функция для преобразования чата в нужный формат
 const formatChat = (chat: any): any => {
   const chatObj = chat.toObject() as any;
@@ -24,23 +41,11 @@ const formatChat = (chat: any): any => {
       avatar: chatObj.admin.avatar
     };
   }
-  // Обрабатываем lastMessage если он есть
   if (chatObj.lastMessage && typeof chatObj.lastMessage === 'object') {
-    if (chatObj.lastMessage.senderId && typeof chatObj.lastMessage.senderId === 'object') {
-      chatObj.lastMessage.senderId = {
-        id: chatObj.lastMessage.senderId._id.toString(),
-        username: chatObj.lastMessage.senderId.username || 'Пользователь',
-        avatar: chatObj.lastMessage.senderId.avatar,
-        status: chatObj.lastMessage.senderId.status,
-        lastSeen: chatObj.lastMessage.senderId.lastSeen
-      };
-    }
-    // Не присваиваем _id вложенному объекту (getter-only). Создаём новый объект с _id-строкой.
-    const lm = chatObj.lastMessage;
-    const idStr = lm._id != null ? (typeof lm._id === 'object' && 'toString' in lm._id ? (lm._id as { toString(): string }).toString() : String(lm._id)) : undefined;
-    if (idStr !== undefined) {
-      chatObj.lastMessage = { ...lm, _id: idStr };
-    }
+    chatObj.lastMessage = formatMessageForChat(chatObj.lastMessage);
+  }
+  if (chatObj.pinnedMessage && typeof chatObj.pinnedMessage === 'object') {
+    chatObj.pinnedMessage = formatMessageForChat(chatObj.pinnedMessage);
   }
   return chatObj;
 };
@@ -52,6 +57,7 @@ export const getChats = async (req: AuthRequest, res: Response): Promise<void> =
     })
       .populate('participants', 'username avatar status lastSeen email')
       .populate('lastMessage')
+      .populate({ path: 'pinnedMessage', populate: { path: 'senderId', select: 'username avatar status lastSeen' } })
       .populate('admin', 'username avatar')
       .sort({ updatedAt: -1 });
 
@@ -72,6 +78,9 @@ export const getChats = async (req: AuthRequest, res: Response): Promise<void> =
           username: chatObj.admin.username,
           avatar: chatObj.admin.avatar
         };
+      }
+      if (chatObj.pinnedMessage && typeof chatObj.pinnedMessage === 'object') {
+        chatObj.pinnedMessage = formatMessageForChat(chatObj.pinnedMessage);
       }
       return chatObj;
     });
@@ -289,6 +298,7 @@ export const getChatById = async (req: AuthRequest, res: Response): Promise<void
     const chat = await Chat.findById(id)
       .populate('participants', 'username avatar status lastSeen email')
       .populate('lastMessage')
+      .populate({ path: 'pinnedMessage', populate: { path: 'senderId', select: 'username avatar status lastSeen' } })
       .populate('admin', 'username avatar');
 
     if (!chat) {
@@ -318,7 +328,58 @@ export const getChatById = async (req: AuthRequest, res: Response): Promise<void
         avatar: chatObj.admin.avatar
       };
     }
+    if (chatObj.pinnedMessage && typeof chatObj.pinnedMessage === 'object') {
+      chatObj.pinnedMessage = formatMessageForChat(chatObj.pinnedMessage);
+    }
 
+    res.json(chatObj);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const updatePinnedMessage = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id: chatId } = req.params;
+    const { messageId } = req.body;
+
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      res.status(404).json({ error: 'Чат не найден' });
+      return;
+    }
+    const isParticipant = chat.participants.some((p: any) => p.toString() === req.userId);
+    if (!isParticipant) {
+      res.status(403).json({ error: 'Нет доступа к этому чату' });
+      return;
+    }
+
+    if (messageId != null && messageId !== '') {
+      const message = await Message.findOne({ _id: messageId, chatId });
+      if (!message) {
+        res.status(404).json({ error: 'Сообщение не найдено в этом чате' });
+        return;
+      }
+      if (message.type === 'system') {
+        res.status(400).json({ error: 'Нельзя закрепить системное сообщение' });
+        return;
+      }
+      chat.pinnedMessage = message._id as any;
+    } else {
+      chat.pinnedMessage = undefined;
+    }
+
+    await chat.save();
+    const updated = await Chat.findById(chatId)
+      .populate('participants', 'username avatar status lastSeen email')
+      .populate('lastMessage')
+      .populate({ path: 'pinnedMessage', populate: { path: 'senderId', select: 'username avatar status lastSeen' } })
+      .populate('admin', 'username avatar');
+    const chatObj = formatChat(updated);
+
+    if (wsService) {
+      wsService.broadcastChatUpdated(chatObj);
+    }
     res.json(chatObj);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -1029,6 +1090,12 @@ export const deleteMessage = async (req: AuthRequest, res: Response): Promise<vo
     // Удаляем сообщение
     await Message.findByIdAndDelete(messageId);
 
+    // Если удалённое сообщение было закреплённым — снимаем закрепление
+    await Chat.updateOne(
+      { _id: chatId, pinnedMessage: new mongoose.Types.ObjectId(messageId) },
+      { $unset: { pinnedMessage: '' } }
+    );
+
     // Если это было последнее сообщение, обновляем lastMessage чата
     // Получаем ID текущего lastMessage (может быть ObjectId или populated объект)
     const lastMsg = chat.lastMessage;
@@ -1067,8 +1134,9 @@ export const deleteMessage = async (req: AuthRequest, res: Response): Promise<vo
       const updatedChat = await Chat.findById(chatId)
         .populate('participants', 'username avatar status lastSeen email')
         .populate('lastMessage')
+        .populate({ path: 'pinnedMessage', populate: { path: 'senderId', select: 'username avatar status lastSeen' } })
         .populate('admin', 'username avatar');
-      
+
       if (updatedChat) {
         const chatObj = formatChat(updatedChat);
         wsService.broadcastChatUpdated(chatObj);

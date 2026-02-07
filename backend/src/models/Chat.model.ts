@@ -7,6 +7,7 @@ export interface IChat extends Document {
   groupAvatar?: string;
   admin?: mongoose.Types.ObjectId;
   lastMessage?: mongoose.Types.ObjectId;
+  pinnedMessage?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +37,10 @@ const ChatSchema = new Schema<IChat>(
       ref: 'User'
     },
     lastMessage: {
+      type: Schema.Types.ObjectId,
+      ref: 'Message'
+    },
+    pinnedMessage: {
       type: Schema.Types.ObjectId,
       ref: 'Message'
     }

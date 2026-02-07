@@ -3,6 +3,7 @@ import {
   getChats, 
   createChat, 
   getChatById, 
+  updatePinnedMessage,
   addParticipants, 
   removeParticipants,
   updateGroupName,
@@ -24,6 +25,7 @@ router.use(authMiddleware);
 router.get('/', getChats);
 router.post('/', createChat);
 router.get('/:id', getChatById);
+router.patch('/:id/pinned-message', updatePinnedMessage);
 router.post('/:id/participants', addParticipants);
 router.delete('/:id/participants', removeParticipants);
 router.patch('/:id/name', updateGroupName);

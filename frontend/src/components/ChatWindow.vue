@@ -182,7 +182,7 @@ const handleGlobalKeyDown = (event: KeyboardEvent): void => {
   if (activeElement && activeElement.contentEditable === 'true') {
     return;
   }
-  
+
   // Проверяем, что фокус не на элементах с классом модальных окон или выпадающих меню
   if (activeElement && (
     activeElement.closest('.group-settings-modal') ||
@@ -930,7 +930,7 @@ interface MessageContextAction {
   id: string;
   label: string;
   disabled?: boolean;
-  icon?: 'reply' | 'copy' | 'edit' | 'delete' | 'trash' | 'select';
+  icon?: 'reply' | 'copy' | 'edit' | 'delete' | 'trash' | 'select' | 'pin' | 'unpin';
 }
 
 const getMessageContextMenuActions = (message: Message): MessageContextAction[] => {
@@ -945,6 +945,13 @@ const getMessageContextMenuActions = (message: Message): MessageContextAction[] 
   }
   if (message.content) {
     actions.push({ id: 'copy', label: 'Копировать', icon: 'copy' });
+  }
+  if (message.type !== 'system') {
+    if (currentChat.value?.pinnedMessage?._id === message._id) {
+      actions.push({ id: 'unpin', label: 'Открепить', icon: 'unpin' });
+    } else {
+      actions.push({ id: 'pin', label: 'Закрепить', icon: 'pin' });
+    }
   }
   if (canEditMessage(message)) {
     actions.push({ id: 'edit', label: 'Редактировать', icon: 'edit' });
@@ -1022,13 +1029,27 @@ const deleteSelectedMessages = async (): Promise<void> => {
   }
 };
 
-const onContextMenuSelect = (action: MessageContextAction): void => {
+const onContextMenuSelect = async (action: MessageContextAction): Promise<void> => {
   const msg = contextMenuMessage.value;
   if (!msg) return;
   if (action.id === 'select') enterSelectionMode(msg);
   else if (action.id === 'reply') handleReplyToMessage(msg);
   else if (action.id === 'copy') copyMessageToClipboard(msg);
-  else if (action.id === 'edit') handleEditMessage(msg);
+  else if (action.id === 'pin' && currentChat.value) {
+    try {
+      await chatStore.updatePinnedMessage(currentChat.value._id, msg._id);
+      notifySuccess('Сообщение закреплено');
+    } catch {
+      notifyError('Не удалось закрепить');
+    }
+  } else if (action.id === 'unpin' && currentChat.value) {
+    try {
+      await chatStore.updatePinnedMessage(currentChat.value._id, null);
+      notifySuccess('Сообщение откреплено');
+    } catch {
+      notifyError('Не удалось открепить');
+    }
+  } else if (action.id === 'edit') handleEditMessage(msg);
   else if (action.id === 'delete') handleDeleteMessage(msg);
 };
 
@@ -1046,6 +1067,32 @@ const handleReplyToMessage = (message: Message): void => {
 
 const clearReplyToMessage = (): void => {
   replyToMessage.value = null;
+};
+
+const scrollToPinnedMessage = (): void => {
+  const pinned = currentChat.value?.pinnedMessage;
+  if (!pinned || !messagesContainer.value) return;
+  const messageId = `message-${pinned._id}`;
+  const messageElement = document.getElementById(messageId);
+  if (messageElement) {
+    const containerRect = messagesContainer.value.getBoundingClientRect();
+    const elementRect = messageElement.getBoundingClientRect();
+    const scrollTop = messagesContainer.value.scrollTop;
+    const elementTop = elementRect.top - containerRect.top + scrollTop;
+    messagesContainer.value.scrollTo({ top: elementTop - 20, behavior: 'smooth' });
+    messageElement.classList.add('chat-window__message-wrapper--highlighted');
+    setTimeout(() => messageElement.classList.remove('chat-window__message-wrapper--highlighted'), 2000);
+  }
+};
+
+const unpinMessage = async (): Promise<void> => {
+  if (!currentChat.value) return;
+  try {
+    await chatStore.updatePinnedMessage(currentChat.value._id, null);
+    notifySuccess('Сообщение откреплено');
+  } catch {
+    notifyError('Не удалось открепить');
+  }
 };
 
 const scrollToRepliedMessage = (replyTo: Message | string): void => {
@@ -1431,6 +1478,17 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 		<audio ref="remoteAudioRef" autoplay />
 
 		<div v-if="currentChat" class="chat-window__messages" ref="messagesContainer" @scroll="onMessagesScroll">
+			<div v-if="currentChat.pinnedMessage" class="chat-window__pinned-bar">
+				<div class="chat-window__pinned-content" @click="scrollToPinnedMessage">
+					<span class="chat-window__pinned-label">Закреплено</span>
+					<span class="chat-window__pinned-sender">{{ getReplyToSenderName(currentChat.pinnedMessage) }}</span>
+					<span class="chat-window__pinned-text">{{ getReplyToText(currentChat.pinnedMessage) || 'Сообщение' }}</span>
+				</div>
+				<div class="chat-window__pinned-actions">
+					<button type="button" class="chat-window__pinned-btn" @click.stop="scrollToPinnedMessage">Перейти</button>
+					<button type="button" class="chat-window__pinned-btn chat-window__pinned-btn--unpin" @click.stop="unpinMessage" aria-label="Открепить">Открепить</button>
+				</div>
+			</div>
 			<template v-for="message in messages" :key="message._id">
 				<!-- Системное сообщение -->
 				<div
@@ -2164,14 +2222,90 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
     @media (max-width: 768px) {
       overflow-x: hidden;
-      padding: 0.75rem;
-      /* Учитываем высоту header'а + safe area (примерно 73px + safe area) */
-      padding-top: calc(0.75rem + 73px + env(safe-area-inset-top, 0px));
-      padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-      gap: 0.5rem;
+			/* Учитываем высоту header'а + safe area (примерно 73px + safe area) */
+			padding: calc(0.75rem + 73px + env(safe-area-inset-top, 0px)) 0.75rem calc(100px + env(safe-area-inset-bottom, 0px));
+			gap: 0.5rem;
       margin-top: 0;
       /* Убеждаемся, что контент не скрывается под header'ом */
       scroll-padding-top: calc(73px + env(safe-area-inset-top, 0px));
+    }
+  }
+
+  &__pinned-bar {
+		position: absolute;
+		top: 88px;
+		left: 16px;
+		right: 24px;
+		z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin: -1rem -1rem 0.25rem -1rem;
+    padding: 1rem 0.75rem 0.5rem;
+    background: var(--bg-primary);
+    border-radius: 0 0 8px 8px;
+    border-left: 3px solid var(--accent-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    flex-shrink: 0;
+
+    @media (max-width: 768px) {
+      margin-left: -0.75rem;
+      margin-right: -0.75rem;
+      margin-top: -0.75rem;
+      padding-top: 0.75rem;
+    }
+  }
+
+  &__pinned-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    cursor: pointer;
+  }
+
+  &__pinned-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+  }
+
+  &__pinned-sender {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  &__pinned-text {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__pinned-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  &__pinned-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    cursor: pointer;
+    &:hover {
+      background: var(--bg-secondary, rgba(0, 0, 0, 0.05));
+    }
+    &--unpin {
+      border-color: transparent;
+      color: var(--text-secondary);
     }
   }
 
