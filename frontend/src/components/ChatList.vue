@@ -181,7 +181,7 @@ const chatContextChat = ref<Chat | null>(null);
 
 const chatContextMenuActions = computed((): ContextMenuAction[] => {
   if (!chatContextChat.value || chatContextChat.value.type !== 'private') return [];
-  return [{ id: 'delete', label: 'Удалить чат' }];
+  return [{ id: 'delete', label: 'Удалить чат', icon: 'trash' }];
 });
 
 const onChatContextMenu = (chat: Chat, e: MouseEvent): void => {

@@ -17,7 +17,7 @@ import { useConfirm } from '../composables/useConfirm';
 
 const chatStore = useChatStore();
 const callStore = useCallStore();
-const { error: notifyError } = useNotifications();
+const { success: notifySuccess, error: notifyError } = useNotifications();
 
 /** В prod кнопки звонков отключены с тултипом «СКОРО БУДЕТ!» */
 const callsDisabledInProd = import.meta.env.PROD;
@@ -41,6 +41,8 @@ const reactionMenuPosition = ref<'above' | 'below'>('below');
 const showMessageView = ref(false);
 const selectedMessage = ref<Message | null>(null);
 const contextMenuVisible = ref(false);
+const selectionMode = ref(false);
+const selectedMessageIds = ref<Set<string>>(new Set());
 const contextMenuX = ref(0);
 const contextMenuY = ref(0);
 const contextMenuMessage = ref<Message | null>(null);
@@ -175,7 +177,7 @@ const handleGlobalKeyDown = (event: KeyboardEvent): void => {
   if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
     return;
   }
-  
+
   // Проверяем, что фокус не на contentEditable элементах
   if (activeElement && activeElement.contentEditable === 'true') {
     return;
@@ -928,18 +930,27 @@ interface MessageContextAction {
   id: string;
   label: string;
   disabled?: boolean;
+  icon?: 'reply' | 'copy' | 'edit' | 'delete' | 'trash' | 'select';
 }
 
 const getMessageContextMenuActions = (message: Message): MessageContextAction[] => {
   const actions: MessageContextAction[] = [];
   if (message.type !== 'system') {
-    actions.push({ id: 'reply', label: 'Ответить' });
+    if (currentChat.value?.type !== 'private' || isOwnMessage(message)) {
+      actions.push({ id: 'select', label: 'Выбрать', icon: 'select' });
+    }
+  }
+  if (message.type !== 'system') {
+    actions.push({ id: 'reply', label: 'Ответить', icon: 'reply' });
+  }
+  if (message.content) {
+    actions.push({ id: 'copy', label: 'Копировать', icon: 'copy' });
   }
   if (canEditMessage(message)) {
-    actions.push({ id: 'edit', label: 'Редактировать' });
+    actions.push({ id: 'edit', label: 'Редактировать', icon: 'edit' });
   }
   if (canDeleteMessage(message)) {
-    actions.push({ id: 'delete', label: 'Удалить' });
+    actions.push({ id: 'delete', label: 'Удалить', icon: 'delete' });
   }
   return actions;
 };
@@ -954,10 +965,69 @@ const onMessageContextMenu = (message: Message, e: MouseEvent): void => {
   contextMenuVisible.value = true;
 };
 
+const copyMessageToClipboard = async (message: Message): Promise<void> => {
+  const text = message.content || '';
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    notifySuccess('Сообщение скопировано');
+  } catch {
+    notifyError('Не удалось скопировать');
+  }
+};
+
+const enterSelectionMode = (initialMessage?: Message): void => {
+  selectionMode.value = true;
+  const next = new Set<string>();
+  if (initialMessage && canDeleteMessage(initialMessage)) {
+    next.add(initialMessage._id);
+  }
+  selectedMessageIds.value = next;
+};
+
+const exitSelectionMode = (): void => {
+  selectionMode.value = false;
+  selectedMessageIds.value = new Set();
+};
+
+const isMessageSelected = (message: Message): boolean => selectedMessageIds.value.has(message._id);
+
+const toggleMessageSelection = (message: Message): void => {
+  if (!canDeleteMessage(message)) return;
+  const next = new Set(selectedMessageIds.value);
+  if (next.has(message._id)) {
+    next.delete(message._id);
+  } else {
+    next.add(message._id);
+  }
+  selectedMessageIds.value = next;
+};
+
+const selectedCount = computed(() => selectedMessageIds.value.size);
+
+const deleteSelectedMessages = async (): Promise<void> => {
+  if (!currentChat.value || selectedCount.value === 0) return;
+  const { confirm } = useConfirm();
+  const confirmed = await confirm(`Удалить выбранные сообщения (${selectedCount.value})?`);
+  if (!confirmed) return;
+  try {
+    const chatId = currentChat.value._id;
+    for (const messageId of selectedMessageIds.value) {
+      await chatStore.deleteMessage(chatId, messageId);
+    }
+    notifySuccess(`Удалено сообщений: ${selectedCount.value}`);
+    exitSelectionMode();
+  } catch (err: any) {
+    notifyError(err.response?.data?.error || 'Не удалось удалить сообщения');
+  }
+};
+
 const onContextMenuSelect = (action: MessageContextAction): void => {
   const msg = contextMenuMessage.value;
   if (!msg) return;
-  if (action.id === 'reply') handleReplyToMessage(msg);
+  if (action.id === 'select') enterSelectionMode(msg);
+  else if (action.id === 'reply') handleReplyToMessage(msg);
+  else if (action.id === 'copy') copyMessageToClipboard(msg);
   else if (action.id === 'edit') handleEditMessage(msg);
   else if (action.id === 'delete') handleDeleteMessage(msg);
 };
@@ -1042,6 +1112,10 @@ const getReplyToText = (replyTo: Message | string): string => {
 // Оставлена для возможного использования в будущем
 // Обработчик клика на сообщение для мобильных устройств
 const handleMessageClick = (message: Message, event: MouseEvent): void => {
+  if (selectionMode.value) {
+    toggleMessageSelection(message);
+    return;
+  }
   // Игнорируем клики на кнопки и интерактивные элементы
   const target = event.target as HTMLElement;
   if (target.closest('.chat-window__reaction') ||
@@ -1373,12 +1447,24 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 					v-else
 					:id="`message-${message._id}`"
 					:class="['chat-window__message-wrapper', {
-						'chat-window__message-wrapper_me': isOwnMessage(message)
+						'chat-window__message-wrapper_me': isOwnMessage(message),
+						'chat-window__message-wrapper--selected': selectionMode && isMessageSelected(message),
+						'chat-window__message-wrapper--selectable': selectionMode && canDeleteMessage(message)
 					}]"
-					@dblclick="handleReplyToMessage(message)"
+					@dblclick="!selectionMode && handleReplyToMessage(message)"
 					@click="handleMessageClick(message, $event)"
 					@contextmenu.prevent="onMessageContextMenu(message, $event)"
 				>
+					<div
+						v-if="selectionMode && canDeleteMessage(message)"
+						class="chat-window__message-select-checkbox"
+						@click.stop="toggleMessageSelection(message)"
+					>
+						<svg v-if="isMessageSelected(message)" class="chat-window__message-select-check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<polyline points="20 6 9 17 4 12"></polyline>
+						</svg>
+						<span v-else class="chat-window__message-select-box"></span>
+					</div>
 					<div
 						:class="['chat-window__message', { 
 							'chat-window__message_me': isOwnMessage(message),
@@ -1517,9 +1603,30 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			</svg>
 		</button>
 
+		<!-- Панель массовых действий при выборе сообщений -->
+		<div v-if="currentChat && selectionMode" class="chat-window__selection-bar">
+			<button
+				type="button"
+				class="chat-window__selection-bar-delete"
+				:disabled="selectedCount === 0"
+				@click="deleteSelectedMessages"
+			>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<polyline points="3 6 5 6 21 6"></polyline>
+					<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+					<line x1="10" y1="11" x2="10" y2="17"></line>
+					<line x1="14" y1="11" x2="14" y2="17"></line>
+				</svg>
+				Удалить выбранные ({{ selectedCount }})
+			</button>
+			<button type="button" class="chat-window__selection-bar-cancel" @click="exitSelectionMode">
+				Отмена
+			</button>
+		</div>
+
 		<MessageInput 
 			ref="messageInputRef"
-			v-if="currentChat" 
+			v-if="currentChat && !selectionMode" 
 			:chat-id="currentChat._id"
 			:reply-to="replyToMessage"
 			:edit-message="editMessage"
@@ -2087,6 +2194,87 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     &--highlighted {
       background: rgba(59, 130, 246, 0.15);
       animation: highlight-pulse 2s ease-out;
+    }
+
+    &--selected {
+      background: rgba(59, 130, 246, 0.12);
+    }
+
+    &--selectable {
+      cursor: pointer;
+    }
+  }
+
+  &__message-select-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    margin-right: 0.5rem;
+    align-self: center;
+    color: var(--accent-color);
+  }
+
+  &__message-select-check {
+    flex-shrink: 0;
+  }
+
+  &__message-select-box {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-color);
+    border-radius: 4px;
+    display: block;
+  }
+
+  &__selection-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
+  }
+
+  &__selection-bar-delete {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+
+    &:hover:not(:disabled) {
+      opacity: 0.9;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &__selection-bar-cancel {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+
+    &:hover {
+      background: var(--bg-primary);
     }
   }
 

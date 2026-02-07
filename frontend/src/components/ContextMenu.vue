@@ -23,7 +23,36 @@
           :disabled="action.disabled"
           @click="onSelect(action)"
         >
-          {{ action.label }}
+          <span v-if="action.icon" class="context-menu__icon" aria-hidden="true">
+            <!-- reply -->
+            <svg v-if="action.icon === 'reply'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 17 1 9 9 1"></polyline>
+              <path d="M23 18V9a2 2 0 0 0-2-2h-6"></path>
+            </svg>
+            <!-- copy -->
+            <svg v-else-if="action.icon === 'copy'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <!-- edit -->
+            <svg v-else-if="action.icon === 'edit'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+            <!-- delete / trash -->
+            <svg v-else-if="action.icon === 'delete' || action.icon === 'trash'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+            <!-- select -->
+            <svg v-else-if="action.icon === 'select'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <polyline points="9 12 11 14 15 10"></polyline>
+            </svg>
+          </span>
+          <span class="context-menu__label">{{ action.label }}</span>
         </button>
       </div>
     </Transition>
@@ -37,6 +66,8 @@ export interface ContextMenuAction {
   id: string;
   label: string;
   disabled?: boolean;
+  /** Иконка — компонент (VNode / h) или имя для встроенных иконок */
+  icon?: 'reply' | 'copy' | 'edit' | 'delete' | 'trash' | 'select';
 }
 
 const props = withDefaults(
@@ -127,7 +158,9 @@ watch(
   }
 
   &__item {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     width: 100%;
     padding: 8px 14px;
     text-align: left;
@@ -145,6 +178,18 @@ watch(
       opacity: 0.5;
       cursor: not-allowed;
     }
+  }
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--text-secondary);
+  }
+
+  &__label {
+    flex: 1;
   }
 }
 
