@@ -3,7 +3,7 @@
     <div v-if="isOpen" class="message-view-modal" @click.self="close">
       <div class="message-view-modal__container">
         <div class="message-view-modal__header">
-          <h3 class="message-view-modal__title">Сообщение</h3>
+          <h3 class="message-view-modal__title">{{ message?.type === 'image' ? 'Изображение' : 'Сообщение' }}</h3>
           <button @click="close" class="message-view-modal__close" type="button">×</button>
         </div>
         <div class="message-view-modal__body">
@@ -19,7 +19,11 @@
                 </span>
               </div>
             </div>
-            <div class="message-view-modal__text">{{ message.content }}</div>
+            <div v-if="message.type === 'image' && message.fileUrl" class="message-view-modal__image">
+              <img :src="imageUrl" :alt="message.content || 'Изображение'" />
+            </div>
+            <div v-else class="message-view-modal__text">{{ message.content }}</div>
+            <div v-if="message.type === 'image' && message.content" class="message-view-modal__caption">{{ message.content }}</div>
             <div class="message-view-modal__footer">
               <span class="message-view-modal__time">{{ formatMessageTime(message.createdAt) }}</span>
             </div>
@@ -31,13 +35,18 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 import type { Message } from '../types';
+import { getImageUrl } from '../utils/image';
 
 const props = defineProps<{
   isOpen: boolean;
   message: Message | null;
 }>();
+
+const imageUrl = computed(() =>
+  props.message?.fileUrl ? (getImageUrl(props.message.fileUrl) || props.message.fileUrl) : ''
+);
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -134,7 +143,7 @@ const getReplyToText = (replyTo: any): string => {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   max-width: 600px;
   width: 100%;
-  max-height: 80vh;
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -242,6 +251,26 @@ const getReplyToText = (replyTo: any): string => {
   color: var(--text-secondary);
   word-wrap: break-word;
   overflow-wrap: break-word;
+}
+
+.message-view-modal__image {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 120px;
+
+  img {
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+    border-radius: 8px;
+  }
+}
+
+.message-view-modal__caption {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
 }
 
 .message-view-modal__text {

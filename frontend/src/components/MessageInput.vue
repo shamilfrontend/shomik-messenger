@@ -34,7 +34,28 @@
         @uploaded="handleFileUploaded"
         @error="handleUploadError"
       />
+      <input
+        ref="imageInputRef"
+        type="file"
+        accept="image/*"
+        class="message-input__file-hidden"
+        aria-label="Выбрать изображение"
+        @change="handleImageSelect"
+      />
       <div class="message-input__input-wrapper">
+        <button
+          v-if="!props.editMessage"
+          type="button"
+          class="message-input__image-button"
+          aria-label="Прикрепить изображение"
+          @click="triggerImageSelect"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+        </button>
         <button 
           @click="toggleEmojiPicker" 
           class="message-input__emoji-button"
@@ -103,6 +124,7 @@ import { ref, nextTick, watch } from 'vue';
 import { useChatStore } from '../stores/chat.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useNotifications } from '../composables/useNotifications';
+import { compressImageToBase64 } from '../utils/imageCompress';
 import FileUpload from './FileUpload.vue';
 import EmojiPicker from './EmojiPicker.vue';
 import type { Message } from '../types';
@@ -125,6 +147,7 @@ const { error: notifyError } = useNotifications();
 const message = ref('');
 const previewFile = ref<{ url: string; filename: string; type: string } | null>(null);
 const inputField = ref<HTMLTextAreaElement | null>(null);
+const imageInputRef = ref<HTMLInputElement | null>(null);
 const showEmojiPicker = ref(false);
 const showVoiceTooltip = ref(false);
 let typingTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -185,6 +208,7 @@ const handleSend = (): void => {
   chatStore.stopTyping(props.chatId);
   message.value = '';
   previewFile.value = null;
+  if (imageInputRef.value) imageInputRef.value.value = '';
   if (props.replyTo) emit('clear-reply');
   if (typingTimeout) {
     clearTimeout(typingTimeout);
@@ -259,6 +283,34 @@ const handleUploadError = (error: string): void => {
 
 const clearPreview = (): void => {
   previewFile.value = null;
+  if (imageInputRef.value) imageInputRef.value.value = '';
+};
+
+const triggerImageSelect = (): void => {
+  imageInputRef.value?.click();
+};
+
+const handleImageSelect = async (e: Event): Promise<void> => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    input.value = '';
+    notifyError('Выберите изображение (JPEG, PNG и т.д.)');
+    return;
+  }
+  try {
+    const dataUrl = await compressImageToBase64(file);
+    previewFile.value = {
+      url: dataUrl,
+      filename: file.name || 'image.jpg',
+      type: 'image'
+    };
+  } catch (err) {
+    notifyError(err instanceof Error ? err.message : 'Не удалось обработать изображение');
+  } finally {
+    input.value = '';
+  }
 };
 
 const handleTyping = (): void => {
@@ -309,6 +361,14 @@ const insertEmoji = (emoji: string): void => {
   background: var(--bg-secondary);
   flex-shrink: 0;
 
+  &__file-hidden {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
   @media (max-width: 768px) {
 		padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
 		position: fixed;
@@ -341,7 +401,7 @@ const insertEmoji = (emoji: string): void => {
     align-items: center;
   }
 
-  &__emoji-button {
+  &__image-button {
     position: absolute;
     left: 0.5rem;
     width: 32px;
@@ -367,18 +427,51 @@ const insertEmoji = (emoji: string): void => {
       transform: scale(0.95);
     }
 
-		@media (max-width: 768px) {
-			width: 28px;
-			height: 28px;
-			left: 0.375rem;
-		}
+    @media (max-width: 768px) {
+      width: 28px;
+      height: 28px;
+      left: 0.375rem;
+    }
+  }
+
+  &__emoji-button {
+    position: absolute;
+    left: 2.5rem;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+    z-index: 1;
+
+    &:hover {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      transform: scale(1.1);
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+
+    @media (max-width: 768px) {
+      width: 28px;
+      height: 28px;
+      left: 2.25rem;
+    }
   }
 
   &__field {
     flex: 1;
     min-height: 44px;
     max-height: 120px;
-    padding: 0.75rem 1rem 0.75rem 2.75rem;
+    padding: 0.75rem 1rem 0.75rem 4.5rem;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: 24px;
@@ -392,7 +485,7 @@ const insertEmoji = (emoji: string): void => {
     @media (max-width: 768px) {
       min-height: 40px;
       max-height: 100px;
-      padding: 0.625rem 0.875rem 0.625rem 2.5rem;
+      padding: 0.625rem 0.875rem 0.625rem 4rem;
       font-size: 0.875rem;
     }
 

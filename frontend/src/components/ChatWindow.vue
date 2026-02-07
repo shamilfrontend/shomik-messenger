@@ -1594,7 +1594,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 										</span>
 									</div>
 								</div>
-								<div v-if="message.type === 'image' && message.fileUrl" class="chat-window__message-image">
+								<div v-if="message.type === 'image' && message.fileUrl" class="chat-window__message-image" @click.stop="openMessageView(message)">
 									<img :src="getImageUrl(message.fileUrl) || message.fileUrl" :alt="message.content" />
 								</div>
 								<div v-else-if="message.type === 'file' && message.fileUrl" class="chat-window__message-file">
@@ -2696,7 +2696,9 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
   }
 
   &__message-image {
+    max-width: 200px;
     margin-bottom: 0.25rem;
+    cursor: pointer;
 
     img {
       max-width: 100%;
