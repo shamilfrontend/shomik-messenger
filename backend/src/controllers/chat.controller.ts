@@ -495,7 +495,7 @@ export const addParticipants = async (req: AuthRequest, res: Response): Promise<
 export const getChatMessages = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { limit = 50, before } = req.query;
+    const { limit = 50, before, after, messageId } = req.query;
 
     const chat = await Chat.findById(id);
 
@@ -510,7 +510,19 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
     }
 
     const query: any = { chatId: id };
-    if (before) {
+
+    let sortOrder: 1 | -1 = -1;
+    if (messageId) {
+      const anchorMessage = await Message.findOne({ _id: messageId, chatId: id });
+      if (!anchorMessage) {
+        res.status(404).json({ error: 'Сообщение не найдено' });
+        return;
+      }
+      query.createdAt = { $lte: anchorMessage.createdAt };
+    } else if (after) {
+      query.createdAt = { $gt: new Date(after as string) };
+      sortOrder = 1;
+    } else if (before) {
       query.createdAt = { $lt: new Date(before as string) };
     }
 
@@ -524,12 +536,13 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
           select: 'username'
         }
       })
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: sortOrder })
       .limit(Number(limit))
       .exec();
-    
-    // Переворачиваем массив, чтобы сообщения были в хронологическом порядке (от старых к новым)
-    messages.reverse();
+
+    if (sortOrder === -1) {
+      messages.reverse();
+    }
 
     // Преобразуем _id в id для senderId и replyTo, а также reactions
     const messagesWithId = messages.map(msg => {

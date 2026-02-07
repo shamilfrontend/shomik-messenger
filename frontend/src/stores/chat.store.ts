@@ -15,6 +15,8 @@ export const useChatStore = defineStore('chat', () => {
   const unreadCounts = ref<Map<string, number>>(new Map());
   const loadingOlderMessages = ref(false);
   const hasMoreOlderMessages = ref(true);
+  /** Флаг для ChatWindow: после первой загрузки сообщений чата нужно проскроллить вниз */
+  const requestScrollToBottom = ref(0);
   const MESSAGES_PAGE_SIZE = 50;
 
   const user = computed(() => authStore.user);
@@ -109,6 +111,7 @@ export const useChatStore = defineStore('chat', () => {
         hasMoreOlderMessages.value = false;
       }
       markChatAsRead(chatId);
+      requestScrollToBottom.value += 1;
     } catch (error) {
       console.error('Ошибка загрузки сообщений:', error);
     }
@@ -141,6 +144,68 @@ export const useChatStore = defineStore('chat', () => {
       return false;
     } finally {
       loadingOlderMessages.value = false;
+    }
+  };
+
+  const toDate = (d: string | Date): Date => (typeof d === 'string' ? new Date(d) : (d as Date));
+
+  /** Загружает порцию сообщений, включающую указанное (для перехода к закреплённому), сохраняя сообщения после него */
+  const loadMessagesIncluding = async (chatId: string, messageId: string): Promise<boolean> => {
+    if (currentChat.value?._id !== chatId) return false;
+    const previousMessages = [...messages.value];
+    try {
+      const response = await api.get(`/chats/${chatId}/messages`, {
+        params: { limit: MESSAGES_PAGE_SIZE, messageId }
+      });
+      if (currentChat.value?._id !== chatId) return false;
+      const listUpTo = (response.data as Message[]).map((msg: Message) => ({
+        ...msg,
+        reactions: msg.reactions || {}
+      }));
+      const found = listUpTo.some((m: Message) => m._id === messageId);
+      if (!found) {
+        messages.value = listUpTo;
+        hasMoreOlderMessages.value = listUpTo.length >= MESSAGES_PAGE_SIZE;
+        return false;
+      }
+      const pinnedMsg = listUpTo.find((m: Message) => m._id === messageId) ?? listUpTo[listUpTo.length - 1];
+      const pinnedTime = toDate(pinnedMsg.createdAt).getTime();
+      const existingAfter = previousMessages.filter(
+        (m: Message) => m.chatId === chatId && toDate(m.createdAt).getTime() > pinnedTime
+      );
+      const existingIds = new Set(existingAfter.map((m: Message) => m._id));
+      let listAfter: Message[] = [];
+      try {
+        const afterDate =
+          typeof pinnedMsg.createdAt === 'string'
+            ? pinnedMsg.createdAt
+            : (pinnedMsg.createdAt as Date).toISOString();
+        const afterRes = await api.get(`/chats/${chatId}/messages`, {
+          params: { limit: MESSAGES_PAGE_SIZE, after: afterDate }
+        });
+        if (currentChat.value?._id === chatId) {
+          listAfter = (afterRes.data as Message[]).map((msg: Message) => ({
+            ...msg,
+            reactions: msg.reactions || {}
+          }));
+        }
+      } catch {
+        listAfter = [];
+      }
+      const mergedAfter = [...existingAfter];
+      for (const m of listAfter) {
+        if (!existingIds.has(m._id)) {
+          existingIds.add(m._id);
+          mergedAfter.push(m);
+        }
+      }
+      mergedAfter.sort((a, b) => toDate(a.createdAt).getTime() - toDate(b.createdAt).getTime());
+      messages.value = [...listUpTo, ...mergedAfter];
+      hasMoreOlderMessages.value = listUpTo.length >= MESSAGES_PAGE_SIZE;
+      return true;
+    } catch (error) {
+      console.error('Ошибка загрузки сообщений по messageId:', error);
+      return false;
     }
   };
 
@@ -637,6 +702,7 @@ export const useChatStore = defineStore('chat', () => {
     chats,
     currentChat,
     messages,
+    requestScrollToBottom,
     typingUsers,
     unreadCounts,
     user,
@@ -646,6 +712,7 @@ export const useChatStore = defineStore('chat', () => {
     updateChat,
     loadMessages,
     loadOlderMessages,
+    loadMessagesIncluding,
     loadingOlderMessages,
     hasMoreOlderMessages,
     sendMessage,

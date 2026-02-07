@@ -393,8 +393,6 @@ const groupVideoGridStyle = computed(() => {
   return { '--grid-cols': String(cols) };
 });
 
-// Скролл к последнему сообщению после загрузки при открытии чата
-const scrollAfterMessagesLoaded = ref(false);
 watch(currentChat, (newChat, oldChat) => {
   const chatIdChanged = !oldChat || !newChat || oldChat._id !== newChat._id;
   if (chatIdChanged) {
@@ -405,7 +403,6 @@ watch(currentChat, (newChat, oldChat) => {
     editMessage.value = null;
     showReactionMenu.value = null;
   }
-  if (newChat) scrollAfterMessagesLoaded.value = true;
 });
 
 watch(
@@ -506,7 +503,7 @@ const scrollToBottom = (smooth = true): void => {
 
 defineExpose({ scrollToBottom });
 
-// Скролл вниз при первой загрузке чата: несколько попыток после отрисовки
+// Скролл вниз при первой загрузке чата: несколько попыток после отрисовки (учитываем sticky pinned bar)
 const runInitialScrollToBottom = (): void => {
   const attempt = (): void => {
     scrollToBottom(false);
@@ -517,25 +514,33 @@ const runInitialScrollToBottom = (): void => {
       attempt();
       setTimeout(attempt, 50);
       setTimeout(attempt, 150);
+      setTimeout(attempt, 350);
     });
   });
 };
 
-// Скролл вниз: при открытии чата и когда пользователь отправил сообщение
+// Явный запрос скролла из стора после loadMessages — гарантирует скролл при первом открытии чата
+watch(
+  () => chatStore.requestScrollToBottom,
+  () => {
+    if (currentChat.value && messages.value.length > 0) {
+      runInitialScrollToBottom();
+    }
+  },
+  { flush: 'post' }
+);
+
+// Скролл вниз при подгрузке старых сообщений и при отправке нового (пользователь был внизу)
 watch(
   () => messages.value.length,
   (newLen, oldLen) => {
-    if (scrollAfterMessagesLoaded.value && messages.value.length > 0 && currentChat.value) {
-      scrollAfterMessagesLoaded.value = false;
-      runInitialScrollToBottom();
-      return;
-    }
     if (oldLen !== undefined && newLen > oldLen && messages.value.length > 0) {
       if (userWasAtBottom.value) {
         nextTick(() => scrollToBottom(true));
       }
     }
-  }
+  },
+  { flush: 'post' }
 );
 
 const getChatName = (): string => {
@@ -1069,17 +1074,35 @@ const clearReplyToMessage = (): void => {
   replyToMessage.value = null;
 };
 
-const scrollToPinnedMessage = (): void => {
+const scrollToPinnedMessage = async (): Promise<void> => {
   const pinned = currentChat.value?.pinnedMessage;
-  if (!pinned || !messagesContainer.value) return;
-  const messageId = `message-${pinned._id}`;
-  const messageElement = document.getElementById(messageId);
+  if (!pinned || !currentChat.value) return;
+  const chatId = currentChat.value._id;
+  const isInList = chatStore.messages.some((m) => m._id === pinned._id);
+  if (!isInList) {
+    const loaded = await chatStore.loadMessagesIncluding(chatId, pinned._id);
+    if (!loaded) {
+      notifyError('Не удалось загрузить закреплённое сообщение');
+      return;
+    }
+    await nextTick();
+  }
+  if (!messagesContainer.value) return;
+  const messageElId = `message-${pinned._id}`;
+  const messageElement = document.getElementById(messageElId);
   if (messageElement) {
-    const containerRect = messagesContainer.value.getBoundingClientRect();
-    const elementRect = messageElement.getBoundingClientRect();
-    const scrollTop = messagesContainer.value.scrollTop;
-    const elementTop = elementRect.top - containerRect.top + scrollTop;
-    messagesContainer.value.scrollTo({ top: elementTop - 20, behavior: 'smooth' });
+    const container = messagesContainer.value;
+    const pinnedBar = container.querySelector('.chat-window__pinned-bar') as HTMLElement | null;
+    const topOffset = pinnedBar ? pinnedBar.getBoundingClientRect().height + 12 : 20;
+    const doScroll = (): void => {
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = messageElement.getBoundingClientRect();
+      const scrollTop = container.scrollTop;
+      const elementTop = elementRect.top - containerRect.top + scrollTop;
+      container.scrollTo({ top: Math.max(0, elementTop - topOffset), behavior: 'smooth' });
+    };
+    doScroll();
+    setTimeout(doScroll, 150);
     messageElement.classList.add('chat-window__message-wrapper--highlighted');
     setTimeout(() => messageElement.classList.remove('chat-window__message-wrapper--highlighted'), 2000);
   }
@@ -1477,7 +1500,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
 		<audio ref="remoteAudioRef" autoplay />
 
-		<div v-if="currentChat" class="chat-window__messages" ref="messagesContainer" @scroll="onMessagesScroll">
+		<div v-if="currentChat" class="chat-window__messages" :class="{ 'chat-window__messages--with-pinned': currentChat.pinnedMessage }" ref="messagesContainer" @scroll="onMessagesScroll">
 			<div v-if="currentChat.pinnedMessage" class="chat-window__pinned-bar">
 				<div class="chat-window__pinned-content" @click="scrollToPinnedMessage">
 					<span class="chat-window__pinned-label">Закреплено</span>
@@ -2222,39 +2245,37 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
     @media (max-width: 768px) {
       overflow-x: hidden;
-			/* Учитываем высоту header'а + safe area (примерно 73px + safe area) */
-			padding: calc(0.75rem + 73px + env(safe-area-inset-top, 0px)) 0.75rem calc(100px + env(safe-area-inset-bottom, 0px));
-			gap: 0.5rem;
+      padding: calc(0.75rem + 73px + env(safe-area-inset-top, 0px)) 0.75rem calc(100px + env(safe-area-inset-bottom, 0px));
+      gap: 0.5rem;
       margin-top: 0;
-      /* Убеждаемся, что контент не скрывается под header'ом */
       scroll-padding-top: calc(73px + env(safe-area-inset-top, 0px));
+    }
+
+    &--with-pinned {
+      padding-top: calc(1rem + 80px);
+
+      @media (max-width: 768px) {
+        padding-top: calc(0.75rem + 73px + 80px + env(safe-area-inset-top, 0px));
+      }
     }
   }
 
   &__pinned-bar {
 		position: absolute;
-		top: 88px;
-		left: 16px;
-		right: 24px;
-		z-index: 10;
+		top: 79px;
+		left: 6px;
+		right: 10px;
+		z-index: 20;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    margin: -1rem -1rem 0.25rem -1rem;
-    padding: 1rem 0.75rem 0.5rem;
+    padding: 1rem 0.75rem;
     background: var(--bg-primary);
     border-radius: 0 0 8px 8px;
     border-left: 3px solid var(--accent-color);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     flex-shrink: 0;
-
-    @media (max-width: 768px) {
-      margin-left: -0.75rem;
-      margin-right: -0.75rem;
-      margin-top: -0.75rem;
-      padding-top: 0.75rem;
-    }
   }
 
   &__pinned-content {
