@@ -259,6 +259,14 @@ export const useChatStore = defineStore('chat', () => {
     return unreadCounts.value.get(chatId) || 0;
   };
 
+  const totalUnreadCount = computed(() => {
+    let total = 0;
+    unreadCounts.value.forEach((count) => {
+      total += count;
+    });
+    return total;
+  });
+
   const isMessageUnread = (message: Message): boolean => {
     if (!user.value) return false;
     const senderId = typeof message.senderId === 'string' 
@@ -635,6 +643,7 @@ export const useChatStore = defineStore('chat', () => {
     markChatAsRead,
     markMessageAsRead,
     getUnreadCount,
+    totalUnreadCount,
     isMessageUnread,
     startTyping,
     stopTyping,
