@@ -239,9 +239,10 @@ export const useChatStore = defineStore('chat', () => {
     
     // Воспроизводим звук только для обычных сообщений не от текущего пользователя
     if (!isFromCurrentUser && !isSystemMessage) {
-      // Воспроизводим звук всегда для входящих сообщений
+      const chat = chats.value.find((c) => c._id === message.chatId);
+      const isGroup = chat?.type === 'group';
       try {
-        playNotificationSound();
+        playNotificationSound(isGroup);
       } catch (error) {
         console.error('Ошибка воспроизведения звука:', error);
       }

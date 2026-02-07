@@ -1754,7 +1754,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
   flex: 1;
   display: flex;
   flex-direction: column;
-  height: 100vh;
   height: 100dvh;
   min-height: -webkit-fill-available;
   background: var(--bg-primary);
