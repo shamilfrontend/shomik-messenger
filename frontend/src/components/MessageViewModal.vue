@@ -1,39 +1,3 @@
-<template>
-  <Transition name="message-view">
-    <div v-if="isOpen" class="message-view-modal" @click.self="close">
-      <div class="message-view-modal__container">
-        <div class="message-view-modal__header">
-          <h3 class="message-view-modal__title">{{ message?.type === 'image' ? 'Изображение' : 'Сообщение' }}</h3>
-          <button @click="close" class="message-view-modal__close" type="button">×</button>
-        </div>
-        <div class="message-view-modal__body">
-          <div v-if="message" class="message-view-modal__content">
-            <div v-if="message.replyTo" class="message-view-modal__reply">
-              <div class="message-view-modal__reply-line"></div>
-              <div class="message-view-modal__reply-content">
-                <span class="message-view-modal__reply-sender">
-                  {{ getReplyToSenderName(message.replyTo) }}
-                </span>
-                <span class="message-view-modal__reply-text">
-                  {{ getReplyToText(message.replyTo) }}
-                </span>
-              </div>
-            </div>
-            <div v-if="message.type === 'image' && message.fileUrl" class="message-view-modal__image">
-              <img :src="imageUrl" :alt="message.content || 'Изображение'" />
-            </div>
-            <div v-else class="message-view-modal__text">{{ message.content }}</div>
-            <div v-if="message.type === 'image' && message.content" class="message-view-modal__caption">{{ message.content }}</div>
-            <div class="message-view-modal__footer">
-              <span class="message-view-modal__time">{{ formatMessageTime(message.createdAt) }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </Transition>
-</template>
-
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
 import type { Message } from '../types';
@@ -44,12 +8,9 @@ const props = defineProps<{
   message: Message | null;
 }>();
 
-const imageUrl = computed(() =>
-  props.message?.fileUrl ? (getImageUrl(props.message.fileUrl) || props.message.fileUrl) : ''
-);
+const imageUrl = computed(() => (props.message?.fileUrl ? (getImageUrl(props.message.fileUrl) || props.message.fileUrl) : ''));
 
-const emit = defineEmits<{
-  (e: 'close'): void;
+const emit = defineEmits<{(e: 'close'): void;
 }>();
 
 const close = (): void => {
@@ -86,7 +47,7 @@ const formatMessageTime = (date: string | Date): string => {
   return d.toLocaleDateString('ru-RU', {
     day: '2-digit',
     month: '2-digit',
-    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
   });
 };
 
@@ -116,6 +77,42 @@ const getReplyToText = (replyTo: any): string => {
   return replyTo.content || '';
 };
 </script>
+
+<template>
+  <Transition name="message-view">
+    <div v-if="isOpen" class="message-view-modal" @click.self="close">
+      <div class="message-view-modal__container">
+        <div class="message-view-modal__header">
+          <h3 class="message-view-modal__title">{{ message?.type === 'image' ? 'Изображение' : 'Сообщение' }}</h3>
+          <button @click="close" class="message-view-modal__close" type="button">×</button>
+        </div>
+        <div class="message-view-modal__body">
+          <div v-if="message" class="message-view-modal__content">
+            <div v-if="message.replyTo" class="message-view-modal__reply">
+              <div class="message-view-modal__reply-line"></div>
+              <div class="message-view-modal__reply-content">
+                <span class="message-view-modal__reply-sender">
+                  {{ getReplyToSenderName(message.replyTo) }}
+                </span>
+                <span class="message-view-modal__reply-text">
+                  {{ getReplyToText(message.replyTo) }}
+                </span>
+              </div>
+            </div>
+            <div v-if="message.type === 'image' && message.fileUrl" class="message-view-modal__image">
+              <img :src="imageUrl" :alt="message.content || 'Изображение'" />
+            </div>
+            <div v-else class="message-view-modal__text">{{ message.content }}</div>
+            <div v-if="message.type === 'image' && message.content" class="message-view-modal__caption">{{ message.content }}</div>
+            <div class="message-view-modal__footer">
+              <span class="message-view-modal__time">{{ formatMessageTime(message.createdAt) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Transition>
+</template>
 
 <style scoped lang="scss">
 .message-view-modal {

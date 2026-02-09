@@ -1,20 +1,20 @@
 import { Router } from 'express';
-import { 
-  getChats, 
-  createChat, 
-  getChatById, 
+import {
+  getChats,
+  createChat,
+  getChatById,
   updatePinnedMessage,
-  addParticipants, 
+  addParticipants,
   removeParticipants,
   updateGroupName,
   updateGroupAvatar,
   leaveGroup,
   deleteChat,
-  getChatMessages, 
+  getChatMessages,
   sendMessage,
   toggleReaction,
   deleteMessage,
-  editMessage
+  editMessage,
 } from '../controllers/chat.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 

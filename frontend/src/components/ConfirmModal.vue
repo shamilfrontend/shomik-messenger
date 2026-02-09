@@ -1,34 +1,3 @@
-<template>
-  <Transition name="confirm">
-    <div v-if="isOpen" class="confirm-modal" @click.self="handleCancel">
-      <div class="confirm-modal__container">
-        <div class="confirm-modal__header">
-          <h3 class="confirm-modal__title">{{ title }}</h3>
-        </div>
-        <div class="confirm-modal__body">
-          <p class="confirm-modal__message">{{ message }}</p>
-        </div>
-        <div class="confirm-modal__footer">
-          <button
-            class="confirm-modal__button confirm-modal__button--cancel"
-            @click="handleCancel"
-            type="button"
-          >
-            {{ cancelText }}
-          </button>
-          <button
-            class="confirm-modal__button confirm-modal__button--confirm"
-            @click="handleConfirm"
-            type="button"
-          >
-            {{ confirmText }}
-          </button>
-        </div>
-      </div>
-    </div>
-  </Transition>
-</template>
-
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
 import { useConfirm } from '../composables/useConfirm';
@@ -63,6 +32,37 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyDown);
 });
 </script>
+
+<template>
+  <Transition name="confirm">
+    <div v-if="isOpen" class="confirm-modal" @click.self="handleCancel">
+      <div class="confirm-modal__container">
+        <div class="confirm-modal__header">
+          <h3 class="confirm-modal__title">{{ title }}</h3>
+        </div>
+        <div class="confirm-modal__body">
+          <p class="confirm-modal__message">{{ message }}</p>
+        </div>
+        <div class="confirm-modal__footer">
+          <button
+            class="confirm-modal__button confirm-modal__button--cancel"
+            @click="handleCancel"
+            type="button"
+          >
+            {{ cancelText }}
+          </button>
+          <button
+            class="confirm-modal__button confirm-modal__button--confirm"
+            @click="handleConfirm"
+            type="button"
+          >
+            {{ confirmText }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+</template>
 
 <style scoped lang="scss">
 .confirm-modal {

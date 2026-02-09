@@ -1,3 +1,86 @@
+<script setup lang="ts">
+import {
+  computed, watch, ref, nextTick, onMounted, onUnmounted,
+} from 'vue';
+
+export interface ContextMenuAction {
+  id: string;
+  label: string;
+  disabled?: boolean;
+  /** Иконка — компонент (VNode / h) или имя для встроенных иконок */
+  icon?: 'reply' | 'copy' | 'edit' | 'delete' | 'trash' | 'select' | 'pin' | 'unpin';
+}
+
+const props = withDefaults(
+  defineProps<{
+    modelValue: boolean;
+    x: number;
+    y: number;
+    actions: ContextMenuAction[];
+  }>(),
+  { actions: () => [] },
+);
+
+const emit = defineEmits<{
+  'update:modelValue': [value: boolean];
+  select: [action: ContextMenuAction];
+}>();
+
+const menuRef = ref<HTMLElement | null>(null);
+
+const menuStyle = computed(() => ({
+  left: `${props.x}px`,
+  top: `${props.y}px`,
+}));
+
+const close = (): void => {
+  emit('update:modelValue', false);
+};
+
+const onSelect = (action: ContextMenuAction): void => {
+  if (action.disabled) return;
+  emit('select', action);
+  close();
+};
+
+const handleKeyDown = (e: KeyboardEvent): void => {
+  if (e.key === 'Escape' && props.modelValue) {
+    close();
+  }
+};
+
+const handleClick = (): void => {
+  if (props.modelValue) close();
+};
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown);
+  document.addEventListener('click', handleClick, true);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown);
+  document.removeEventListener('click', handleClick, true);
+});
+
+watch(
+  () => props.modelValue,
+  async (visible) => {
+    if (!visible) return;
+    await nextTick();
+    if (!menuRef.value) return;
+    const rect = menuRef.value.getBoundingClientRect();
+    const padding = 8;
+    if (rect.right > window.innerWidth - padding) {
+      menuRef.value.style.left = `${window.innerWidth - rect.width - padding}px`;
+    }
+    if (rect.bottom > window.innerHeight - padding) {
+      menuRef.value.style.top = `${window.innerHeight - rect.height - padding}px`;
+    }
+  },
+);
+</script>
+
 <template>
   <Teleport to="body">
     <div
@@ -62,87 +145,6 @@
     </Transition>
   </Teleport>
 </template>
-
-<script setup lang="ts">
-import { computed, watch, ref, nextTick, onMounted, onUnmounted } from 'vue';
-
-export interface ContextMenuAction {
-  id: string;
-  label: string;
-  disabled?: boolean;
-  /** Иконка — компонент (VNode / h) или имя для встроенных иконок */
-  icon?: 'reply' | 'copy' | 'edit' | 'delete' | 'trash' | 'select' | 'pin' | 'unpin';
-}
-
-const props = withDefaults(
-  defineProps<{
-    modelValue: boolean;
-    x: number;
-    y: number;
-    actions: ContextMenuAction[];
-  }>(),
-  { actions: () => [] }
-);
-
-const emit = defineEmits<{
-  'update:modelValue': [value: boolean];
-  select: [action: ContextMenuAction];
-}>();
-
-const menuRef = ref<HTMLElement | null>(null);
-
-const menuStyle = computed(() => ({
-  left: `${props.x}px`,
-  top: `${props.y}px`
-}));
-
-const close = (): void => {
-  emit('update:modelValue', false);
-};
-
-const onSelect = (action: ContextMenuAction): void => {
-  if (action.disabled) return;
-  emit('select', action);
-  close();
-};
-
-const handleKeyDown = (e: KeyboardEvent): void => {
-  if (e.key === 'Escape' && props.modelValue) {
-    close();
-  }
-};
-
-const handleClick = (): void => {
-  if (props.modelValue) close();
-};
-
-onMounted(() => {
-  document.addEventListener('keydown', handleKeyDown);
-  document.addEventListener('click', handleClick, true);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeyDown);
-  document.removeEventListener('click', handleClick, true);
-});
-
-watch(
-  () => props.modelValue,
-  async (visible) => {
-    if (!visible) return;
-    await nextTick();
-    if (!menuRef.value) return;
-    const rect = menuRef.value.getBoundingClientRect();
-    const padding = 8;
-    if (rect.right > window.innerWidth - padding) {
-      menuRef.value.style.left = `${window.innerWidth - rect.width - padding}px`;
-    }
-    if (rect.bottom > window.innerHeight - padding) {
-      menuRef.value.style.top = `${window.innerHeight - rect.height - padding}px`;
-    }
-  }
-);
-</script>
 
 <style lang="scss" scoped>
 .context-menu {

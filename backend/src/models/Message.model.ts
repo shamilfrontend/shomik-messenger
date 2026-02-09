@@ -18,48 +18,48 @@ const MessageSchema = new Schema<IMessage>(
     chatId: {
       type: Schema.Types.ObjectId,
       ref: 'Chat',
-      required: true
+      required: true,
     },
     senderId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true
+      required: true,
     },
     content: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
     type: {
       type: String,
       enum: ['text', 'image', 'file', 'system'],
-      default: 'text'
+      default: 'text',
     },
     fileUrl: {
       type: String,
-      default: ''
+      default: '',
     },
     replyTo: {
       type: Schema.Types.ObjectId,
       ref: 'Message',
-      default: null
+      default: null,
     },
     readBy: [{
       type: Schema.Types.ObjectId,
-      ref: 'User'
+      ref: 'User',
     }],
     reactions: {
       type: Map,
       of: [{
         type: Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'User',
       }],
-      default: {}
-    }
+      default: {},
+    },
   },
   {
-    timestamps: true
-  }
+    timestamps: true,
+  },
 );
 
 MessageSchema.index({ chatId: 1, createdAt: -1 });

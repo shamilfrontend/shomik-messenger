@@ -26,6 +26,6 @@ export function useUnreadTitle(): void {
         document.title = savedTitle;
       }
     },
-    { immediate: true }
+    { immediate: true },
   );
 }

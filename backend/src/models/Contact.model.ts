@@ -11,17 +11,17 @@ const ContactSchema = new Schema<IContact>(
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true
+      required: true,
     },
     contactId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true
-    }
+      required: true,
+    },
   },
   {
-    timestamps: true
-  }
+    timestamps: true,
+  },
 );
 
 ContactSchema.index({ userId: 1, contactId: 1 }, { unique: true });

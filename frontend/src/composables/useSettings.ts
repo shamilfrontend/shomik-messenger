@@ -42,12 +42,12 @@ const applyTheme = (themeValue: string): void => {
     mediaQuery.removeEventListener('change', systemThemeListener);
     systemThemeListener = null;
   }
-  
+
   let actualTheme: 'light' | 'dark' = 'dark';
-  
+
   if (themeValue === 'system') {
     actualTheme = getSystemTheme();
-    
+
     // Отслеживаем изменения системной темы для режима 'system'
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     systemThemeListener = (): void => {
@@ -60,7 +60,7 @@ const applyTheme = (themeValue: string): void => {
   } else {
     actualTheme = 'dark';
   }
-  
+
   document.documentElement.setAttribute('data-theme', actualTheme);
 };
 
@@ -102,8 +102,8 @@ export const useSettings = () => {
         await profileService.updateProfile({
           params: {
             messageTextSize: size,
-            theme: theme.value
-          }
+            theme: theme.value,
+          },
         });
         await authStore.loadUser();
       } catch (error) {
@@ -120,8 +120,8 @@ export const useSettings = () => {
         await profileService.updateProfile({
           params: {
             messageTextSize: messageTextSize.value,
-            theme: themeValue
-          }
+            theme: themeValue,
+          },
         });
         await authStore.loadUser();
       } catch (error) {
@@ -134,6 +134,6 @@ export const useSettings = () => {
     messageTextSize,
     theme,
     setMessageTextSize,
-    setTheme
+    setTheme,
   };
 };

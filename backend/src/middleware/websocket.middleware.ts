@@ -1,6 +1,6 @@
+import { WebSocket } from 'ws';
 import { verifyToken } from '../utils/jwt';
 import User from '../models/User.model';
-import { WebSocket } from 'ws';
 
 export interface AuthenticatedWebSocket extends WebSocket {
   userId?: string;
@@ -9,7 +9,7 @@ export interface AuthenticatedWebSocket extends WebSocket {
 
 export const authenticateWebSocket = async (
   ws: AuthenticatedWebSocket,
-  token: string
+  token: string,
 ): Promise<boolean> => {
   try {
     const decoded = verifyToken(token);

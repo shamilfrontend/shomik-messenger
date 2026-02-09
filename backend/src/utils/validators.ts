@@ -8,6 +8,4 @@ export const validateUsername = (username: string): boolean => {
   return usernameRegex.test(username);
 };
 
-export const validatePassword = (password: string): boolean => {
-  return password.length >= 6;
-};
+export const validatePassword = (password: string): boolean => password.length >= 6;

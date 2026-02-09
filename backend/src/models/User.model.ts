@@ -24,54 +24,54 @@ const UserSchema = new Schema<IUser>(
       unique: true,
       trim: true,
       minlength: 3,
-      maxlength: 20
+      maxlength: 20,
     },
     email: {
       type: String,
       required: true,
       unique: true,
       trim: true,
-      lowercase: true
+      lowercase: true,
     },
     password: {
       type: String,
       required: true,
-      minlength: 6
+      minlength: 6,
     },
     avatar: {
       type: String,
-      default: ''
+      default: '',
     },
     status: {
       type: String,
       enum: ['online', 'offline', 'away'],
-      default: 'offline'
+      default: 'offline',
     },
     lastSeen: {
       type: Date,
-      default: Date.now
+      default: Date.now,
     },
     contacts: [{
       type: Schema.Types.ObjectId,
-      ref: 'User'
+      ref: 'User',
     }],
     params: {
       messageTextSize: {
         type: Number,
         default: 14,
         min: 12,
-        max: 20
+        max: 20,
       },
       theme: {
         type: String,
         enum: ['system', 'light', 'dark'],
-        default: 'system'
-      }
-    }
+        default: 'system',
+      },
+    },
   },
   {
-    timestamps: true
-  }
+    timestamps: true,
+  },
 );
 
 UserSchema.index({ username: 1 });

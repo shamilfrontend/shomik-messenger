@@ -1,3 +1,9 @@
+<script setup lang="ts">
+import { useNotifications } from '../composables/useNotifications';
+
+const { notifications, removeNotification } = useNotifications();
+</script>
+
 <template>
   <div class="notification-toast">
     <TransitionGroup name="notification" tag="div">
@@ -12,12 +18,6 @@
     </TransitionGroup>
   </div>
 </template>
-
-<script setup lang="ts">
-import { useNotifications } from '../composables/useNotifications';
-
-const { notifications, removeNotification } = useNotifications();
-</script>
 
 <style scoped lang="scss">
 .notification-toast {

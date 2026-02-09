@@ -1,36 +1,7 @@
-<template>
-  <div class="chat-view">
-    <ChatList
-      :class="{ 'chat-view__list--hidden': (showChatWindow || showProfile) && isMobile }"
-      @new-chat="showNewChat = true"
-      @new-group="showNewGroup = true"
-      @scroll-to-bottom-request="handleScrollToBottomRequest"
-    />
-    <ChatWindow
-      v-if="showChatWindow && !showProfile"
-      ref="chatWindowRef"
-      @back="handleBack"
-      :class="{ 'chat-view__window--full': showChatWindow && isMobile }"
-    />
-    <ProfileView 
-      v-if="showProfile && !showChatWindow"
-      :class="{ 'chat-view__profile--full': showProfile && isMobile }"
-    />
-    <NewChat
-      :is-open="showNewChat"
-      @select-user="handleSelectUser"
-      @close="showNewChat = false"
-    />
-    <CreateGroupModal
-      :is-open="showNewGroup"
-      @close="showNewGroup = false"
-      @created="handleGroupCreated"
-    />
-  </div>
-</template>
-
 <script setup lang="ts">
-import { ref, onMounted, watch, computed, onUnmounted } from 'vue';
+import {
+  ref, onMounted, watch, computed, onUnmounted,
+} from 'vue';
 import type { ComponentPublicInstance } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ChatList from '../components/ChatList.vue';
@@ -46,7 +17,7 @@ import { User } from '../types';
 const chatStore = useChatStore();
 const route = useRoute();
 const router = useRouter();
-const chatWindowRef = ref<ComponentPublicInstance<{ scrollToBottom: () => void }> | null>(null);
+const chatWindowRef = ref<ComponentPublicInstance<{ scrollToBottom:() => void }> | null>(null);
 const showNewChat = ref(false);
 const showNewGroup = ref(false);
 const isMobile = ref(window.innerWidth <= 768);
@@ -101,15 +72,15 @@ watch(() => route.params.id, async (newChatId) => {
 
 const loadChatFromRoute = async (chatId: string): Promise<void> => {
   // Проверяем, есть ли чат в списке
-  let chat = chatStore.chats.find(c => c._id === chatId);
-  
+  let chat = chatStore.chats.find((c) => c._id === chatId);
+
   if (!chat) {
     // Если чата нет в списке, пытаемся загрузить его с сервера
     try {
       const response = await api.get(`/chats/${chatId}`);
       chat = response.data;
       // Добавляем чат в список, если его там нет
-      if (!chatStore.chats.find(c => c._id === chatId)) {
+      if (!chatStore.chats.find((c) => c._id === chatId)) {
         chatStore.chats.push(chat);
       }
     } catch (error) {
@@ -118,7 +89,7 @@ const loadChatFromRoute = async (chatId: string): Promise<void> => {
       return;
     }
   }
-  
+
   if (chat) {
     chatStore.setCurrentChat(chat);
   } else {
@@ -142,6 +113,37 @@ const handleGroupCreated = async (chatId: string): Promise<void> => {
   router.push(`/chat/${chatId}`);
 };
 </script>
+
+<template>
+  <div class="chat-view">
+    <ChatList
+      :class="{ 'chat-view__list--hidden': (showChatWindow || showProfile) && isMobile }"
+      @new-chat="showNewChat = true"
+      @new-group="showNewGroup = true"
+      @scroll-to-bottom-request="handleScrollToBottomRequest"
+    />
+    <ChatWindow
+      v-if="showChatWindow && !showProfile"
+      ref="chatWindowRef"
+      @back="handleBack"
+      :class="{ 'chat-view__window--full': showChatWindow && isMobile }"
+    />
+    <ProfileView
+      v-if="showProfile && !showChatWindow"
+      :class="{ 'chat-view__profile--full': showProfile && isMobile }"
+    />
+    <NewChat
+      :is-open="showNewChat"
+      @select-user="handleSelectUser"
+      @close="showNewChat = false"
+    />
+    <CreateGroupModal
+      :is-open="showNewGroup"
+      @close="showNewGroup = false"
+      @created="handleGroupCreated"
+    />
+  </div>
+</template>
 
 <style scoped lang="scss">
 .chat-view {

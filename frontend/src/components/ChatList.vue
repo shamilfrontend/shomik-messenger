@@ -1,3 +1,208 @@
+<script setup lang="ts">
+import { ref, computed } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { useChatStore } from '../stores/chat.store';
+import { useAuthStore } from '../stores/auth.store';
+import { useConfirm } from '../composables/useConfirm';
+import { useNotifications } from '../composables/useNotifications';
+import ContextMenu from './ContextMenu.vue';
+import type { ContextMenuAction } from './ContextMenu.vue';
+import { Chat, Message } from '../types';
+import { getImageUrl } from '../utils/image';
+import { getComputedStatus } from '../utils/status';
+import type { User } from '../types';
+
+const emit = defineEmits<{(e: 'new-chat'): void;
+  (e: 'new-group'): void;
+  (e: 'scroll-to-bottom-request'): void;
+}>();
+
+const chatStore = useChatStore();
+const authStore = useAuthStore();
+const { confirm } = useConfirm();
+const { success: notifySuccess, error: notifyError } = useNotifications();
+const router = useRouter();
+const route = useRoute();
+const searchQuery = ref('');
+const activeTab = ref<'private' | 'group'>('private');
+
+const chatContextMenuVisible = ref(false);
+const chatContextMenuX = ref(0);
+const chatContextMenuY = ref(0);
+const chatContextChat = ref<Chat | null>(null);
+
+const chatContextMenuActions = computed((): ContextMenuAction[] => {
+  if (!chatContextChat.value || chatContextChat.value.type !== 'private') return [];
+  return [{ id: 'delete', label: 'Удалить чат', icon: 'trash' }];
+});
+
+const onChatContextMenu = (chat: Chat, e: MouseEvent): void => {
+  if (chat.type !== 'private') return;
+  chatContextChat.value = chat;
+  chatContextMenuX.value = e.clientX;
+  chatContextMenuY.value = e.clientY;
+  chatContextMenuVisible.value = true;
+};
+
+const onChatContextMenuSelect = async (action: ContextMenuAction): Promise<void> => {
+  const chat = chatContextChat.value;
+  chatContextChat.value = null;
+  if (!chat || action.id !== 'delete') return;
+  const confirmed = await confirm('Удалить этот чат? История сообщений будет удалена.');
+  if (!confirmed) return;
+  try {
+    await chatStore.deleteChat(chat._id);
+    notifySuccess('Чат удалён');
+    if (route.params.id === chat._id) {
+      router.push('/');
+    }
+  } catch (err: any) {
+    notifyError(err.response?.data?.error || 'Не удалось удалить чат');
+  }
+};
+
+const user = computed(() => authStore.user);
+const userAvatar = computed(() => getImageUrl(user.value?.avatar));
+
+const currentChat = computed(() => {
+  const chatId = route.params.id as string;
+  if (chatId) {
+    return chatStore.chats.find((c) => c._id === chatId) || chatStore.currentChat;
+  }
+  return chatStore.currentChat;
+});
+const chats = computed(() => chatStore.chats);
+
+const filteredChats = computed(() => {
+  // Сначала фильтруем по типу чата (таб)
+  let result = chats.value.filter((chat) => chat.type === activeTab.value);
+
+  // Затем фильтруем по поисковому запросу
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter((chat) => {
+      const name = getChatName(chat).toLowerCase();
+      return name.includes(query);
+    });
+  }
+
+  return result;
+});
+
+const getChatName = (chat: Chat): string => {
+  if (chat.type === 'group') {
+    return chat.groupName || 'Группа';
+  }
+  // Для приватных чатов находим собеседника (не текущего пользователя)
+  const otherParticipant = chat.participants.find((p) => {
+    const participantId = typeof p === 'string' ? p : p.id;
+    return participantId !== chatStore.user?.id;
+  });
+
+  if (!otherParticipant) {
+    return 'Пользователь';
+  }
+
+  return typeof otherParticipant === 'string' ? 'Пользователь' : (otherParticipant.username || 'Пользователь');
+};
+
+const getAvatar = (chat: Chat): string | undefined => {
+  if (chat.type === 'group') {
+    return getImageUrl(chat.groupAvatar);
+  }
+  // Для приватных чатов находим аватар собеседника (не текущего пользователя)
+  const otherParticipant = chat.participants.find((p) => {
+    const participantId = typeof p === 'string' ? p : p.id;
+    return participantId !== chatStore.user?.id;
+  });
+
+  if (!otherParticipant || typeof otherParticipant === 'string') {
+    return undefined;
+  }
+
+  return getImageUrl(otherParticipant.avatar);
+};
+
+const getOtherParticipant = (chat: Chat): User | null => {
+  if (chat.type === 'group') {
+    return null;
+  }
+  const otherParticipant = chat.participants.find((p) => {
+    const participantId = typeof p === 'string' ? p : p.id;
+    return participantId !== chatStore.user?.id;
+  });
+
+  if (!otherParticipant || typeof otherParticipant === 'string') {
+    return null;
+  }
+
+  return otherParticipant;
+};
+
+const getSenderName = (message: Message): string => {
+  if (typeof message.senderId === 'string') {
+    return 'Пользователь';
+  }
+  if (!message.senderId || typeof message.senderId !== 'object') {
+    return 'Пользователь';
+  }
+  return message.senderId.username || 'Пользователь';
+};
+
+const formatTime = (date?: Date | string): string => {
+  if (!date) return '';
+  const d = new Date(date);
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  if (days === 0) {
+    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  } if (days === 1) {
+    return 'Вчера';
+  } if (days < 7) {
+    return d.toLocaleDateString('ru-RU', { weekday: 'short' });
+  }
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+};
+
+const getUnreadCount = (chatId: string): number => chatStore.getUnreadCount(chatId);
+
+const unreadPrivateChatsCount = computed((): number => chats.value.filter((chat) => {
+  if (chat.type !== 'private') return false;
+  return chatStore.getUnreadCount(chat._id) > 0;
+}).length);
+
+const unreadGroupChatsCount = computed((): number => chats.value.filter((chat) => {
+  if (chat.type !== 'group') return false;
+  return chatStore.getUnreadCount(chat._id) > 0;
+}).length);
+
+const selectChat = (chat: Chat): void => {
+  if (chatStore.currentChat?._id === chat._id) {
+    emit('scroll-to-bottom-request');
+    return;
+  }
+  router.push(`/chat/${chat._id}`);
+};
+
+const goToChats = (): void => {
+  activeTab.value = 'private';
+  router.push('/');
+};
+
+const goToGroups = (): void => {
+  activeTab.value = 'group';
+  router.push('/');
+};
+
+const goToProfile = (): void => {
+  router.push('/profile');
+};
+
+const isProfilePage = computed(() => route.path === '/profile');
+</script>
+
 <template>
   <div class="chat-list">
     <div class="chat-list__header">
@@ -144,220 +349,6 @@
     />
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { useChatStore } from '../stores/chat.store';
-import { useAuthStore } from '../stores/auth.store';
-import { useConfirm } from '../composables/useConfirm';
-import { useNotifications } from '../composables/useNotifications';
-import ContextMenu from './ContextMenu.vue';
-import type { ContextMenuAction } from './ContextMenu.vue';
-import { Chat, Message } from '../types';
-import { getImageUrl } from '../utils/image';
-import { getComputedStatus } from '../utils/status';
-import type { User } from '../types';
-
-const emit = defineEmits<{
-  (e: 'new-chat'): void;
-  (e: 'new-group'): void;
-  (e: 'scroll-to-bottom-request'): void;
-}>();
-
-const chatStore = useChatStore();
-const authStore = useAuthStore();
-const { confirm } = useConfirm();
-const { success: notifySuccess, error: notifyError } = useNotifications();
-const router = useRouter();
-const route = useRoute();
-const searchQuery = ref('');
-const activeTab = ref<'private' | 'group'>('private');
-
-const chatContextMenuVisible = ref(false);
-const chatContextMenuX = ref(0);
-const chatContextMenuY = ref(0);
-const chatContextChat = ref<Chat | null>(null);
-
-const chatContextMenuActions = computed((): ContextMenuAction[] => {
-  if (!chatContextChat.value || chatContextChat.value.type !== 'private') return [];
-  return [{ id: 'delete', label: 'Удалить чат', icon: 'trash' }];
-});
-
-const onChatContextMenu = (chat: Chat, e: MouseEvent): void => {
-  if (chat.type !== 'private') return;
-  chatContextChat.value = chat;
-  chatContextMenuX.value = e.clientX;
-  chatContextMenuY.value = e.clientY;
-  chatContextMenuVisible.value = true;
-};
-
-const onChatContextMenuSelect = async (action: ContextMenuAction): Promise<void> => {
-  const chat = chatContextChat.value;
-  chatContextChat.value = null;
-  if (!chat || action.id !== 'delete') return;
-  const confirmed = await confirm('Удалить этот чат? История сообщений будет удалена.');
-  if (!confirmed) return;
-  try {
-    await chatStore.deleteChat(chat._id);
-    notifySuccess('Чат удалён');
-    if (route.params.id === chat._id) {
-      router.push('/');
-    }
-  } catch (err: any) {
-    notifyError(err.response?.data?.error || 'Не удалось удалить чат');
-  }
-};
-
-const user = computed(() => authStore.user);
-const userAvatar = computed(() => {
-  return getImageUrl(user.value?.avatar);
-});
-
-const currentChat = computed(() => {
-  const chatId = route.params.id as string;
-  if (chatId) {
-    return chatStore.chats.find(c => c._id === chatId) || chatStore.currentChat;
-  }
-  return chatStore.currentChat;
-});
-const chats = computed(() => chatStore.chats);
-
-const filteredChats = computed(() => {
-  // Сначала фильтруем по типу чата (таб)
-  let result = chats.value.filter(chat => chat.type === activeTab.value);
-  
-  // Затем фильтруем по поисковому запросу
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase();
-    result = result.filter(chat => {
-      const name = getChatName(chat).toLowerCase();
-      return name.includes(query);
-    });
-  }
-  
-  return result;
-});
-
-const getChatName = (chat: Chat): string => {
-  if (chat.type === 'group') {
-    return chat.groupName || 'Группа';
-  }
-  // Для приватных чатов находим собеседника (не текущего пользователя)
-  const otherParticipant = chat.participants.find(p => {
-    const participantId = typeof p === 'string' ? p : p.id;
-    return participantId !== chatStore.user?.id;
-  });
-  
-  if (!otherParticipant) {
-    return 'Пользователь';
-  }
-  
-  return typeof otherParticipant === 'string' ? 'Пользователь' : (otherParticipant.username || 'Пользователь');
-};
-
-const getAvatar = (chat: Chat): string | undefined => {
-  if (chat.type === 'group') {
-    return getImageUrl(chat.groupAvatar);
-  }
-  // Для приватных чатов находим аватар собеседника (не текущего пользователя)
-  const otherParticipant = chat.participants.find(p => {
-    const participantId = typeof p === 'string' ? p : p.id;
-    return participantId !== chatStore.user?.id;
-  });
-  
-  if (!otherParticipant || typeof otherParticipant === 'string') {
-    return undefined;
-  }
-  
-  return getImageUrl(otherParticipant.avatar);
-};
-
-const getOtherParticipant = (chat: Chat): User | null => {
-  if (chat.type === 'group') {
-    return null;
-  }
-  const otherParticipant = chat.participants.find(p => {
-    const participantId = typeof p === 'string' ? p : p.id;
-    return participantId !== chatStore.user?.id;
-  });
-  
-  if (!otherParticipant || typeof otherParticipant === 'string') {
-    return null;
-  }
-  
-  return otherParticipant;
-};
-
-const getSenderName = (message: Message): string => {
-  if (typeof message.senderId === 'string') {
-    return 'Пользователь';
-  }
-  if (!message.senderId || typeof message.senderId !== 'object') {
-    return 'Пользователь';
-  }
-  return message.senderId.username || 'Пользователь';
-};
-
-const formatTime = (date?: Date | string): string => {
-  if (!date) return '';
-  const d = new Date(date);
-  const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-  if (days === 0) {
-    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  } else if (days === 1) {
-    return 'Вчера';
-  } else if (days < 7) {
-    return d.toLocaleDateString('ru-RU', { weekday: 'short' });
-  }
-  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-};
-
-const getUnreadCount = (chatId: string): number => {
-  return chatStore.getUnreadCount(chatId);
-};
-
-const unreadPrivateChatsCount = computed((): number => {
-  return chats.value.filter(chat => {
-    if (chat.type !== 'private') return false;
-    return chatStore.getUnreadCount(chat._id) > 0;
-  }).length;
-});
-
-const unreadGroupChatsCount = computed((): number => {
-  return chats.value.filter(chat => {
-    if (chat.type !== 'group') return false;
-    return chatStore.getUnreadCount(chat._id) > 0;
-  }).length;
-});
-
-const selectChat = (chat: Chat): void => {
-  if (chatStore.currentChat?._id === chat._id) {
-    emit('scroll-to-bottom-request');
-    return;
-  }
-  router.push(`/chat/${chat._id}`);
-};
-
-const goToChats = (): void => {
-  activeTab.value = 'private';
-  router.push('/');
-};
-
-const goToGroups = (): void => {
-  activeTab.value = 'group';
-  router.push('/');
-};
-
-const goToProfile = (): void => {
-  router.push('/profile');
-};
-
-const isProfilePage = computed(() => route.path === '/profile');
-</script>
 
 <style scoped lang="scss">
 .chat-list {

@@ -8,12 +8,8 @@ export interface JWTPayload {
   username: string;
 }
 
-export const generateToken = (payload: JWTPayload): string => {
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN
-  } as SignOptions);
-};
+export const generateToken = (payload: JWTPayload): string => jwt.sign(payload, JWT_SECRET, {
+  expiresIn: JWT_EXPIRES_IN,
+} as SignOptions);
 
-export const verifyToken = (token: string): JWTPayload => {
-  return jwt.verify(token, JWT_SECRET) as JWTPayload;
-};
+export const verifyToken = (token: string): JWTPayload => jwt.verify(token, JWT_SECRET) as JWTPayload;

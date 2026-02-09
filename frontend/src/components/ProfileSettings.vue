@@ -1,3 +1,241 @@
+<script setup lang="ts">
+import {
+  ref, computed, watch, onMounted,
+} from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '../stores/auth.store';
+import { useCallStore } from '../stores/call.store';
+import { profileService } from '../services/profile.service';
+import { useNotifications } from '../composables/useNotifications';
+import { useSettings } from '../composables/useSettings';
+import { useConfirm } from '../composables/useConfirm';
+import { getImageUrl } from '../utils/image';
+
+const router = useRouter();
+const callStore = useCallStore();
+
+const { confirm } = useConfirm();
+
+const handleLogout = async (): Promise<void> => {
+  const confirmed = await confirm('Вы уверены, что хотите выйти из аккаунта?');
+  if (!confirmed) return;
+  authStore.logout();
+  emit('close');
+  router.push('/login');
+};
+
+const props = defineProps<{
+  showHeader?: boolean;
+}>();
+
+const emit = defineEmits<{(e: 'close'): void;
+}>();
+
+const authStore = useAuthStore();
+const { success: notifySuccess, error: notifyError } = useNotifications();
+const {
+  messageTextSize, theme, setMessageTextSize, setTheme,
+} = useSettings();
+
+// Временное значение для размера текста (до сохранения)
+const tempMessageTextSize = ref(messageTextSize.value);
+const tempTheme = ref(theme.value);
+
+// Опции тем
+const themeOptions = [
+  { value: 'system', label: 'Системная' },
+  { value: 'light', label: 'Светлая' },
+  { value: 'dark', label: 'Темная' },
+];
+
+// Синхронизируем временное значение при изменении сохраненного значения
+watch(messageTextSize, (newSize) => {
+  tempMessageTextSize.value = newSize;
+}, { immediate: true });
+
+watch(theme, (newTheme) => {
+  tempTheme.value = newTheme;
+}, { immediate: true });
+
+onMounted(() => {
+  callStore.loadDevices();
+});
+
+const hasAppearanceChanges = computed(() => tempMessageTextSize.value !== messageTextSize.value || tempTheme.value !== theme.value);
+
+const saveAppearance = async (): Promise<void> => {
+  await setMessageTextSize(tempMessageTextSize.value);
+  await setTheme(tempTheme.value);
+  notifySuccess('Настройки оформления сохранены');
+};
+
+const user = computed(() => authStore.user);
+const loading = ref(false);
+const changingPassword = ref(false);
+const avatarPreview = ref<string | null>(null);
+const uploadingAvatar = ref(false);
+const avatarInput = ref<HTMLInputElement | null>(null);
+
+const formData = ref({
+  username: '',
+  email: '',
+});
+
+const passwordData = ref({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+});
+
+const getAvatarUrl = (): string | undefined => {
+  if (avatarPreview.value) {
+    return getImageUrl(avatarPreview.value);
+  }
+  return getImageUrl(user.value?.avatar);
+};
+
+const hasChanges = computed(() => formData.value.username !== user.value?.username
+         || formData.value.email !== user.value?.email
+         || avatarPreview.value !== null);
+
+const isPasswordFormValid = computed(() => passwordData.value.currentPassword.length > 0
+         && passwordData.value.newPassword.length >= 6
+         && passwordData.value.newPassword === passwordData.value.confirmPassword);
+
+watch(user, (newUser) => {
+  if (newUser) {
+    formData.value.username = newUser.username;
+    formData.value.email = newUser.email;
+  }
+}, { immediate: true });
+
+const triggerAvatarSelect = (): void => {
+  avatarInput.value?.click();
+};
+
+const handleAvatarSelect = async (event: Event): Promise<void> => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+
+  if (!file) return;
+
+  // Проверка размера файла (максимум 200 КБ)
+  const maxSize = 200 * 1024; // 200 КБ в байтах
+  if (file.size > maxSize) {
+    notifyError('Размер файла не должен превышать 200 КБ');
+    if (avatarInput.value) {
+      avatarInput.value.value = '';
+    }
+    return;
+  }
+
+  // Проверка типа файла
+  if (!file.type.startsWith('image/')) {
+    notifyError('Выберите изображение');
+    if (avatarInput.value) {
+      avatarInput.value.value = '';
+    }
+    return;
+  }
+
+  uploadingAvatar.value = true;
+
+  try {
+    // Конвертируем файл в Base64
+    const base64String = await fileToBase64(file);
+    avatarPreview.value = base64String;
+
+    // Сохраняем Base64 строку в профиль
+    await profileService.updateProfile({ avatar: base64String });
+    await authStore.loadUser();
+    notifySuccess('Фотография профиля обновлена');
+    avatarPreview.value = null; // Сбрасываем preview после успешного сохранения
+  } catch (error: any) {
+    notifyError(error.response?.data?.error || 'Ошибка обновления фотографии');
+    avatarPreview.value = null;
+  } finally {
+    uploadingAvatar.value = false;
+    if (avatarInput.value) {
+      avatarInput.value.value = '';
+    }
+  }
+};
+
+const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (typeof reader.result === 'string') {
+      resolve(reader.result);
+    } else {
+      reject(new Error('Ошибка чтения файла'));
+    }
+  };
+  reader.onerror = () => {
+    reject(new Error('Ошибка чтения файла'));
+  };
+  reader.readAsDataURL(file);
+});
+
+const removeAvatar = async (): Promise<void> => {
+  const confirmed = await confirm('Удалить фотографию профиля?');
+  if (!confirmed) return;
+  try {
+    await profileService.updateProfile({ avatar: '' });
+    avatarPreview.value = null;
+    await authStore.loadUser();
+    notifySuccess('Фотография удалена');
+  } catch (error: any) {
+    notifyError(error.response?.data?.error || 'Ошибка удаления фотографии');
+  }
+};
+
+const updateProfile = async (): Promise<void> => {
+  if (!hasChanges.value) return;
+
+  loading.value = true;
+  try {
+    const updateData: any = {};
+    if (formData.value.username !== user.value?.username) {
+      updateData.username = formData.value.username;
+    }
+    if (formData.value.email !== user.value?.email) {
+      updateData.email = formData.value.email;
+    }
+
+    await profileService.updateProfile(updateData);
+    await authStore.loadUser();
+    avatarPreview.value = null;
+    notifySuccess('Профиль успешно обновлен');
+  } catch (error: any) {
+    notifyError(error.response?.data?.error || 'Ошибка обновления профиля');
+  } finally {
+    loading.value = false;
+  }
+};
+
+const changePassword = async (): Promise<void> => {
+  if (!isPasswordFormValid.value) return;
+
+  changingPassword.value = true;
+  try {
+    await profileService.changePassword({
+      currentPassword: passwordData.value.currentPassword,
+      newPassword: passwordData.value.newPassword,
+    });
+    passwordData.value = {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    };
+    notifySuccess('Пароль успешно изменен');
+  } catch (error: any) {
+    notifyError(error.response?.data?.error || 'Ошибка изменения пароля');
+  } finally {
+    changingPassword.value = false;
+  }
+};
+</script>
+
 <template>
   <div class="profile-settings">
     <div class="profile-settings__container">
@@ -233,249 +471,6 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAuthStore } from '../stores/auth.store';
-import { useCallStore } from '../stores/call.store';
-import { profileService } from '../services/profile.service';
-import { useNotifications } from '../composables/useNotifications';
-import { useSettings } from '../composables/useSettings';
-import { useConfirm } from '../composables/useConfirm';
-import { getImageUrl } from '../utils/image';
-
-const router = useRouter();
-const callStore = useCallStore();
-
-const { confirm } = useConfirm();
-
-const handleLogout = async (): Promise<void> => {
-  const confirmed = await confirm('Вы уверены, что хотите выйти из аккаунта?');
-  if (!confirmed) return;
-  authStore.logout();
-  emit('close');
-  router.push('/login');
-};
-
-const props = defineProps<{
-  showHeader?: boolean;
-}>();
-
-const emit = defineEmits<{
-  (e: 'close'): void;
-}>();
-
-const authStore = useAuthStore();
-const { success: notifySuccess, error: notifyError } = useNotifications();
-const { messageTextSize, theme, setMessageTextSize, setTheme } = useSettings();
-
-// Временное значение для размера текста (до сохранения)
-const tempMessageTextSize = ref(messageTextSize.value);
-const tempTheme = ref(theme.value);
-
-// Опции тем
-const themeOptions = [
-  { value: 'system', label: 'Системная' },
-  { value: 'light', label: 'Светлая' },
-  { value: 'dark', label: 'Темная' }
-];
-
-// Синхронизируем временное значение при изменении сохраненного значения
-watch(messageTextSize, (newSize) => {
-  tempMessageTextSize.value = newSize;
-}, { immediate: true });
-
-watch(theme, (newTheme) => {
-  tempTheme.value = newTheme;
-}, { immediate: true });
-
-onMounted(() => {
-  callStore.loadDevices();
-});
-
-const hasAppearanceChanges = computed(() =>
-  tempMessageTextSize.value !== messageTextSize.value || tempTheme.value !== theme.value
-);
-
-const saveAppearance = async (): Promise<void> => {
-  await setMessageTextSize(tempMessageTextSize.value);
-  await setTheme(tempTheme.value);
-  notifySuccess('Настройки оформления сохранены');
-};
-
-const user = computed(() => authStore.user);
-const loading = ref(false);
-const changingPassword = ref(false);
-const avatarPreview = ref<string | null>(null);
-const uploadingAvatar = ref(false);
-const avatarInput = ref<HTMLInputElement | null>(null);
-
-const formData = ref({
-  username: '',
-  email: ''
-});
-
-const passwordData = ref({
-  currentPassword: '',
-  newPassword: '',
-  confirmPassword: ''
-});
-
-const getAvatarUrl = (): string | undefined => {
-  if (avatarPreview.value) {
-    return getImageUrl(avatarPreview.value);
-  }
-  return getImageUrl(user.value?.avatar);
-};
-
-const hasChanges = computed(() => {
-  return formData.value.username !== user.value?.username || 
-         formData.value.email !== user.value?.email ||
-         avatarPreview.value !== null;
-});
-
-const isPasswordFormValid = computed(() => {
-  return passwordData.value.currentPassword.length > 0 &&
-         passwordData.value.newPassword.length >= 6 &&
-         passwordData.value.newPassword === passwordData.value.confirmPassword;
-});
-
-watch(user, (newUser) => {
-  if (newUser) {
-    formData.value.username = newUser.username;
-    formData.value.email = newUser.email;
-  }
-}, { immediate: true });
-
-const triggerAvatarSelect = (): void => {
-  avatarInput.value?.click();
-};
-
-const handleAvatarSelect = async (event: Event): Promise<void> => {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-
-  if (!file) return;
-
-  // Проверка размера файла (максимум 200 КБ)
-  const maxSize = 200 * 1024; // 200 КБ в байтах
-  if (file.size > maxSize) {
-    notifyError('Размер файла не должен превышать 200 КБ');
-    if (avatarInput.value) {
-      avatarInput.value.value = '';
-    }
-    return;
-  }
-
-  // Проверка типа файла
-  if (!file.type.startsWith('image/')) {
-    notifyError('Выберите изображение');
-    if (avatarInput.value) {
-      avatarInput.value.value = '';
-    }
-    return;
-  }
-
-  uploadingAvatar.value = true;
-
-  try {
-    // Конвертируем файл в Base64
-    const base64String = await fileToBase64(file);
-    avatarPreview.value = base64String;
-
-    // Сохраняем Base64 строку в профиль
-    await profileService.updateProfile({ avatar: base64String });
-    await authStore.loadUser();
-    notifySuccess('Фотография профиля обновлена');
-    avatarPreview.value = null; // Сбрасываем preview после успешного сохранения
-  } catch (error: any) {
-    notifyError(error.response?.data?.error || 'Ошибка обновления фотографии');
-    avatarPreview.value = null;
-  } finally {
-    uploadingAvatar.value = false;
-    if (avatarInput.value) {
-      avatarInput.value.value = '';
-    }
-  }
-};
-
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-      } else {
-        reject(new Error('Ошибка чтения файла'));
-      }
-    };
-    reader.onerror = () => {
-      reject(new Error('Ошибка чтения файла'));
-    };
-    reader.readAsDataURL(file);
-  });
-};
-
-const removeAvatar = async (): Promise<void> => {
-  const confirmed = await confirm('Удалить фотографию профиля?');
-  if (!confirmed) return;
-  try {
-    await profileService.updateProfile({ avatar: '' });
-    avatarPreview.value = null;
-    await authStore.loadUser();
-    notifySuccess('Фотография удалена');
-  } catch (error: any) {
-    notifyError(error.response?.data?.error || 'Ошибка удаления фотографии');
-  }
-};
-
-const updateProfile = async (): Promise<void> => {
-  if (!hasChanges.value) return;
-
-  loading.value = true;
-  try {
-    const updateData: any = {};
-    if (formData.value.username !== user.value?.username) {
-      updateData.username = formData.value.username;
-    }
-    if (formData.value.email !== user.value?.email) {
-      updateData.email = formData.value.email;
-    }
-
-    await profileService.updateProfile(updateData);
-    await authStore.loadUser();
-    avatarPreview.value = null;
-    notifySuccess('Профиль успешно обновлен');
-  } catch (error: any) {
-    notifyError(error.response?.data?.error || 'Ошибка обновления профиля');
-  } finally {
-    loading.value = false;
-  }
-};
-
-const changePassword = async (): Promise<void> => {
-  if (!isPasswordFormValid.value) return;
-
-  changingPassword.value = true;
-  try {
-    await profileService.changePassword({
-      currentPassword: passwordData.value.currentPassword,
-      newPassword: passwordData.value.newPassword
-    });
-    passwordData.value = {
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: ''
-    };
-    notifySuccess('Пароль успешно изменен');
-  } catch (error: any) {
-    notifyError(error.response?.data?.error || 'Ошибка изменения пароля');
-  } finally {
-    changingPassword.value = false;
-  }
-};
-</script>
 
 <style scoped lang="scss">
 .profile-settings {

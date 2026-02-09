@@ -15,7 +15,7 @@ const formatMessageForChat = (msg: any): any => {
       username: m.senderId.username || 'Пользователь',
       avatar: m.senderId.avatar,
       status: m.senderId.status,
-      lastSeen: m.senderId.lastSeen
+      lastSeen: m.senderId.lastSeen,
     };
   }
   const idStr = m._id != null ? (typeof m._id === 'object' && 'toString' in m._id ? (m._id as { toString(): string }).toString() : String(m._id)) : undefined;
@@ -32,13 +32,13 @@ const formatChat = (chat: any): any => {
     email: p.email,
     avatar: p.avatar,
     status: p.status,
-    lastSeen: p.lastSeen
+    lastSeen: p.lastSeen,
   }));
   if (chatObj.admin) {
     chatObj.admin = {
       id: chatObj.admin._id.toString(),
       username: chatObj.admin.username,
-      avatar: chatObj.admin.avatar
+      avatar: chatObj.admin.avatar,
     };
   }
   if (chatObj.lastMessage && typeof chatObj.lastMessage === 'object') {
@@ -53,7 +53,7 @@ const formatChat = (chat: any): any => {
 export const getChats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const chats = await Chat.find({
-      participants: req.userId
+      participants: req.userId,
     })
       .populate('participants', 'username avatar status lastSeen email')
       .populate('lastMessage')
@@ -62,7 +62,7 @@ export const getChats = async (req: AuthRequest, res: Response): Promise<void> =
       .sort({ updatedAt: -1 });
 
     // Преобразуем участников: _id -> id
-    const chatsWithId = chats.map(chat => {
+    const chatsWithId = chats.map((chat) => {
       const chatObj = chat.toObject() as any;
       chatObj.participants = chatObj.participants.map((p: any) => ({
         id: p._id.toString(),
@@ -70,13 +70,13 @@ export const getChats = async (req: AuthRequest, res: Response): Promise<void> =
         email: p.email,
         avatar: p.avatar,
         status: p.status,
-        lastSeen: p.lastSeen
+        lastSeen: p.lastSeen,
       }));
       if (chatObj.admin) {
         chatObj.admin = {
           id: chatObj.admin._id.toString(),
           username: chatObj.admin.username,
-          avatar: chatObj.admin.avatar
+          avatar: chatObj.admin.avatar,
         };
       }
       if (chatObj.pinnedMessage && typeof chatObj.pinnedMessage === 'object') {
@@ -139,7 +139,7 @@ export const createChat = async (req: AuthRequest, res: Response): Promise<void>
 
     // Проверяем, что участники существуют
     const participantsExist = await User.countDocuments({
-      _id: { $in: participantObjectIds }
+      _id: { $in: participantObjectIds },
     });
 
     if (participantsExist !== participantObjectIds.length) {
@@ -152,13 +152,13 @@ export const createChat = async (req: AuthRequest, res: Response): Promise<void>
     if (type === 'private') {
       const existingChat = await Chat.findOne({
         type: 'private',
-        participants: { $all: allParticipants, $size: 2 }
+        participants: { $all: allParticipants, $size: 2 },
       });
 
       if (existingChat) {
         await existingChat.populate('participants', 'username avatar status lastSeen email');
         await existingChat.populate('admin', 'username avatar');
-        
+
         // Преобразуем участников: _id -> id
         const chatObj = existingChat.toObject() as any;
         chatObj.participants = chatObj.participants.map((p: any) => ({
@@ -167,16 +167,16 @@ export const createChat = async (req: AuthRequest, res: Response): Promise<void>
           email: p.email,
           avatar: p.avatar,
           status: p.status,
-          lastSeen: p.lastSeen
+          lastSeen: p.lastSeen,
         }));
         if (chatObj.admin) {
           chatObj.admin = {
             id: chatObj.admin._id.toString(),
             username: chatObj.admin.username,
-            avatar: chatObj.admin.avatar
+            avatar: chatObj.admin.avatar,
           };
         }
-        
+
         res.json(chatObj);
         return;
       }
@@ -186,7 +186,7 @@ export const createChat = async (req: AuthRequest, res: Response): Promise<void>
       type,
       participants: allParticipants,
       groupName: type === 'group' ? groupName : undefined,
-      admin: type === 'group' ? currentUserId : undefined
+      admin: type === 'group' ? currentUserId : undefined,
     });
 
     await chat.save();
@@ -197,29 +197,29 @@ export const createChat = async (req: AuthRequest, res: Response): Promise<void>
     if (type === 'group') {
       const adminUser = await User.findById(currentUserId);
       const adminName = adminUser?.username || 'Администратор';
-      
+
       // Получаем имена всех участников (включая создателя)
       const allParticipantUsers = await User.find({
-        _id: { $in: allParticipants }
+        _id: { $in: allParticipants },
       }).select('username');
-      
+
       const participantNames = allParticipantUsers
-        .filter(user => user._id.toString() !== currentUserId.toString())
-        .map(user => user.username);
-      
+        .filter((user) => user._id.toString() !== currentUserId.toString())
+        .map((user) => user.username);
+
       let systemContent: string;
       if (participantNames.length > 0) {
         systemContent = `${adminName} создал(а) группу и добавил(а): ${participantNames.join(', ')}`;
       } else {
         systemContent = `${adminName} создал(а) группу`;
       }
-      
+
       const systemMessage = new Message({
         chatId: chat._id,
         senderId: currentUserId,
         content: systemContent,
         type: 'system',
-        readBy: allParticipants
+        readBy: allParticipants,
       });
 
       await systemMessage.save();
@@ -238,7 +238,7 @@ export const createChat = async (req: AuthRequest, res: Response): Promise<void>
           username: messageObj.senderId.username,
           avatar: messageObj.senderId.avatar,
           status: messageObj.senderId.status,
-          lastSeen: messageObj.senderId.lastSeen
+          lastSeen: messageObj.senderId.lastSeen,
         };
       }
       messageObj.readBy = messageObj.readBy.map((id: any) => id.toString());
@@ -258,23 +258,23 @@ export const createChat = async (req: AuthRequest, res: Response): Promise<void>
       email: p.email,
       avatar: p.avatar,
       status: p.status,
-      lastSeen: p.lastSeen
+      lastSeen: p.lastSeen,
     }));
     if (chatObj.admin) {
       chatObj.admin = {
         id: chatObj.admin._id.toString(),
         username: chatObj.admin.username,
-        avatar: chatObj.admin.avatar
+        avatar: chatObj.admin.avatar,
       };
     }
 
     console.log('Чат успешно создан:', chat._id);
-    
+
     // Отправляем WebSocket событие всем участникам чата
     if (wsService) {
       wsService.broadcastChatCreated(chatObj);
     }
-    
+
     res.status(201).json(chatObj);
   } catch (error: any) {
     console.error('Ошибка создания чата:', {
@@ -282,11 +282,11 @@ export const createChat = async (req: AuthRequest, res: Response): Promise<void>
       stack: error.stack,
       name: error.name,
       body: req.body,
-      userId: req.userId
+      userId: req.userId,
     });
-    res.status(500).json({ 
+    res.status(500).json({
       error: error.message || 'Внутренняя ошибка сервера',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 };
@@ -319,13 +319,13 @@ export const getChatById = async (req: AuthRequest, res: Response): Promise<void
       email: p.email,
       avatar: p.avatar,
       status: p.status,
-      lastSeen: p.lastSeen
+      lastSeen: p.lastSeen,
     }));
     if (chatObj.admin) {
       chatObj.admin = {
         id: chatObj.admin._id.toString(),
         username: chatObj.admin.username,
-        avatar: chatObj.admin.avatar
+        avatar: chatObj.admin.avatar,
       };
     }
     if (chatObj.pinnedMessage && typeof chatObj.pinnedMessage === 'object') {
@@ -413,9 +413,7 @@ export const addParticipants = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    const newParticipants = participantIds.filter((pid: string) => 
-      !chat.participants.includes(pid as any)
-    );
+    const newParticipants = participantIds.filter((pid: string) => !chat.participants.includes(pid as any));
 
     if (newParticipants.length === 0) {
       res.status(400).json({ error: 'Все указанные пользователи уже являются участниками группы' });
@@ -435,10 +433,10 @@ export const addParticipants = async (req: AuthRequest, res: Response): Promise<
     const adminName = adminUser?.username || 'Администратор';
 
     const newParticipantUsers = await User.find({
-      _id: { $in: newParticipantIds }
+      _id: { $in: newParticipantIds },
     }).select('username');
 
-    const participantNames = newParticipantUsers.map(user => user.username);
+    const participantNames = newParticipantUsers.map((user) => user.username);
 
     const systemContent = `${adminName} добавил(а) в группу: ${participantNames.join(', ')}`;
 
@@ -447,7 +445,7 @@ export const addParticipants = async (req: AuthRequest, res: Response): Promise<
       senderId: req.userId,
       content: systemContent,
       type: 'system',
-      readBy: chat.participants.map((p: any) => p._id || p)
+      readBy: chat.participants.map((p: any) => p._id || p),
     });
 
     await systemMessage.save();
@@ -466,7 +464,7 @@ export const addParticipants = async (req: AuthRequest, res: Response): Promise<
         username: messageObj.senderId.username,
         avatar: messageObj.senderId.avatar,
         status: messageObj.senderId.status,
-        lastSeen: messageObj.senderId.lastSeen
+        lastSeen: messageObj.senderId.lastSeen,
       };
     }
     messageObj.readBy = messageObj.readBy.map((id: any) => id.toString());
@@ -476,13 +474,13 @@ export const addParticipants = async (req: AuthRequest, res: Response): Promise<
     // Отправляем WebSocket событие об обновлении группы всем участникам
     if (wsService) {
       wsService.broadcastChatUpdated(chatObj);
-      
+
       // Отправляем системное сообщение всем участникам группы
       const allParticipantIds = chat.participants.map((p: any) => {
         if (typeof p === 'string') return p;
         return p.id || p._id?.toString();
       }).filter(Boolean) as string[];
-      
+
       wsService.broadcastMessage(messageObj, allParticipantIds);
     }
 
@@ -495,7 +493,9 @@ export const addParticipants = async (req: AuthRequest, res: Response): Promise<
 export const getChatMessages = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { limit = 50, before, after, messageId } = req.query;
+    const {
+      limit = 50, before, after, messageId,
+    } = req.query;
 
     const chat = await Chat.findById(id);
 
@@ -533,8 +533,8 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
         select: 'content senderId type',
         populate: {
           path: 'senderId',
-          select: 'username'
-        }
+          select: 'username',
+        },
       })
       .sort({ createdAt: sortOrder })
       .limit(Number(limit))
@@ -545,7 +545,7 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
     }
 
     // Преобразуем _id в id для senderId и replyTo, а также reactions
-    const messagesWithId = messages.map(msg => {
+    const messagesWithId = messages.map((msg) => {
       const messageObj = msg.toObject() as any;
       if (messageObj.senderId && typeof messageObj.senderId === 'object') {
         messageObj.senderId = {
@@ -553,19 +553,19 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
           username: messageObj.senderId.username,
           avatar: messageObj.senderId.avatar,
           status: messageObj.senderId.status,
-          lastSeen: messageObj.senderId.lastSeen
+          lastSeen: messageObj.senderId.lastSeen,
         };
       }
       if (messageObj.replyTo && typeof messageObj.replyTo === 'object') {
         const replyToObj: any = {
           _id: messageObj.replyTo._id.toString(),
           content: messageObj.replyTo.content,
-          type: messageObj.replyTo.type
+          type: messageObj.replyTo.type,
         };
         if (messageObj.replyTo.senderId && typeof messageObj.replyTo.senderId === 'object') {
           replyToObj.senderId = {
             id: messageObj.replyTo.senderId._id.toString(),
-            username: messageObj.replyTo.senderId.username
+            username: messageObj.replyTo.senderId.username,
           };
         }
         messageObj.replyTo = replyToObj;
@@ -592,7 +592,9 @@ export const getChatMessages = async (req: AuthRequest, res: Response): Promise<
 export const sendMessage = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { content, type = 'text', fileUrl, replyTo } = req.body;
+    const {
+      content, type = 'text', fileUrl, replyTo,
+    } = req.body;
 
     if (!content) {
       res.status(400).json({ error: 'Содержимое сообщения обязательно' });
@@ -626,7 +628,7 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
       content,
       type,
       fileUrl: fileUrl || '',
-      replyTo: replyToId
+      replyTo: replyToId,
     });
 
     await message.save();
@@ -637,8 +639,8 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
         select: 'content senderId type',
         populate: {
           path: 'senderId',
-          select: 'username'
-        }
+          select: 'username',
+        },
       });
     }
 
@@ -653,19 +655,19 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
         username: messageObj.senderId.username,
         avatar: messageObj.senderId.avatar,
         status: messageObj.senderId.status,
-        lastSeen: messageObj.senderId.lastSeen
+        lastSeen: messageObj.senderId.lastSeen,
       };
     }
     if (messageObj.replyTo && typeof messageObj.replyTo === 'object') {
       const replyToObj: any = {
         _id: messageObj.replyTo._id.toString(),
         content: messageObj.replyTo.content,
-        type: messageObj.replyTo.type
+        type: messageObj.replyTo.type,
       };
       if (messageObj.replyTo.senderId && typeof messageObj.replyTo.senderId === 'object') {
         replyToObj.senderId = {
           id: messageObj.replyTo.senderId._id.toString(),
-          username: messageObj.replyTo.senderId.username
+          username: messageObj.replyTo.senderId.username,
         };
       }
       messageObj.replyTo = replyToObj;
@@ -764,8 +766,8 @@ export const updateGroupAvatar = async (req: AuthRequest, res: Response): Promis
         path: 'lastMessage',
         populate: {
           path: 'senderId',
-          select: 'username avatar status lastSeen'
-        }
+          select: 'username avatar status lastSeen',
+        },
       });
     }
 
@@ -811,16 +813,14 @@ export const removeParticipants = async (req: AuthRequest, res: Response): Promi
 
     // Сохраняем ID удаляемых участников для системного сообщения
     const removedParticipantIds = participantIds.map((pid: string) => new mongoose.Types.ObjectId(pid));
-    
+
     // Получаем информацию об удаляемых участниках до удаления
     const removedParticipantUsers = await User.find({
-      _id: { $in: removedParticipantIds }
+      _id: { $in: removedParticipantIds },
     }).select('username');
 
     // Удаляем участников из массива
-    chat.participants = chat.participants.filter((pid: any) => 
-      !participantIds.includes(pid.toString())
-    );
+    chat.participants = chat.participants.filter((pid: any) => !participantIds.includes(pid.toString()));
 
     // Нельзя удалить всех участников
     if (chat.participants.length === 0) {
@@ -836,7 +836,7 @@ export const removeParticipants = async (req: AuthRequest, res: Response): Promi
     const adminUser = await User.findById(req.userId);
     const adminName = adminUser?.username || 'Администратор';
 
-    const participantNames = removedParticipantUsers.map(user => user.username);
+    const participantNames = removedParticipantUsers.map((user) => user.username);
 
     const systemContent = `${adminName} удалил(а) из группы: ${participantNames.join(', ')}`;
 
@@ -845,7 +845,7 @@ export const removeParticipants = async (req: AuthRequest, res: Response): Promi
       senderId: req.userId,
       content: systemContent,
       type: 'system',
-      readBy: chat.participants.map((p: any) => p._id || p)
+      readBy: chat.participants.map((p: any) => p._id || p),
     });
 
     await systemMessage.save();
@@ -864,7 +864,7 @@ export const removeParticipants = async (req: AuthRequest, res: Response): Promi
         username: messageObj.senderId.username,
         avatar: messageObj.senderId.avatar,
         status: messageObj.senderId.status,
-        lastSeen: messageObj.senderId.lastSeen
+        lastSeen: messageObj.senderId.lastSeen,
       };
     }
     messageObj.readBy = messageObj.readBy.map((id: any) => id.toString());
@@ -875,15 +875,15 @@ export const removeParticipants = async (req: AuthRequest, res: Response): Promi
     if (wsService) {
       // Отправляем обновление чата оставшимся участникам
       wsService.broadcastChatUpdated(chatObj);
-      
+
       // Отправляем системное сообщение всем оставшимся участникам группы
       const remainingParticipantIds = chat.participants.map((p: any) => {
         if (typeof p === 'string') return p;
         return p.id || p._id?.toString();
       }).filter(Boolean) as string[];
-      
+
       wsService.broadcastMessage(messageObj, remainingParticipantIds);
-      
+
       // Удалённым участникам — событие «исключён из группы» (редирект на / и уведомление с названием)
       wsService.broadcastRemovedFromGroup(chat._id.toString(), chat.groupName || 'Группа', participantIds);
     }
@@ -958,7 +958,7 @@ export const leaveGroup = async (req: AuthRequest, res: Response): Promise<void>
       senderId: req.userId,
       content: systemContent,
       type: 'system',
-      readBy: chat.participants.map((p: any) => p._id || p)
+      readBy: chat.participants.map((p: any) => p._id || p),
     });
 
     await systemMessage.save();
@@ -977,7 +977,7 @@ export const leaveGroup = async (req: AuthRequest, res: Response): Promise<void>
         username: messageObj.senderId.username,
         avatar: messageObj.senderId.avatar,
         status: messageObj.senderId.status,
-        lastSeen: messageObj.senderId.lastSeen
+        lastSeen: messageObj.senderId.lastSeen,
       };
     }
     messageObj.readBy = messageObj.readBy.map((id: any) => id.toString());
@@ -988,15 +988,15 @@ export const leaveGroup = async (req: AuthRequest, res: Response): Promise<void>
     if (wsService) {
       // Отправляем обновление чата оставшимся участникам
       wsService.broadcastChatUpdated(chatObj);
-      
+
       // Отправляем системное сообщение всем оставшимся участникам группы
       const remainingParticipantIds = chat.participants.map((p: any) => {
         if (typeof p === 'string') return p;
         return p.id || p._id?.toString();
       }).filter(Boolean) as string[];
-      
+
       wsService.broadcastMessage(messageObj, remainingParticipantIds);
-      
+
       // Отправляем событие об удалении чата выходящему пользователю
       wsService.broadcastChatDeleted(chat._id.toString(), [req.userId!]);
     }
@@ -1044,7 +1044,7 @@ export const deleteChat = async (req: AuthRequest, res: Response): Promise<void>
     }
 
     res.json({
-      message: chat.type === 'group' ? 'Группа успешно удалена' : 'Чат успешно удалён'
+      message: chat.type === 'group' ? 'Группа успешно удалена' : 'Чат успешно удалён',
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -1106,7 +1106,7 @@ export const deleteMessage = async (req: AuthRequest, res: Response): Promise<vo
     // Если удалённое сообщение было закреплённым — снимаем закрепление
     await Chat.updateOne(
       { _id: chatId, pinnedMessage: new mongoose.Types.ObjectId(messageId) },
-      { $unset: { pinnedMessage: '' } }
+      { $unset: { pinnedMessage: '' } },
     );
 
     // Если это было последнее сообщение, обновляем lastMessage чата
@@ -1114,8 +1114,8 @@ export const deleteMessage = async (req: AuthRequest, res: Response): Promise<vo
     const lastMsg = chat.lastMessage;
     const currentLastMessageId = lastMsg
       ? (typeof lastMsg === 'object' && lastMsg !== null && '_id' in lastMsg
-          ? (lastMsg as { _id: { toString(): string } })._id.toString()
-          : String(lastMsg))
+        ? (lastMsg as { _id: { toString(): string } })._id.toString()
+        : String(lastMsg))
       : null;
 
     if (currentLastMessageId === messageId) {
@@ -1126,15 +1126,15 @@ export const deleteMessage = async (req: AuthRequest, res: Response): Promise<vo
       if (lastMessage) {
         await Chat.updateOne(
           { _id: chatId },
-          { $set: { lastMessage: lastMessage._id } }
+          { $set: { lastMessage: lastMessage._id } },
         );
       } else {
         await Chat.updateOne(
           { _id: chatId },
-          { $unset: { lastMessage: '' } }
+          { $unset: { lastMessage: '' } },
         );
       }
-      
+
       // Обновляем локальный объект для дальнейшего использования
       chat.lastMessage = lastMessage ? lastMessage._id as any : undefined;
     }
@@ -1142,7 +1142,7 @@ export const deleteMessage = async (req: AuthRequest, res: Response): Promise<vo
     // Отправляем WebSocket событие об удалении сообщения
     if (wsService) {
       wsService.broadcastMessageDeleted(chatId, messageId, chat.participants.map((p: any) => p._id.toString()));
-      
+
       // Перезагружаем чат для получения актуального lastMessage и отправки обновления
       const updatedChat = await Chat.findById(chatId)
         .populate('participants', 'username avatar status lastSeen email')
@@ -1223,7 +1223,7 @@ export const editMessage = async (req: AuthRequest, res: Response): Promise<void
         username: messageObj.senderId.username || 'Пользователь',
         avatar: messageObj.senderId.avatar,
         status: messageObj.senderId.status,
-        lastSeen: messageObj.senderId.lastSeen
+        lastSeen: messageObj.senderId.lastSeen,
       };
     }
     messageObj.readBy = (messageObj.readBy || []).map((id: any) => id.toString());

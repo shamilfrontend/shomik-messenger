@@ -1,3 +1,14 @@
+<script setup lang="ts">
+import { useRouter } from 'vue-router';
+import ProfileSettings from '../components/ProfileSettings.vue';
+
+const router = useRouter();
+
+const handleBack = (): void => {
+  router.push('/');
+};
+</script>
+
 <template>
   <div class="profile-view">
     <div class="profile-view__header">
@@ -11,17 +22,6 @@
     <ProfileSettings :show-header="false" />
   </div>
 </template>
-
-<script setup lang="ts">
-import { useRouter } from 'vue-router';
-import ProfileSettings from '../components/ProfileSettings.vue';
-
-const router = useRouter();
-
-const handleBack = (): void => {
-  router.push('/');
-};
-</script>
 
 <style scoped lang="scss">
 .profile-view {

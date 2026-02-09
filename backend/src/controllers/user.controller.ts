@@ -18,21 +18,21 @@ export const searchUsers = async (req: AuthRequest, res: Response): Promise<void
     const users = await User.find({
       $or: [
         { username: { $regex: query, $options: 'i' } },
-        { email: { $regex: query, $options: 'i' } }
+        { email: { $regex: query, $options: 'i' } },
       ],
-      _id: { $ne: req.userId }
+      _id: { $ne: req.userId },
     })
       .select('username email avatar status lastSeen')
       .limit(20);
 
     // Преобразуем _id в id для frontend
-    const usersWithId = users.map(user => ({
+    const usersWithId = users.map((user) => ({
       id: user._id.toString(),
       username: user.username,
       email: user.email,
       avatar: user.avatar,
       status: user.status,
-      lastSeen: user.lastSeen
+      lastSeen: user.lastSeen,
     }));
 
     res.json(usersWithId);
@@ -58,7 +58,7 @@ export const getUserById = async (req: AuthRequest, res: Response): Promise<void
       email: user.email,
       avatar: user.avatar,
       status: user.status,
-      lastSeen: user.lastSeen
+      lastSeen: user.lastSeen,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -88,7 +88,7 @@ export const addContact = async (req: AuthRequest, res: Response): Promise<void>
 
     const existingContact = await Contact.findOne({
       userId: req.userId,
-      contactId
+      contactId,
     });
 
     if (existingContact) {
@@ -98,7 +98,7 @@ export const addContact = async (req: AuthRequest, res: Response): Promise<void>
 
     const contact = new Contact({
       userId: req.userId,
-      contactId
+      contactId,
     });
 
     await contact.save();
@@ -117,7 +117,9 @@ export const addContact = async (req: AuthRequest, res: Response): Promise<void>
 
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { username, email, avatar, params } = req.body;
+    const {
+      username, email, avatar, params,
+    } = req.body;
 
     const user = await User.findById(req.userId);
 
@@ -134,9 +136,9 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       }
 
       // Проверяем, не занят ли username другим пользователем
-      const existingUser = await User.findOne({ 
-        username, 
-        _id: { $ne: req.userId } 
+      const existingUser = await User.findOne({
+        username,
+        _id: { $ne: req.userId },
       });
       if (existingUser) {
         res.status(400).json({ error: 'Username уже занят' });
@@ -154,9 +156,9 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       }
 
       // Проверяем, не занят ли email другим пользователем
-      const existingUser = await User.findOne({ 
-        email, 
-        _id: { $ne: req.userId } 
+      const existingUser = await User.findOne({
+        email,
+        _id: { $ne: req.userId },
       });
       if (existingUser) {
         res.status(400).json({ error: 'Email уже занят' });
@@ -195,7 +197,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       avatar: user.avatar,
       status: user.status,
       lastSeen: user.lastSeen,
-      params: user.params || {}
+      params: user.params || {},
     };
 
     // Отправляем WebSocket событие об обновлении профиля пользователя

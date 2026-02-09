@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, watch, ref, nextTick, onMounted, onUnmounted } from 'vue';
+import {
+  computed, watch, ref, nextTick, onMounted, onUnmounted,
+} from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useChatStore } from '../stores/chat.store';
@@ -21,8 +23,7 @@ const { success: notifySuccess, error: notifyError } = useNotifications();
 
 /** В prod кнопки звонков отключены с тултипом «СКОРО БУДЕТ!» */
 const callsDisabledInProd = import.meta.env.PROD;
-const callButtonTitle = (normalTitle: string): string =>
-  callsDisabledInProd ? 'СКОРО БУДЕТ!' : normalTitle;
+const callButtonTitle = (normalTitle: string): string => (callsDisabledInProd ? 'СКОРО БУДЕТ!' : normalTitle);
 const remoteAudioRef = ref<HTMLAudioElement | null>(null);
 const localVideoRef = ref<HTMLVideoElement | null>(null);
 const remoteVideoRef = ref<HTMLVideoElement | null>(null);
@@ -62,7 +63,7 @@ let lastViewportTop = 0;
 
 const handleViewportResize = (): void => {
   if (!isMobile.value || !headerRef.value) return;
-  
+
   // Отменяем предыдущий запрос анимации, если он есть
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
@@ -71,11 +72,11 @@ const handleViewportResize = (): void => {
   // Используем requestAnimationFrame для плавного обновления
   rafId = requestAnimationFrame(() => {
     if (!headerRef.value) return;
-    
+
     // Получаем реальную высоту и позицию viewport
-    const visualViewport = window.visualViewport;
+    const { visualViewport } = window;
     let viewportTop = 0;
-    
+
     if (visualViewport) {
       // Используем visualViewport API для точного определения позиции
       viewportTop = visualViewport.offsetTop;
@@ -88,11 +89,11 @@ const handleViewportResize = (): void => {
         viewportTop = 0; // Header должен быть в самом верху
       }
     }
-    
+
     // Обновляем только если позиция изменилась
     if (viewportTop !== lastViewportTop) {
       lastViewportTop = viewportTop;
-      
+
       // Принудительно фиксируем header в верхней части видимой области
       headerRef.value.style.position = 'fixed';
       headerRef.value.style.top = `${viewportTop}px`;
@@ -103,7 +104,7 @@ const handleViewportResize = (): void => {
       headerRef.value.style.transform = 'translateZ(0)';
       headerRef.value.style.webkitTransform = 'translateZ(0)';
     }
-    
+
     rafId = null;
   });
 };
@@ -131,7 +132,7 @@ const handleInputBlur = (): void => {
 let checkInterval: number | null = null;
 const startHeaderPositionCheck = (): void => {
   if (checkInterval !== null) return;
-  
+
   checkInterval = window.setInterval(() => {
     if (isMobile.value && headerRef.value) {
       handleViewportResize();
@@ -165,15 +166,15 @@ const handleClickOutside = (event: MouseEvent): void => {
 const handleGlobalKeyDown = (event: KeyboardEvent): void => {
   // Проверяем, что чат открыт
   if (!currentChat.value) return;
-  
+
   // Проверяем, что модальные окна не открыты
   if (showUserInfo.value || showGroupSettings.value) return;
-  
+
   // Проверяем, что фокус не на поле ввода сообщения
   if (messageInputRef.value?.hasFocus()) return;
-  
+
   // Проверяем, что фокус не на других input/textarea элементах
-  const activeElement = document.activeElement;
+  const { activeElement } = document;
   if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
     return;
   }
@@ -185,46 +186,46 @@ const handleGlobalKeyDown = (event: KeyboardEvent): void => {
 
   // Проверяем, что фокус не на элементах с классом модальных окон или выпадающих меню
   if (activeElement && (
-    activeElement.closest('.group-settings-modal') ||
-    activeElement.closest('.user-info-modal') ||
-    activeElement.closest('.chat-window__reaction-menu') ||
-    activeElement.closest('.chat-window__video-call-device-dropdown')
+    activeElement.closest('.group-settings-modal')
+    || activeElement.closest('.user-info-modal')
+    || activeElement.closest('.chat-window__reaction-menu')
+    || activeElement.closest('.chat-window__video-call-device-dropdown')
   )) {
     return;
   }
-  
+
   // Проверяем, что нажата печатная клавиша (не служебная)
   // Игнорируем служебные клавиши: Escape, Tab, Arrow keys, F-keys, Ctrl, Alt, Meta, Shift
-  const isPrintableKey = event.key.length === 1 && 
-    !event.ctrlKey && 
-    !event.metaKey && 
-    !event.altKey &&
-    event.key !== 'Escape' &&
-    event.key !== 'Tab' &&
-    !event.key.startsWith('Arrow') &&
-    !event.key.startsWith('F') &&
-    event.key !== 'Enter' &&
-    event.key !== 'Backspace' &&
-    event.key !== 'Delete';
-  
+  const isPrintableKey = event.key.length === 1
+    && !event.ctrlKey
+    && !event.metaKey
+    && !event.altKey
+    && event.key !== 'Escape'
+    && event.key !== 'Tab'
+    && !event.key.startsWith('Arrow')
+    && !event.key.startsWith('F')
+    && event.key !== 'Enter'
+    && event.key !== 'Backspace'
+    && event.key !== 'Delete';
+
   if (isPrintableKey && messageInputRef.value?.inputField) {
     // Предотвращаем стандартное поведение для этого символа
     event.preventDefault();
-    
+
     // Ставим фокус на поле ввода
     messageInputRef.value.focusInput();
-    
+
     // Вставляем символ в поле ввода
     const input = messageInputRef.value.inputField;
     const start = input.selectionStart || 0;
     const end = input.selectionEnd || 0;
     const currentValue = input.value;
     const newValue = currentValue.slice(0, start) + event.key + currentValue.slice(end);
-    
+
     // Обновляем значение напрямую в input и триггерим событие input для обновления v-model
     input.value = newValue;
     input.setSelectionRange(start + 1, start + 1);
-    
+
     // Триггерим событие input для обновления v-model
     const inputEvent = new Event('input', { bubbles: true });
     input.dispatchEvent(inputEvent);
@@ -313,7 +314,7 @@ const handleJoinGroupCall = async (): Promise<void> => {
 onMounted(() => {
   window.addEventListener('resize', handleResize);
   document.addEventListener('click', handleClickOutside);
-  
+
   // Отслеживаем изменение высоты viewport на мобильных устройствах
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', handleViewportResize);
@@ -322,7 +323,7 @@ onMounted(() => {
   // Fallback для устройств без visualViewport API
   window.addEventListener('resize', handleViewportResize);
   window.addEventListener('orientationchange', handleViewportResize);
-  
+
   // Отслеживаем фокус на input полях для обнаружения открытия клавиатуры
   document.addEventListener('focusin', (e) => {
     const target = e.target as HTMLElement;
@@ -330,17 +331,17 @@ onMounted(() => {
       handleInputFocus();
     }
   });
-  
+
   document.addEventListener('focusout', (e) => {
     const target = e.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
       handleInputBlur();
     }
   });
-  
+
   // Обработчик автофокуса при начале ввода текста
   document.addEventListener('keydown', handleGlobalKeyDown);
-  
+
   nextTick(() => {
     callStore.setRemoteAudioRef(remoteAudioRef.value);
     callStore.setLocalVideoRef(localVideoRef.value);
@@ -356,25 +357,25 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
   document.removeEventListener('click', handleClickOutside);
-  
+
   if (window.visualViewport) {
     window.visualViewport.removeEventListener('resize', handleViewportResize);
     window.visualViewport.removeEventListener('scroll', handleViewportResize);
   }
   window.removeEventListener('resize', handleViewportResize);
   window.removeEventListener('orientationchange', handleViewportResize);
-  
+
   // Отменяем pending requestAnimationFrame
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
   }
-  
+
   // Останавливаем периодическую проверку
   stopHeaderPositionCheck();
-  
+
   // Удаляем обработчик автофокуса
   document.removeEventListener('keydown', handleGlobalKeyDown);
-  
+
   callStore.setRemoteAudioRef(null);
   callStore.setLocalVideoRef(null);
 });
@@ -406,15 +407,15 @@ watch(currentChat, (newChat, oldChat) => {
 });
 
 watch(
-  () => callStore.remoteStreams && callStore.activeCall?.peerUserId
+  () => (callStore.remoteStreams && callStore.activeCall?.peerUserId
     ? callStore.remoteStreams[callStore.activeCall.peerUserId]
-    : null,
+    : null),
   (stream) => {
     if (remoteVideoRef.value) {
       remoteVideoRef.value.srcObject = stream || null;
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 /** Привязка элемента видео к удалённому потоку по userId (для группового видеозвонка) */
@@ -434,7 +435,7 @@ watch(
       if (video) video.srcObject = callStore.remoteStreams[uid] || null;
     });
   },
-  { deep: true }
+  { deep: true },
 );
 
 watch(
@@ -447,14 +448,14 @@ watch(
     } else {
       callStore.setLocalVideoRef(null);
     }
-  }
+  },
 );
 
 watch(
   () => Boolean(callStore.activeCall && callStore.isVideoCall),
   (isVideoCallActive) => {
     if (isVideoCallActive) callStore.loadDevices();
-  }
+  },
 );
 
 const showScrollToBottom = ref(false);
@@ -470,9 +471,9 @@ const onMessagesScroll = async (): Promise<void> => {
   showScrollToBottom.value = !atBottom;
 
   if (
-    el.scrollTop <= SCROLL_LOAD_OLDER_THRESHOLD &&
-    chatStore.hasMoreOlderMessages &&
-    !chatStore.loadingOlderMessages
+    el.scrollTop <= SCROLL_LOAD_OLDER_THRESHOLD
+    && chatStore.hasMoreOlderMessages
+    && !chatStore.loadingOlderMessages
   ) {
     const oldScrollHeight = el.scrollHeight;
     const oldScrollTop = el.scrollTop;
@@ -527,7 +528,7 @@ watch(
       runInitialScrollToBottom();
     }
   },
-  { flush: 'post' }
+  { flush: 'post' },
 );
 
 // Скролл вниз при подгрузке старых сообщений и при отправке нового (пользователь был внизу)
@@ -540,7 +541,7 @@ watch(
       }
     }
   },
-  { flush: 'post' }
+  { flush: 'post' },
 );
 
 const getChatName = (): string => {
@@ -548,9 +549,7 @@ const getChatName = (): string => {
   if (currentChat.value.type === 'group') {
     return currentChat.value.groupName || 'Группа';
   }
-  const otherParticipant = currentChat.value.participants.find(p =>
-    typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id
-  );
+  const otherParticipant = currentChat.value.participants.find((p) => (typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id));
   return typeof otherParticipant === 'string' ? 'Пользователь' : (otherParticipant?.username || 'Пользователь');
 };
 
@@ -559,9 +558,7 @@ const getAvatar = (): string | undefined => {
   if (currentChat.value.type === 'group') {
     return getImageUrl(currentChat.value.groupAvatar);
   }
-  const otherParticipant = currentChat.value.participants.find(p =>
-    typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id
-  );
+  const otherParticipant = currentChat.value.participants.find((p) => (typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id));
   return typeof otherParticipant === 'string' ? undefined : getImageUrl(otherParticipant?.avatar);
 };
 
@@ -569,9 +566,7 @@ const getOtherParticipant = (): User | null => {
   if (!currentChat.value || currentChat.value.type === 'group') {
     return null;
   }
-  const otherParticipant = currentChat.value.participants.find(p =>
-    typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id
-  );
+  const otherParticipant = currentChat.value.participants.find((p) => (typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id));
   if (!otherParticipant || typeof otherParticipant === 'string') {
     return null;
   }
@@ -580,9 +575,7 @@ const getOtherParticipant = (): User | null => {
 
 const getStatus = (): string => {
   if (!currentChat.value || currentChat.value.type === 'group') return '';
-  const otherParticipant = currentChat.value.participants.find(p => 
-    typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id
-  );
+  const otherParticipant = currentChat.value.participants.find((p) => (typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id));
   if (typeof otherParticipant === 'string') return '';
   return isUserOnline(otherParticipant) ? 'в сети' : 'не в сети';
 };
@@ -591,22 +584,19 @@ const isGroupAdmin = computed((): boolean => {
   if (!currentChat.value || currentChat.value.type !== 'group' || !currentChat.value.admin) {
     return false;
   }
-  const adminId = typeof currentChat.value.admin === 'string' 
-    ? currentChat.value.admin 
+  const adminId = typeof currentChat.value.admin === 'string'
+    ? currentChat.value.admin
     : currentChat.value.admin.id;
   return adminId === chatStore.user?.id;
 });
 
-const isSenderIdUser = (senderId: User | string): senderId is User =>
-  typeof senderId === 'object' && senderId !== null && 'id' in senderId;
+const isSenderIdUser = (senderId: User | string): senderId is User => typeof senderId === 'object' && senderId !== null && 'id' in senderId;
 
-const getMessageSenderId = (message: Message): string =>
-  isSenderIdUser(message.senderId) ? message.senderId.id : message.senderId;
+const getMessageSenderId = (message: Message): string => (isSenderIdUser(message.senderId) ? message.senderId.id : message.senderId);
 
 const isMessageSenderUser = (message: Message): boolean => isSenderIdUser(message.senderId);
 
-const getMessageSenderStatus = (message: Message): 'online' | 'offline' | 'away' =>
-  isSenderIdUser(message.senderId) ? getComputedStatus(message.senderId) : 'offline';
+const getMessageSenderStatus = (message: Message): 'online' | 'offline' | 'away' => (isSenderIdUser(message.senderId) ? getComputedStatus(message.senderId) : 'offline');
 
 const isOwnMessage = (message: Message): boolean => {
   const senderId = getMessageSenderId(message);
@@ -619,23 +609,21 @@ const canDeleteMessage = (message: Message): boolean => {
   if (message.type === 'system') {
     return false;
   }
-  
+
   // Пользователь может удалять свои сообщения
   if (isOwnMessage(message)) {
     return true;
   }
-  
+
   // Админ группы может удалять любые сообщения в группе
   if (currentChat.value?.type === 'group' && isGroupAdmin.value) {
     return true;
   }
-  
+
   return false;
 };
 
-const canEditMessage = (message: Message): boolean => {
-  return message.type === 'text' && isOwnMessage(message);
-};
+const canEditMessage = (message: Message): boolean => message.type === 'text' && isOwnMessage(message);
 
 const handleEditMessage = (message: Message): void => {
   if (!canEditMessage(message)) return;
@@ -670,14 +658,14 @@ const handleDeleteMessage = async (message: Message): Promise<void> => {
   if (!currentChat.value || !canDeleteMessage(message)) {
     return;
   }
-  
+
   const { confirm } = useConfirm();
   const confirmed = await confirm('Вы уверены, что хотите удалить это сообщение?');
-  
+
   if (!confirmed) {
     return;
   }
-  
+
   try {
     await chatStore.deleteMessage(currentChat.value._id, message._id);
   } catch (error: any) {
@@ -690,7 +678,7 @@ const MAX_MESSAGE_LENGTH = 500;
 
 // Проверка, нужно ли обрезать сообщение
 const shouldTruncateMessage = (message: Message): boolean => {
-  const content = message.content;
+  const { content } = message;
   if (typeof content !== 'string' || content.length <= MAX_MESSAGE_LENGTH) {
     return false;
   }
@@ -705,7 +693,7 @@ const shouldTruncateMessage = (message: Message): boolean => {
 const getTruncatedText = (content: string): string => {
   if (typeof content !== 'string') return String(content ?? '');
   if (content.length <= MAX_MESSAGE_LENGTH) return content;
-  return content.slice(0, MAX_MESSAGE_LENGTH) + '...';
+  return `${content.slice(0, MAX_MESSAGE_LENGTH)}...`;
 };
 
 // Открытие модального окна для просмотра полного сообщения
@@ -720,9 +708,7 @@ const closeMessageView = (): void => {
   selectedMessage.value = null;
 };
 
-const isUnreadMessage = (message: Message): boolean => {
-  return chatStore.isMessageUnread(message);
-};
+const isUnreadMessage = (message: Message): boolean => chatStore.isMessageUnread(message);
 
 const getMessageSender = (message: Message): string => {
   if (!isSenderIdUser(message.senderId)) {
@@ -777,7 +763,7 @@ const openUserInfo = (message: Message): void => {
       console.error('openUserInfo: попытка открыть информацию о себе');
     }
   } else {
-    const participant = currentChat.value?.participants.find(p => {
+    const participant = currentChat.value?.participants.find((p) => {
       const participantId = typeof p === 'string' ? p : p.id;
       return participantId === senderId && participantId !== chatStore.user?.id;
     });
@@ -844,7 +830,7 @@ const getTypingText = (): string => {
   const names = ids.map((userId) => {
     if (!currentChat.value) return userId.slice(0, 8);
     const p = currentChat.value.participants.find(
-      (participant) => (typeof participant === 'string' ? participant : participant.id) === userId
+      (participant) => (typeof participant === 'string' ? participant : participant.id) === userId,
     );
     return p && typeof p !== 'string' ? p.username : userId.slice(0, 8);
   });
@@ -859,62 +845,61 @@ const getReadStatus = (message: Message): 'sent' | 'delivered' | 'read' => {
   }
 
   const chat = currentChat.value;
-  
+
   // Для приватных чатов
   if (chat.type === 'private') {
     // Находим второго участника (не отправителя)
-    const otherParticipant = chat.participants.find(p => {
+    const otherParticipant = chat.participants.find((p) => {
       const participantId = typeof p === 'string' ? p : p.id;
       return participantId !== chatStore.user?.id;
     });
-    
+
     if (!otherParticipant) {
       return 'delivered'; // Сообщение доставлено (в приватном чате всегда доставлено после отправки)
     }
-    
+
     const otherParticipantId = typeof otherParticipant === 'string' ? otherParticipant : otherParticipant.id;
-    
+
     // Если другой участник прочитал сообщение - две синие галочки
     if (message.readBy.includes(otherParticipantId)) {
       return 'read';
     }
-    
+
     // Сообщение доставлено, но не прочитано - две серые галочки
     return 'delivered';
   }
-  
+
   // Для групповых чатов
   if (chat.type === 'group') {
     // Получаем всех участников кроме отправителя
-    const otherParticipants = chat.participants.filter(p => {
+    const otherParticipants = chat.participants.filter((p) => {
       const participantId = typeof p === 'string' ? p : p.id;
       return participantId !== chatStore.user?.id;
     });
-    
+
     if (otherParticipants.length === 0) {
       return 'delivered'; // Сообщение доставлено (в группе всегда доставлено после отправки)
     }
-    
+
     // Проверяем, прочитали ли все участники
-    const allRead = otherParticipants.every(p => {
+    const allRead = otherParticipants.every((p) => {
       const participantId = typeof p === 'string' ? p : p.id;
       return message.readBy.includes(participantId);
     });
-    
+
     // Если все прочитали - две синие галочки
     if (allRead) {
       return 'read';
     }
-    
+
     // Сообщение доставлено всем, но не все прочитали - две серые галочки
     return 'delivered';
   }
-  
+
   return 'delivered';
 };
 
-const emit = defineEmits<{
-  (e: 'back'): void;
+const emit = defineEmits<{(e: 'back'): void;
 }>();
 
 const handleBack = (): void => {
@@ -1058,9 +1043,7 @@ const onContextMenuSelect = async (action: MessageContextAction): Promise<void> 
   else if (action.id === 'delete') handleDeleteMessage(msg);
 };
 
-const contextMenuActions = computed(() =>
-  contextMenuMessage.value ? getMessageContextMenuActions(contextMenuMessage.value) : []
-);
+const contextMenuActions = computed(() => (contextMenuMessage.value ? getMessageContextMenuActions(contextMenuMessage.value) : []));
 
 const handleReplyToMessage = (message: Message): void => {
   // Не позволяем отвечать на системные сообщения
@@ -1097,7 +1080,7 @@ const scrollToPinnedMessage = async (): Promise<void> => {
     const doScroll = (): void => {
       const containerRect = container.getBoundingClientRect();
       const elementRect = messageElement.getBoundingClientRect();
-      const scrollTop = container.scrollTop;
+      const { scrollTop } = container;
       const elementTop = elementRect.top - containerRect.top + scrollTop;
       container.scrollTo({ top: Math.max(0, elementTop - topOffset), behavior: 'smooth' });
     };
@@ -1125,23 +1108,23 @@ const scrollToRepliedMessage = (replyTo: Message | string): void => {
   if (!replyTo._id) {
     return;
   }
-  
+
   const messageId = `message-${replyTo._id}`;
   const messageElement = document.getElementById(messageId);
-  
+
   if (messageElement && messagesContainer.value) {
     // Вычисляем позицию элемента относительно контейнера
     const containerRect = messagesContainer.value.getBoundingClientRect();
     const elementRect = messageElement.getBoundingClientRect();
-    const scrollTop = messagesContainer.value.scrollTop;
+    const { scrollTop } = messagesContainer.value;
     const elementTop = elementRect.top - containerRect.top + scrollTop;
-    
+
     // Скроллим к элементу с небольшим отступом сверху
     messagesContainer.value.scrollTo({
       top: elementTop - 20,
-      behavior: 'smooth'
+      behavior: 'smooth',
     });
-    
+
     // Добавляем визуальное выделение
     messageElement.classList.add('chat-window__message-wrapper--highlighted');
     setTimeout(() => {
@@ -1188,12 +1171,12 @@ const handleMessageClick = (message: Message, event: MouseEvent): void => {
   }
   // Игнорируем клики на кнопки и интерактивные элементы
   const target = event.target as HTMLElement;
-  if (target.closest('.chat-window__reaction') ||
-      target.closest('.chat-window__reaction-menu') ||
-      target.closest('a')) {
+  if (target.closest('.chat-window__reaction')
+      || target.closest('.chat-window__reaction-menu')
+      || target.closest('a')) {
     return;
   }
-  
+
   // На мобильных устройствах показываем меню реакций при клике на сообщение (только для чужих сообщений)
   if (isMobile.value && !isOwnMessage(message)) {
     event.stopPropagation();
@@ -1235,7 +1218,7 @@ const handleReactionClick = async (message: Message, emoji: string): Promise<voi
   if (!currentChat.value || isOwnMessage(message)) {
     return;
   }
-  
+
   try {
     await chatStore.toggleReaction(currentChat.value._id, message._id, emoji);
     showReactionMenu.value = null;
@@ -1260,9 +1243,9 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     .map(([emoji, userIds]) => ({
       emoji,
       count: userIds.length,
-      hasUser: hasUserReaction(message, emoji)
+      hasUser: hasUserReaction(message, emoji),
     }))
-    .filter(reaction => reaction.count > 0)
+    .filter((reaction) => reaction.count > 0)
     .sort((a, b) => b.count - a.count);
 };
 </script>
@@ -1270,9 +1253,9 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 <template>
 	<div class="chat-window">
 		<div v-if="currentChat" ref="headerRef" class="chat-window__header">
-			<button 
-				v-if="isMobile" 
-				@click="handleBack" 
+			<button
+				v-if="isMobile"
+				@click="handleBack"
 				class="chat-window__back-button"
 				aria-label="Назад"
 			>
@@ -1547,13 +1530,13 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 						<span v-else class="chat-window__message-select-box"></span>
 					</div>
 					<div
-						:class="['chat-window__message', { 
+						:class="['chat-window__message', {
 							'chat-window__message_me': isOwnMessage(message),
 							'chat-window__message--unread': isUnreadMessage(message)
 						}]"
 					>
-						<div 
-							v-if="shouldShowAvatar(message)" 
+						<div
+							v-if="shouldShowAvatar(message)"
 							class="chat-window__message-avatar"
 							@click="openUserInfo(message)"
 						>
@@ -1571,8 +1554,8 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 							/>
 						</div>
 						<div class="chat-window__message-content" :data-message-id="message._id">
-							<div 
-								v-if="shouldShowSender(message)" 
+							<div
+								v-if="shouldShowSender(message)"
 								class="chat-window__message-sender"
 								@click="openUserInfo(message)"
 							>
@@ -1582,7 +1565,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 								<!-- Ответ на сообщение -->
 								<div v-if="message.replyTo" class="chat-window__message-reply">
 									<div class="chat-window__message-reply-line"></div>
-									<div 
+									<div
 										class="chat-window__message-reply-content"
 										@click="scrollToRepliedMessage(message.replyTo)"
 									>
@@ -1705,9 +1688,9 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 			</button>
 		</div>
 
-		<MessageInput 
+		<MessageInput
 			ref="messageInputRef"
-			v-if="currentChat && !selectionMode" 
+			v-if="currentChat && !selectionMode"
 			:chat-id="currentChat._id"
 			:reply-to="replyToMessage"
 			:edit-message="editMessage"
@@ -2986,7 +2969,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
       height: 36px;
       font-size: 1.75rem;
       border-radius: 10px;
-      
+
       &:active {
         background: var(--bg-primary);
         transform: scale(0.95);

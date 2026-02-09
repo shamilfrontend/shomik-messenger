@@ -1,3 +1,32 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue';
+import { useAuthStore } from '../stores/auth.store';
+import { useAuth } from '../composables/useAuth';
+import { useConfirm } from '../composables/useConfirm';
+import ProfileSettings from './ProfileSettings.vue';
+
+import { getImageUrl } from '../utils/image';
+import { isUserOnline, getComputedStatus } from '../utils/status';
+
+const emit = defineEmits<{(e: 'close'): void;
+}>();
+
+const authStore = useAuthStore();
+const { logout } = useAuth();
+const { confirm } = useConfirm();
+const showSettings = ref(false);
+
+const user = computed(() => authStore.user);
+
+const avatarUrl = computed(() => getImageUrl(user.value?.avatar) || null);
+
+const handleLogout = async (): Promise<void> => {
+  const confirmed = await confirm('Вы уверены, что хотите выйти из аккаунта?');
+  if (!confirmed) return;
+  logout();
+};
+</script>
+
 <template>
   <div class="user-profile" @click.self="$emit('close')">
     <div class="user-profile__container">
@@ -33,38 +62,6 @@
     <ProfileSettings v-if="showSettings" @close="showSettings = false" />
   </div>
 </template>
-
-<script setup lang="ts">
-import { computed, ref } from 'vue';
-import { useAuthStore } from '../stores/auth.store';
-import { useAuth } from '../composables/useAuth';
-import { useConfirm } from '../composables/useConfirm';
-import ProfileSettings from './ProfileSettings.vue';
-
-const emit = defineEmits<{
-  (e: 'close'): void;
-}>();
-
-const authStore = useAuthStore();
-const { logout } = useAuth();
-const { confirm } = useConfirm();
-const showSettings = ref(false);
-
-const user = computed(() => authStore.user);
-
-import { getImageUrl } from '../utils/image';
-import { isUserOnline, getComputedStatus } from '../utils/status';
-
-const avatarUrl = computed(() => {
-  return getImageUrl(user.value?.avatar) || null;
-});
-
-const handleLogout = async (): Promise<void> => {
-  const confirmed = await confirm('Вы уверены, что хотите выйти из аккаунта?');
-  if (!confirmed) return;
-  logout();
-};
-</script>
 
 <style scoped lang="scss">
 .user-profile {

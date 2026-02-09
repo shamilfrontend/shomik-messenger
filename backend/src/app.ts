@@ -16,7 +16,7 @@ if (!process.env.MONGODB_URI) {
   // Пробуем загрузить из корневого .env
   const rootEnvPath = path.resolve(__dirname, '../../.env');
   dotenv.config({ path: rootEnvPath });
-  
+
   // Если в корневом .env есть префиксы DEV_ или PROD_, используем их
   const envPrefix = process.env.NODE_ENV === 'production' ? 'PROD_' : 'DEV_';
   if (process.env[`${envPrefix}MONGODB_URI`]) {
@@ -33,7 +33,7 @@ console.log('=== Переменные окружения ===');
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('PORT:', process.env.PORT);
 console.log('MONGODB_URI:', process.env.MONGODB_URI ? process.env.MONGODB_URI.replace(/:[^:@]+@/, ':****@') : 'не установлен');
-console.log('Все env переменные с MONGODB:', Object.keys(process.env).filter(k => k.includes('MONGODB')).join(', '));
+console.log('Все env переменные с MONGODB:', Object.keys(process.env).filter((k) => k.includes('MONGODB')).join(', '));
 
 const app = express();
 
@@ -43,7 +43,7 @@ app.use(cors({
   credentials: false,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  exposedHeaders: ['Content-Type', 'Authorization']
+  exposedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Увеличиваем лимит размера тела запроса для поддержки Base64 аватаров
@@ -121,26 +121,26 @@ app.use((req, res, next) => {
   if (req.path === '/health') {
     return next();
   }
-  
-  const readyState = mongoose.connection.readyState;
+
+  const { readyState } = mongoose.connection;
   // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
-  
+
   if (readyState === 0) {
-    return res.status(503).json({ 
+    return res.status(503).json({
       error: 'База данных недоступна',
       message: 'MongoDB не подключен. Убедитесь, что MongoDB запущен.',
-      readyState: readyState,
-      mongoUri: MONGODB_URI.replace(/:[^:@]+@/, ':****@')
+      readyState,
+      mongoUri: MONGODB_URI.replace(/:[^:@]+@/, ':****@'),
     });
   }
-  
+
   // Если идет подключение (readyState === 2), даем немного времени
   if (readyState === 2 && !isMongoConnected) {
     // Можно подождать, но для простоты просто пропускаем
     // В реальном приложении лучше использовать retry логику
   }
-  
-  next();
+
+  return next();
 });
 
 // Определяем путь к папке uploads относительно корня проекта
@@ -171,7 +171,7 @@ app.use('/uploads', express.static(uploadsPath, {
     } else if (filePath.endsWith('.gif')) {
       res.setHeader('Content-Type', 'image/gif');
     }
-  }
+  },
 }));
 
 app.use('/api/auth', authRoutes);
@@ -181,10 +181,10 @@ app.use('/api/upload', uploadRoutes);
 
 app.get('/health', (req, res) => {
   const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  res.json({ 
+  res.json({
     status: 'ok',
     mongo: mongoStatus,
-    readyState: mongoose.connection.readyState
+    readyState: mongoose.connection.readyState,
   });
 });
 

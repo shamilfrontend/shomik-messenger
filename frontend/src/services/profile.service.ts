@@ -24,5 +24,5 @@ export const profileService = {
   async changePassword(data: ChangePasswordData) {
     const response = await api.put('/users/password', data);
     return response.data;
-  }
+  },
 };

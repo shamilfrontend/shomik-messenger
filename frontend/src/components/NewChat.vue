@@ -1,3 +1,117 @@
+<script setup lang="ts">
+import {
+  ref, watch, nextTick, onMounted, onUnmounted,
+} from 'vue';
+import { useChat } from '../composables/useChat';
+import { User } from '../types';
+import { getImageUrl } from '../utils/image';
+import { isUserOnline, getComputedStatus } from '../utils/status';
+
+const props = defineProps<{
+  isOpen: boolean;
+}>();
+
+const emit = defineEmits<{(e: 'select-user', user: User): void;
+  (e: 'close'): void;
+}>();
+
+const { searchUsers, loading, error } = useChat();
+const searchInputRef = ref<HTMLInputElement | null>(null);
+const searchQuery = ref('');
+const searchResults = ref<User[]>([]);
+const showSkeleton = ref(false);
+const isLoading = ref(false);
+
+watch(() => props.isOpen, (open) => {
+  if (open) {
+    nextTick(() => searchInputRef.value?.focus());
+  }
+});
+
+let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+let skeletonTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const handleSearch = (): void => {
+  // Очищаем предыдущие таймеры
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+  if (skeletonTimeout) {
+    clearTimeout(skeletonTimeout);
+  }
+
+  // Если поле пустое, скрываем скелетон и результаты
+  if (!searchQuery.value.trim()) {
+    searchResults.value = [];
+    showSkeleton.value = false;
+    isLoading.value = false;
+    return;
+  }
+
+  // Скрываем скелетон при новом вводе
+  showSkeleton.value = false;
+  isLoading.value = false;
+
+  // Выполняем поиск через 500 мс
+  searchTimeout = setTimeout(async () => {
+    if (searchQuery.value.trim()) {
+      isLoading.value = true;
+
+      // Показываем скелетон через 1500 мс после начала загрузки
+      skeletonTimeout = setTimeout(() => {
+        if (isLoading.value) {
+          showSkeleton.value = true;
+        }
+      }, 1500);
+
+      try {
+        const results = await searchUsers(searchQuery.value.trim());
+        searchResults.value = results;
+      } finally {
+        isLoading.value = false;
+        showSkeleton.value = false;
+        if (skeletonTimeout) {
+          clearTimeout(skeletonTimeout);
+        }
+      }
+    } else {
+      searchResults.value = [];
+      showSkeleton.value = false;
+      isLoading.value = false;
+    }
+  }, 500);
+};
+
+const getAvatarUrl = (user: User): string | undefined => getImageUrl(user.avatar);
+
+const selectUser = (user: User): void => {
+  emit('select-user', user);
+  close();
+};
+
+const close = (): void => {
+  searchQuery.value = '';
+  searchResults.value = [];
+  showSkeleton.value = false;
+  isLoading.value = false;
+  emit('close');
+};
+
+const handleKeyDown = (event: KeyboardEvent): void => {
+  if (event.key === 'Escape' && props.isOpen) {
+    close();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown);
+});
+</script>
+
 <template>
   <div v-if="isOpen" class="new-chat-modal" @click.self="close">
     <div class="new-chat-modal__content">
@@ -68,121 +182,6 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
-import { useChat } from '../composables/useChat';
-import { User } from '../types';
-import { getImageUrl } from '../utils/image';
-import { isUserOnline, getComputedStatus } from '../utils/status';
-
-const props = defineProps<{
-  isOpen: boolean;
-}>();
-
-const emit = defineEmits<{
-  (e: 'select-user', user: User): void;
-  (e: 'close'): void;
-}>();
-
-const { searchUsers, loading, error } = useChat();
-const searchInputRef = ref<HTMLInputElement | null>(null);
-const searchQuery = ref('');
-const searchResults = ref<User[]>([]);
-const showSkeleton = ref(false);
-const isLoading = ref(false);
-
-watch(() => props.isOpen, (open) => {
-  if (open) {
-    nextTick(() => searchInputRef.value?.focus());
-  }
-});
-
-let searchTimeout: ReturnType<typeof setTimeout> | null = null;
-let skeletonTimeout: ReturnType<typeof setTimeout> | null = null;
-
-const handleSearch = (): void => {
-  // Очищаем предыдущие таймеры
-  if (searchTimeout) {
-    clearTimeout(searchTimeout);
-  }
-  if (skeletonTimeout) {
-    clearTimeout(skeletonTimeout);
-  }
-
-  // Если поле пустое, скрываем скелетон и результаты
-  if (!searchQuery.value.trim()) {
-    searchResults.value = [];
-    showSkeleton.value = false;
-    isLoading.value = false;
-    return;
-  }
-
-  // Скрываем скелетон при новом вводе
-  showSkeleton.value = false;
-  isLoading.value = false;
-
-  // Выполняем поиск через 500 мс
-  searchTimeout = setTimeout(async () => {
-    if (searchQuery.value.trim()) {
-      isLoading.value = true;
-      
-      // Показываем скелетон через 1500 мс после начала загрузки
-      skeletonTimeout = setTimeout(() => {
-        if (isLoading.value) {
-          showSkeleton.value = true;
-        }
-      }, 1500);
-
-      try {
-        const results = await searchUsers(searchQuery.value.trim());
-        searchResults.value = results;
-      } finally {
-        isLoading.value = false;
-        showSkeleton.value = false;
-        if (skeletonTimeout) {
-          clearTimeout(skeletonTimeout);
-        }
-      }
-    } else {
-      searchResults.value = [];
-      showSkeleton.value = false;
-      isLoading.value = false;
-    }
-  }, 500);
-};
-
-const getAvatarUrl = (user: User): string | undefined => {
-  return getImageUrl(user.avatar);
-};
-
-const selectUser = (user: User): void => {
-  emit('select-user', user);
-  close();
-};
-
-const close = (): void => {
-  searchQuery.value = '';
-  searchResults.value = [];
-  showSkeleton.value = false;
-  isLoading.value = false;
-  emit('close');
-};
-
-const handleKeyDown = (event: KeyboardEvent): void => {
-  if (event.key === 'Escape' && props.isOpen) {
-    close();
-  }
-};
-
-onMounted(() => {
-  document.addEventListener('keydown', handleKeyDown);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeyDown);
-});
-</script>
 
 <style scoped lang="scss">
 .new-chat-modal {

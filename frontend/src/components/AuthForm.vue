@@ -1,8 +1,34 @@
+<script setup lang="ts">
+import { ref } from 'vue';
+import { useAuth } from '../composables/useAuth';
+
+const isLogin = ref(true);
+const username = ref('');
+const email = ref('');
+const password = ref('');
+
+const {
+  loading, error, register, login,
+} = useAuth();
+
+const handleSubmit = async (event?: Event) => {
+  if (event) {
+    event.preventDefault();
+  }
+
+  if (isLogin.value) {
+    await login(username.value, password.value);
+  } else {
+    await register(username.value, email.value, password.value);
+  }
+};
+</script>
+
 <template>
   <div class="auth-form">
     <div class="auth-form__container">
       <h1 class="auth-form__title">{{ isLogin ? 'Вход' : 'Регистрация' }}</h1>
-      
+
       <form @submit.prevent="handleSubmit" class="auth-form__form">
         <div v-if="!isLogin" class="auth-form__field">
           <label>Email</label>
@@ -50,30 +76,6 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref } from 'vue';
-import { useAuth } from '../composables/useAuth';
-
-const isLogin = ref(true);
-const username = ref('');
-const email = ref('');
-const password = ref('');
-
-const { loading, error, register, login } = useAuth();
-
-const handleSubmit = async (event?: Event) => {
-  if (event) {
-    event.preventDefault();
-  }
-  
-  if (isLogin.value) {
-    await login(username.value, password.value);
-  } else {
-    await register(username.value, email.value, password.value);
-  }
-};
-</script>
 
 <style scoped lang="scss">
 .auth-form {

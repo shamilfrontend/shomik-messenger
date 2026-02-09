@@ -12,7 +12,9 @@ const notifications = ref<Notification[]>([]);
 export const useNotifications = () => {
   const addNotification = (message: string, type: Notification['type'] = 'info', duration = 3000): void => {
     const id = Date.now().toString();
-    const notification: Notification = { id, message, type, duration };
+    const notification: Notification = {
+      id, message, type, duration,
+    };
 
     notifications.value.push(notification);
 
@@ -24,7 +26,7 @@ export const useNotifications = () => {
   };
 
   const removeNotification = (id: string): void => {
-    const index = notifications.value.findIndex(n => n.id === id);
+    const index = notifications.value.findIndex((n) => n.id === id);
     if (index !== -1) {
       notifications.value.splice(index, 1);
     }
@@ -48,6 +50,6 @@ export const useNotifications = () => {
     removeNotification,
     success,
     error,
-    info
+    info,
   };
 };

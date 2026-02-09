@@ -15,23 +15,21 @@ interface ConfirmState extends ConfirmOptions {
 const confirmState = ref<ConfirmState | null>(null);
 
 export const useConfirm = () => {
-  const confirm = (options: ConfirmOptions | string): Promise<boolean> => {
-    return new Promise((resolve, reject) => {
-      // Если передан только текст, используем его как message
-      const opts: ConfirmOptions = typeof options === 'string' 
-        ? { message: options }
-        : options;
+  const confirm = (options: ConfirmOptions | string): Promise<boolean> => new Promise((resolve, reject) => {
+    // Если передан только текст, используем его как message
+    const opts: ConfirmOptions = typeof options === 'string'
+      ? { message: options }
+      : options;
 
-      confirmState.value = {
-        title: opts.title,
-        message: opts.message,
-        confirmText: opts.confirmText || 'Подтвердить',
-        cancelText: opts.cancelText || 'Отмена',
-        resolve,
-        reject
-      };
-    });
-  };
+    confirmState.value = {
+      title: opts.title,
+      message: opts.message,
+      confirmText: opts.confirmText || 'Подтвердить',
+      cancelText: opts.cancelText || 'Отмена',
+      resolve,
+      reject,
+    };
+  });
 
   const resolveConfirm = (value: boolean): void => {
     if (confirmState.value) {
@@ -51,6 +49,6 @@ export const useConfirm = () => {
     confirmState,
     confirm,
     resolveConfirm,
-    rejectConfirm
+    rejectConfirm,
   };
 };

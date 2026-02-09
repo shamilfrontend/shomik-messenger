@@ -1,3 +1,320 @@
+<script setup lang="ts">
+import {
+  ref, computed, watch, onMounted, onUnmounted,
+} from 'vue';
+import { useRouter } from 'vue-router';
+import { useChatStore } from '../stores/chat.store';
+import { useAuthStore } from '../stores/auth.store';
+import { useChat } from '../composables/useChat';
+import { useNotifications } from '../composables/useNotifications';
+import { useConfirm } from '../composables/useConfirm';
+import { Chat, User } from '../types';
+import { getImageUrl } from '../utils/image';
+import { getComputedStatus } from '../utils/status';
+
+const props = defineProps<{
+  isOpen: boolean;
+  chat: Chat;
+}>();
+
+const emit = defineEmits<{(e: 'close'): void;
+  (e: 'updated', chat: Chat): void;
+  (e: 'deleted'): void;
+}>();
+
+const router = useRouter();
+const chatStore = useChatStore();
+const authStore = useAuthStore();
+const { searchUsers } = useChat();
+const { success: notifySuccess, error: notifyError } = useNotifications();
+const { confirm } = useConfirm();
+
+const groupName = ref(props.chat.groupName || '');
+const searchQuery = ref('');
+const searchResults = ref<User[]>([]);
+const updating = ref(false);
+const removing = ref(false);
+const deleting = ref(false);
+const leaving = ref(false);
+const avatarPreview = ref<string | null>(null);
+const updatingAvatar = ref(false);
+const avatarInputRef = ref<HTMLInputElement | null>(null);
+
+const MAX_AVATAR_SIZE = 200 * 1024; // 200 КБ
+
+const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const result = reader.result as string;
+    resolve(result);
+  };
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(file);
+});
+
+const canUpdateName = computed(() => groupName.value.trim().length > 0 && groupName.value.trim() !== props.chat.groupName);
+
+// Обновляем название группы при изменении пропса
+watch(() => props.chat.groupName, (newName) => {
+  groupName.value = newName || '';
+});
+
+const getGroupAvatarUrl = (): string | undefined => {
+  if (avatarPreview.value) {
+    return getImageUrl(avatarPreview.value);
+  }
+  return getImageUrl(props.chat.groupAvatar);
+};
+
+const getParticipantAvatarUrl = (participant: User): string | undefined => getImageUrl(participant.avatar);
+
+// Обновляем аватар при изменении пропса
+watch(() => props.chat.groupAvatar, (newAvatar) => {
+  if (!avatarPreview.value) {
+    avatarPreview.value = null;
+  }
+});
+
+let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const handleSearch = (): void => {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+
+  searchTimeout = setTimeout(async () => {
+    if (searchQuery.value.trim()) {
+      const results = await searchUsers(searchQuery.value.trim());
+      // Фильтруем уже добавленных участников
+      const participantIds = props.chat.participants.map((p) => (typeof p === 'string' ? p : p.id));
+      searchResults.value = results.filter((u) => !participantIds.includes(u.id));
+    } else {
+      searchResults.value = [];
+    }
+  }, 500);
+};
+
+const isAdmin = (participant: User | string): boolean => {
+  if (!props.chat.admin) return false;
+  const participantId = typeof participant === 'string' ? participant : participant.id;
+  const adminId = typeof props.chat.admin === 'string' ? props.chat.admin : props.chat.admin.id;
+  return participantId === adminId;
+};
+
+const isCurrentUserAdmin = computed((): boolean => {
+  if (!authStore.user || !props.chat.admin) return false;
+  const adminId = typeof props.chat.admin === 'string' ? props.chat.admin : props.chat.admin.id;
+  return authStore.user.id === adminId;
+});
+
+const updateGroupName = async (): Promise<void> => {
+  if (!canUpdateName.value || updating.value) return;
+
+  updating.value = true;
+  try {
+    const updatedChat = await chatStore.updateGroupName(props.chat._id, groupName.value.trim());
+    notifySuccess('Название группы обновлено');
+    emit('updated', updatedChat);
+  } catch (error: any) {
+    const errorMsg = error.response?.data?.error || 'Ошибка обновления названия';
+    notifyError(errorMsg);
+  } finally {
+    updating.value = false;
+  }
+};
+
+const addParticipant = async (user: User): Promise<void> => {
+  try {
+    const updatedChat = await chatStore.addParticipants(props.chat._id, [user.id]);
+    notifySuccess(`${user.username} добавлен в группу`);
+    emit('updated', updatedChat);
+    searchQuery.value = '';
+    searchResults.value = [];
+  } catch (error: any) {
+    const errorMsg = error.response?.data?.error || 'Ошибка добавления участника';
+    notifyError(errorMsg);
+  }
+};
+
+const removeParticipant = async (participant: User | string): Promise<void> => {
+  if (removing.value) return;
+
+  const participantId = typeof participant === 'string' ? participant : participant.id;
+  const participantName = typeof participant === 'string' ? 'участника' : participant.username;
+
+  const confirmed = await confirm(`Удалить ${participantName} из группы?`);
+  if (!confirmed) {
+    return;
+  }
+
+  removing.value = true;
+  try {
+    const updatedChat = await chatStore.removeParticipants(props.chat._id, [participantId]);
+    notifySuccess(`${participantName} удален из группы`);
+    emit('updated', updatedChat);
+  } catch (error: any) {
+    const errorMsg = error.response?.data?.error || 'Ошибка удаления участника';
+    notifyError(errorMsg);
+  } finally {
+    removing.value = false;
+  }
+};
+
+const confirmLeave = async (): Promise<void> => {
+  const confirmed = await confirm('Вы уверены, что хотите выйти из группы?');
+  if (!confirmed) {
+    return;
+  }
+  leaveGroup();
+};
+
+const openChatWithParticipant = async (participant: User | string): Promise<void> => {
+  try {
+    const participantId = typeof participant === 'string' ? participant : participant.id;
+
+    // Проверяем, что это не текущий пользователь
+    if (!participantId || participantId === authStore.user?.id) {
+      return;
+    }
+
+    // Создаем или открываем приватный чат с выбранным участником
+    const chat = await chatStore.createChat('private', [participantId]);
+
+    // Закрываем модальное окно настроек группы
+    emit('close');
+
+    // Открываем созданный чат
+    router.push(`/chat/${chat._id}`);
+  } catch (error: any) {
+    console.error('Ошибка создания чата:', error);
+    const errorMsg = error.response?.data?.error || 'Ошибка создания чата';
+    notifyError(errorMsg);
+  }
+};
+
+const leaveGroup = async (): Promise<void> => {
+  if (leaving.value) return;
+
+  leaving.value = true;
+  try {
+    await chatStore.leaveGroup(props.chat._id);
+    notifySuccess('Вы вышли из группы');
+    emit('close');
+    emit('deleted');
+    // Редирект на главный экран
+    router.push('/');
+  } catch (error: any) {
+    const errorMsg = error.response?.data?.error || 'Ошибка выхода из группы';
+    notifyError(errorMsg);
+  } finally {
+    leaving.value = false;
+  }
+};
+
+const confirmDelete = async (): Promise<void> => {
+  const confirmed = await confirm({
+    title: 'Удаление группы',
+    message: 'Вы уверены, что хотите удалить группу? Это действие нельзя отменить.',
+    confirmText: 'Удалить',
+    cancelText: 'Отмена',
+  });
+  if (!confirmed) {
+    return;
+  }
+  deleteGroup();
+};
+
+const deleteGroup = async (): Promise<void> => {
+  if (deleting.value) return;
+
+  deleting.value = true;
+  try {
+    await chatStore.deleteChat(props.chat._id);
+    notifySuccess('Группа удалена');
+    emit('deleted');
+  } catch (error: any) {
+    const errorMsg = error.response?.data?.error || 'Ошибка удаления группы';
+    notifyError(errorMsg);
+  } finally {
+    deleting.value = false;
+  }
+};
+
+const triggerAvatarSelect = (): void => {
+  avatarInputRef.value?.click();
+};
+
+const handleAvatarSelect = async (event: Event): Promise<void> => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+  if (file.size > MAX_AVATAR_SIZE) {
+    notifyError('Размер файла не должен превышать 200 КБ');
+    target.value = '';
+    return;
+  }
+  if (!file.type.startsWith('image/')) {
+    notifyError('Выберите изображение');
+    target.value = '';
+    return;
+  }
+  updatingAvatar.value = true;
+  try {
+    const base64String = await fileToBase64(file);
+    avatarPreview.value = base64String;
+    const updatedChat = await chatStore.updateGroupAvatar(props.chat._id, base64String);
+    notifySuccess('Аватар группы обновлен');
+    emit('updated', updatedChat);
+    avatarPreview.value = null;
+  } catch (error: any) {
+    notifyError(error.response?.data?.error || 'Ошибка обновления аватара');
+    avatarPreview.value = null;
+  } finally {
+    updatingAvatar.value = false;
+    target.value = '';
+  }
+};
+
+const removeAvatar = async (): Promise<void> => {
+  const confirmed = await confirm('Удалить аватар группы?');
+  if (!confirmed) return;
+  updatingAvatar.value = true;
+  try {
+    const updatedChat = await chatStore.updateGroupAvatar(props.chat._id, '');
+    notifySuccess('Аватар группы удален');
+    emit('updated', updatedChat);
+    avatarPreview.value = null;
+  } catch (error: any) {
+    const errorMsg = error.response?.data?.error || 'Ошибка удаления аватара';
+    notifyError(errorMsg);
+  } finally {
+    updatingAvatar.value = false;
+  }
+};
+
+const close = (): void => {
+  groupName.value = props.chat.groupName || '';
+  searchQuery.value = '';
+  searchResults.value = [];
+  avatarPreview.value = null;
+  emit('close');
+};
+
+const handleKeyDown = (event: KeyboardEvent): void => {
+  if (event.key === 'Escape' && props.isOpen) {
+    close();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown);
+});
+</script>
+
 <template>
   <div v-if="isOpen" class="group-settings-modal" @click.self="close">
     <div class="group-settings-modal__content">
@@ -117,7 +434,7 @@
                 :key="typeof participant === 'string' ? participant : participant.id"
                 class="group-settings-modal__participant"
               >
-                <div 
+                <div
                   @click="openChatWithParticipant(participant)"
                   class="group-settings-modal__participant-info group-settings-modal__participant-info--clickable"
                 >
@@ -176,7 +493,7 @@
           <!-- Участники группы -->
           <div class="group-settings-modal__section">
             <h3>Участники ({{ chat.participants.length }})</h3>
-            
+
             <!-- Список текущих участников -->
             <div class="group-settings-modal__participants">
               <div
@@ -184,7 +501,7 @@
                 :key="typeof participant === 'string' ? participant : participant.id"
                 class="group-settings-modal__participant"
               >
-                <div 
+                <div
                   @click="openChatWithParticipant(participant)"
                   class="group-settings-modal__participant-info group-settings-modal__participant-info--clickable"
                 >
@@ -226,330 +543,6 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useChatStore } from '../stores/chat.store';
-import { useAuthStore } from '../stores/auth.store';
-import { useChat } from '../composables/useChat';
-import { useNotifications } from '../composables/useNotifications';
-import { useConfirm } from '../composables/useConfirm';
-import { Chat, User } from '../types';
-import { getImageUrl } from '../utils/image';
-import { getComputedStatus } from '../utils/status';
-
-const props = defineProps<{
-  isOpen: boolean;
-  chat: Chat;
-}>();
-
-const emit = defineEmits<{
-  (e: 'close'): void;
-  (e: 'updated', chat: Chat): void;
-  (e: 'deleted'): void;
-}>();
-
-const router = useRouter();
-const chatStore = useChatStore();
-const authStore = useAuthStore();
-const { searchUsers } = useChat();
-const { success: notifySuccess, error: notifyError } = useNotifications();
-const { confirm } = useConfirm();
-
-const groupName = ref(props.chat.groupName || '');
-const searchQuery = ref('');
-const searchResults = ref<User[]>([]);
-const updating = ref(false);
-const removing = ref(false);
-const deleting = ref(false);
-const leaving = ref(false);
-const avatarPreview = ref<string | null>(null);
-const updatingAvatar = ref(false);
-const avatarInputRef = ref<HTMLInputElement | null>(null);
-
-const MAX_AVATAR_SIZE = 200 * 1024; // 200 КБ
-
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-};
-
-const canUpdateName = computed(() => {
-  return groupName.value.trim().length > 0 && groupName.value.trim() !== props.chat.groupName;
-});
-
-// Обновляем название группы при изменении пропса
-watch(() => props.chat.groupName, (newName) => {
-  groupName.value = newName || '';
-});
-
-const getGroupAvatarUrl = (): string | undefined => {
-  if (avatarPreview.value) {
-    return getImageUrl(avatarPreview.value);
-  }
-  return getImageUrl(props.chat.groupAvatar);
-};
-
-const getParticipantAvatarUrl = (participant: User): string | undefined => {
-  return getImageUrl(participant.avatar);
-};
-
-// Обновляем аватар при изменении пропса
-watch(() => props.chat.groupAvatar, (newAvatar) => {
-  if (!avatarPreview.value) {
-    avatarPreview.value = null;
-  }
-});
-
-let searchTimeout: ReturnType<typeof setTimeout> | null = null;
-
-const handleSearch = (): void => {
-  if (searchTimeout) {
-    clearTimeout(searchTimeout);
-  }
-
-  searchTimeout = setTimeout(async () => {
-    if (searchQuery.value.trim()) {
-      const results = await searchUsers(searchQuery.value.trim());
-      // Фильтруем уже добавленных участников
-      const participantIds = props.chat.participants.map(p => 
-        typeof p === 'string' ? p : p.id
-      );
-      searchResults.value = results.filter(u => !participantIds.includes(u.id));
-    } else {
-      searchResults.value = [];
-    }
-  }, 500);
-};
-
-const isAdmin = (participant: User | string): boolean => {
-  if (!props.chat.admin) return false;
-  const participantId = typeof participant === 'string' ? participant : participant.id;
-  const adminId = typeof props.chat.admin === 'string' ? props.chat.admin : props.chat.admin.id;
-  return participantId === adminId;
-};
-
-const isCurrentUserAdmin = computed((): boolean => {
-  if (!authStore.user || !props.chat.admin) return false;
-  const adminId = typeof props.chat.admin === 'string' ? props.chat.admin : props.chat.admin.id;
-  return authStore.user.id === adminId;
-});
-
-const updateGroupName = async (): Promise<void> => {
-  if (!canUpdateName.value || updating.value) return;
-
-  updating.value = true;
-  try {
-    const updatedChat = await chatStore.updateGroupName(props.chat._id, groupName.value.trim());
-    notifySuccess('Название группы обновлено');
-    emit('updated', updatedChat);
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.error || 'Ошибка обновления названия';
-    notifyError(errorMsg);
-  } finally {
-    updating.value = false;
-  }
-};
-
-const addParticipant = async (user: User): Promise<void> => {
-  try {
-    const updatedChat = await chatStore.addParticipants(props.chat._id, [user.id]);
-    notifySuccess(`${user.username} добавлен в группу`);
-    emit('updated', updatedChat);
-    searchQuery.value = '';
-    searchResults.value = [];
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.error || 'Ошибка добавления участника';
-    notifyError(errorMsg);
-  }
-};
-
-const removeParticipant = async (participant: User | string): Promise<void> => {
-  if (removing.value) return;
-
-  const participantId = typeof participant === 'string' ? participant : participant.id;
-  const participantName = typeof participant === 'string' ? 'участника' : participant.username;
-
-  const confirmed = await confirm(`Удалить ${participantName} из группы?`);
-  if (!confirmed) {
-    return;
-  }
-
-  removing.value = true;
-  try {
-    const updatedChat = await chatStore.removeParticipants(props.chat._id, [participantId]);
-    notifySuccess(`${participantName} удален из группы`);
-    emit('updated', updatedChat);
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.error || 'Ошибка удаления участника';
-    notifyError(errorMsg);
-  } finally {
-    removing.value = false;
-  }
-};
-
-const confirmLeave = async (): Promise<void> => {
-  const confirmed = await confirm('Вы уверены, что хотите выйти из группы?');
-  if (!confirmed) {
-    return;
-  }
-  leaveGroup();
-};
-
-const openChatWithParticipant = async (participant: User | string): Promise<void> => {
-  try {
-    const participantId = typeof participant === 'string' ? participant : participant.id;
-    
-    // Проверяем, что это не текущий пользователь
-    if (!participantId || participantId === authStore.user?.id) {
-      return;
-    }
-
-    // Создаем или открываем приватный чат с выбранным участником
-    const chat = await chatStore.createChat('private', [participantId]);
-    
-    // Закрываем модальное окно настроек группы
-    emit('close');
-    
-    // Открываем созданный чат
-    router.push(`/chat/${chat._id}`);
-  } catch (error: any) {
-    console.error('Ошибка создания чата:', error);
-    const errorMsg = error.response?.data?.error || 'Ошибка создания чата';
-    notifyError(errorMsg);
-  }
-};
-
-const leaveGroup = async (): Promise<void> => {
-  if (leaving.value) return;
-
-  leaving.value = true;
-  try {
-    await chatStore.leaveGroup(props.chat._id);
-    notifySuccess('Вы вышли из группы');
-    emit('close');
-    emit('deleted');
-    // Редирект на главный экран
-    router.push('/');
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.error || 'Ошибка выхода из группы';
-    notifyError(errorMsg);
-  } finally {
-    leaving.value = false;
-  }
-};
-
-const confirmDelete = async (): Promise<void> => {
-  const confirmed = await confirm({
-    title: 'Удаление группы',
-    message: 'Вы уверены, что хотите удалить группу? Это действие нельзя отменить.',
-    confirmText: 'Удалить',
-    cancelText: 'Отмена'
-  });
-  if (!confirmed) {
-    return;
-  }
-  deleteGroup();
-};
-
-const deleteGroup = async (): Promise<void> => {
-  if (deleting.value) return;
-
-  deleting.value = true;
-  try {
-    await chatStore.deleteChat(props.chat._id);
-    notifySuccess('Группа удалена');
-    emit('deleted');
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.error || 'Ошибка удаления группы';
-    notifyError(errorMsg);
-  } finally {
-    deleting.value = false;
-  }
-};
-
-const triggerAvatarSelect = (): void => {
-  avatarInputRef.value?.click();
-};
-
-const handleAvatarSelect = async (event: Event): Promise<void> => {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-  if (!file) return;
-  if (file.size > MAX_AVATAR_SIZE) {
-    notifyError('Размер файла не должен превышать 200 КБ');
-    target.value = '';
-    return;
-  }
-  if (!file.type.startsWith('image/')) {
-    notifyError('Выберите изображение');
-    target.value = '';
-    return;
-  }
-  updatingAvatar.value = true;
-  try {
-    const base64String = await fileToBase64(file);
-    avatarPreview.value = base64String;
-    const updatedChat = await chatStore.updateGroupAvatar(props.chat._id, base64String);
-    notifySuccess('Аватар группы обновлен');
-    emit('updated', updatedChat);
-    avatarPreview.value = null;
-  } catch (error: any) {
-    notifyError(error.response?.data?.error || 'Ошибка обновления аватара');
-    avatarPreview.value = null;
-  } finally {
-    updatingAvatar.value = false;
-    target.value = '';
-  }
-};
-
-const removeAvatar = async (): Promise<void> => {
-  const confirmed = await confirm('Удалить аватар группы?');
-  if (!confirmed) return;
-  updatingAvatar.value = true;
-  try {
-    const updatedChat = await chatStore.updateGroupAvatar(props.chat._id, '');
-    notifySuccess('Аватар группы удален');
-    emit('updated', updatedChat);
-    avatarPreview.value = null;
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.error || 'Ошибка удаления аватара';
-    notifyError(errorMsg);
-  } finally {
-    updatingAvatar.value = false;
-  }
-};
-
-const close = (): void => {
-  groupName.value = props.chat.groupName || '';
-  searchQuery.value = '';
-  searchResults.value = [];
-  avatarPreview.value = null;
-  emit('close');
-};
-
-const handleKeyDown = (event: KeyboardEvent): void => {
-  if (event.key === 'Escape' && props.isOpen) {
-    close();
-  }
-};
-
-onMounted(() => {
-  document.addEventListener('keydown', handleKeyDown);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeyDown);
-});
-</script>
 
 <style scoped lang="scss">
 .group-settings-modal {

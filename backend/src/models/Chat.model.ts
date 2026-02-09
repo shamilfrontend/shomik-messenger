@@ -17,37 +17,37 @@ const ChatSchema = new Schema<IChat>(
     type: {
       type: String,
       enum: ['private', 'group'],
-      required: true
+      required: true,
     },
     participants: [{
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true
+      required: true,
     }],
     groupName: {
       type: String,
-      trim: true
+      trim: true,
     },
     groupAvatar: {
       type: String,
-      default: ''
+      default: '',
     },
     admin: {
       type: Schema.Types.ObjectId,
-      ref: 'User'
+      ref: 'User',
     },
     lastMessage: {
       type: Schema.Types.ObjectId,
-      ref: 'Message'
+      ref: 'Message',
     },
     pinnedMessage: {
       type: Schema.Types.ObjectId,
-      ref: 'Message'
-    }
+      ref: 'Message',
+    },
   },
   {
-    timestamps: true
-  }
+    timestamps: true,
+  },
 );
 
 ChatSchema.index({ participants: 1 });

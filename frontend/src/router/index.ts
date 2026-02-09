@@ -8,31 +8,31 @@ const router = createRouter({
       path: '/login',
       name: 'Login',
       component: () => import('../views/LoginView.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false },
     },
     {
       path: '/',
       name: 'Home',
       component: () => import('../views/ChatView.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true },
     },
     {
       path: '/chat',
-      redirect: '/'
+      redirect: '/',
     },
     {
       path: '/chat/:id',
       name: 'Chat',
       component: () => import('../views/ChatView.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true },
     },
     {
       path: '/profile',
       name: 'Profile',
       component: () => import('../views/ChatView.vue'),
-      meta: { requiresAuth: true }
-    }
-  ]
+      meta: { requiresAuth: true },
+    },
+  ],
 });
 
 router.beforeEach((to, from, next) => {

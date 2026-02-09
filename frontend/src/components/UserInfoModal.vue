@@ -1,43 +1,7 @@
-<template>
-  <div v-if="isOpen" class="user-info-modal" @click.self="$emit('close')">
-    <div class="user-info-modal__container">
-      <div class="user-info-modal__header">
-        <h2>Информация о пользователе</h2>
-        <button @click="$emit('close')" class="user-info-modal__close">×</button>
-      </div>
-
-      <div v-if="user" class="user-info-modal__content">
-        <div class="user-info-modal__avatar">
-          <img v-if="avatarUrl" :src="avatarUrl" :alt="user.username" />
-          <div v-else class="user-info-modal__avatar-placeholder">
-            {{ user.username?.charAt(0).toUpperCase() }}
-          </div>
-          <span
-            :class="['user-info-modal__status-indicator', `user-info-modal__status-indicator--${getComputedStatus(user)}`]"
-          ></span>
-        </div>
-
-        <div class="user-info-modal__info">
-          <h3>{{ user.username }}</h3>
-          <p class="user-info-modal__email">{{ user.email }}</p>
-          <div class="user-info-modal__status">
-            <span :class="['user-info-modal__status-dot', `user-info-modal__status-dot--${getComputedStatus(user)}`]"></span>
-            <span>{{ getStatusText(getComputedStatus(user)) }}</span>
-          </div>
-        </div>
-
-        <div class="user-info-modal__actions">
-          <button @click="handleSendMessage" class="user-info-modal__send-button">
-            Написать сообщение
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from 'vue';
+import {
+  computed, onMounted, onUnmounted, watch,
+} from 'vue';
 import { User } from '../types';
 import { getImageUrl } from '../utils/image';
 import { getComputedStatus } from '../utils/status';
@@ -47,14 +11,11 @@ const props = defineProps<{
   user: User | null;
 }>();
 
-const emit = defineEmits<{
-  (e: 'close'): void;
+const emit = defineEmits<{(e: 'close'): void;
   (e: 'send-message', userId: string): void;
 }>();
 
-const avatarUrl = computed(() => {
-  return getImageUrl(props.user?.avatar);
-});
+const avatarUrl = computed(() => getImageUrl(props.user?.avatar));
 
 const getStatusText = (status?: string): string => {
   switch (status) {
@@ -93,6 +54,44 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyDown);
 });
 </script>
+
+<template>
+  <div v-if="isOpen" class="user-info-modal" @click.self="$emit('close')">
+    <div class="user-info-modal__container">
+      <div class="user-info-modal__header">
+        <h2>Информация о пользователе</h2>
+        <button @click="$emit('close')" class="user-info-modal__close">×</button>
+      </div>
+
+      <div v-if="user" class="user-info-modal__content">
+        <div class="user-info-modal__avatar">
+          <img v-if="avatarUrl" :src="avatarUrl" :alt="user.username" />
+          <div v-else class="user-info-modal__avatar-placeholder">
+            {{ user.username?.charAt(0).toUpperCase() }}
+          </div>
+          <span
+            :class="['user-info-modal__status-indicator', `user-info-modal__status-indicator--${getComputedStatus(user)}`]"
+          ></span>
+        </div>
+
+        <div class="user-info-modal__info">
+          <h3>{{ user.username }}</h3>
+          <p class="user-info-modal__email">{{ user.email }}</p>
+          <div class="user-info-modal__status">
+            <span :class="['user-info-modal__status-dot', `user-info-modal__status-dot--${getComputedStatus(user)}`]"></span>
+            <span>{{ getStatusText(getComputedStatus(user)) }}</span>
+          </div>
+        </div>
+
+        <div class="user-info-modal__actions">
+          <button @click="handleSendMessage" class="user-info-modal__send-button">
+            Написать сообщение
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
 
 <style scoped lang="scss">
 .user-info-modal {
@@ -239,6 +238,7 @@ onUnmounted(() => {
     color: white;
     font-weight: 600;
     font-size: 3rem;
+    border-radius: 50%;
   }
 
   &__info {

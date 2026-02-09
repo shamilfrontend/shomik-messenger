@@ -1,35 +1,3 @@
-<template>
-  <div v-if="isOpen" class="emoji-picker">
-    <div class="emoji-picker__content">
-      <div class="emoji-picker__categories">
-        <button
-          v-for="category in categories"
-          :key="category.name"
-          @click="activeCategory = category.name"
-          :class="['emoji-picker__category', { 'emoji-picker__category--active': activeCategory === category.name }]"
-        >
-          {{ category.icon }}
-        </button>
-      </div>
-      <div class="emoji-picker__emojis">
-        <p v-if="activeCategory === 'recent' && recentEmojis.length === 0" class="emoji-picker__empty">
-          Недавно использованных эмодзи пока нет
-        </p>
-        <template v-else>
-          <button
-            v-for="emoji in getCurrentCategoryEmojis()"
-            :key="emoji"
-            @click="selectEmoji(emoji)"
-            class="emoji-picker__emoji"
-          >
-            {{ emoji }}
-          </button>
-        </template>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue';
 
@@ -63,8 +31,7 @@ const props = defineProps<{
   isOpen: boolean;
 }>();
 
-const emit = defineEmits<{
-  (e: 'select', emoji: string): void;
+const emit = defineEmits<{(e: 'select', emoji: string): void;
   (e: 'close'): void;
 }>();
 
@@ -81,7 +48,7 @@ const categories = [
   { name: 'travel', icon: '✈️' },
   { name: 'activities', icon: '⚽' },
   { name: 'objects', icon: '💡' },
-  { name: 'symbols', icon: '❤️' }
+  { name: 'symbols', icon: '❤️' },
 ];
 
 const emojis: Record<string, string[]> = {
@@ -97,14 +64,14 @@ const emojis: Record<string, string[]> = {
     '😥', '😢', '😭', '😱', '😖', '😣', '😞', '😓', '😩', '😫',
     '🥱', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩',
     '🤡', '👹', '👺', '👻', '👽', '👾', '🤖', '😺', '😸', '😹',
-    '😻', '😼', '😽', '🙀', '😿', '😾'
+    '😻', '😼', '😽', '🙀', '😿', '😾',
   ],
   gestures: [
     '👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞',
     '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍',
     '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝',
     '🙏', '✍️', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃',
-    '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄'
+    '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄',
   ],
   people: [
     '👶', '🧒', '👦', '👧', '🧑', '👱', '👨', '🧔', '👨‍🦰', '👨‍🦱',
@@ -129,7 +96,7 @@ const emojis: Record<string, string[]> = {
     '👬', '💏', '💑', '👪', '👨‍👩‍👦', '👨‍👩‍👧', '👨‍👩‍👧‍👦', '👨‍👩‍👦‍👦', '👨‍👩‍👧‍👧', '👨‍👨‍👦',
     '👨‍👨‍👧', '👨‍👨‍👧‍👦', '👨‍👨‍👦‍👦', '👨‍👨‍👧‍👧', '👩‍👩‍👦', '👩‍👩‍👧', '👩‍👩‍👧‍👦', '👩‍👩‍👦‍👦', '👩‍👩‍👧‍👧', '👨‍👦',
     '👨‍👦‍👦', '👨‍👧', '👨‍👧‍👦', '👨‍👧‍👧', '👩‍👦', '👩‍👦‍👦', '👩‍👧', '👩‍👧‍👦', '👩‍👧‍👧', '🗣️',
-    '👤', '👥'
+    '👤', '👥',
   ],
   animals: [
     '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯',
@@ -143,7 +110,7 @@ const emojis: Record<string, string[]> = {
     '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈',
     '🐈‍⬛', '🪶', '🐓', '🦃', '🦤', '🦚', '🦜', '🦢', '🦩', '🕊️',
     '🐇', '🦝', '🦨', '🦡', '🦫', '🦦', '🦥', '🐁', '🐀', '🐿️',
-    '🦔'
+    '🦔',
   ],
   food: [
     '🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍈',
@@ -157,7 +124,7 @@ const emojis: Record<string, string[]> = {
     '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪',
     '🌰', '🥜', '🍯', '🥛', '🍼', '🫖', '☕️', '🍵', '🧃', '🥤',
     '🧋', '🍶', '🍺', '🍻', '🥂', '🍷', '🥃', '🍸', '🍹', '🧉',
-    '🍾', '🧊'
+    '🍾', '🧊',
   ],
   travel: [
     '🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐',
@@ -180,7 +147,7 @@ const emojis: Record<string, string[]> = {
     '⛲', '⛱️', '🏖️', '🏝️', '🏜️', '🌋', '⛰️', '🏔️', '🗻', '🏕️',
     '⛺', '🛖', '🏠', '🏡', '🏘️', '🏚️', '🏗️', '🏭', '🏢', '🏬',
     '🏣', '🏤', '🏥', '🏦', '🏨', '🏪', '🏫', '🏩', '💒', '🏛️',
-    '⛪', '🕌', '🛕', '🕍', '⛩️', '🕋'
+    '⛪', '🕌', '🛕', '🕍', '⛩️', '🕋',
   ],
   activities: [
     '⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱',
@@ -191,7 +158,7 @@ const emojis: Record<string, string[]> = {
     '🥈', '🥉', '🏅', '🎖️', '🏵️', '🎗️', '🎫', '🎟️', '🎪', '🤹',
     '🎭', '🩰', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷',
     '🎺', '🎸', '🪕', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮', '🎰',
-    '🧩'
+    '🧩',
   ],
   objects: [
     '⌚', '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '🕹️',
@@ -206,7 +173,7 @@ const emojis: Record<string, string[]> = {
     '🩹', '🩺', '💊', '💉', '🩸', '🧬', '🦠', '🧫', '🧪', '🌡️',
     '🧹', '🪠', '🧺', '🧻', '🚽', '🚰', '🚿', '🛁', '🛀', '🧼',
     '🪥', '🪒', '🧽', '🧯', '🛒', '🚬', '⚰️', '🪦', '⚱️', '🏺',
-    '🗿', '🪧', '🪪', '👁️‍🗨️'
+    '🗿', '🪧', '🪪', '👁️‍🗨️',
   ],
   symbols: [
     '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
@@ -237,8 +204,8 @@ const emojis: Record<string, string[]> = {
     '📢', '💬', '💭', '🗯️', '♠️', '♣️', '♥️', '♦️', '🃏', '🎴',
     '🀄', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘',
     '🕙', '🕚', '🕛', '🕜', '🕝', '🕞', '🕟', '🕠', '🕡', '🕢',
-    '🕣', '🕤', '🕥', '🕦', '🕧'
-  ]
+    '🕣', '🕤', '🕥', '🕦', '🕧',
+  ],
 };
 
 const getCurrentCategoryEmojis = (): string[] => {
@@ -279,6 +246,38 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
 });
 </script>
+
+<template>
+  <div v-if="isOpen" class="emoji-picker">
+    <div class="emoji-picker__content">
+      <div class="emoji-picker__categories">
+        <button
+          v-for="category in categories"
+          :key="category.name"
+          @click="activeCategory = category.name"
+          :class="['emoji-picker__category', { 'emoji-picker__category--active': activeCategory === category.name }]"
+        >
+          {{ category.icon }}
+        </button>
+      </div>
+      <div class="emoji-picker__emojis">
+        <p v-if="activeCategory === 'recent' && recentEmojis.length === 0" class="emoji-picker__empty">
+          Недавно использованных эмодзи пока нет
+        </p>
+        <template v-else>
+          <button
+            v-for="emoji in getCurrentCategoryEmojis()"
+            :key="emoji"
+            @click="selectEmoji(emoji)"
+            class="emoji-picker__emoji"
+          >
+            {{ emoji }}
+          </button>
+        </template>
+      </div>
+    </div>
+  </div>
+</template>
 
 <style scoped lang="scss">
 .emoji-picker {

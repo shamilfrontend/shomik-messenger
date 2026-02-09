@@ -34,6 +34,6 @@ export const useChat = () => {
     loading,
     error,
     searchUsers,
-    addContact
+    addContact,
   };
 };

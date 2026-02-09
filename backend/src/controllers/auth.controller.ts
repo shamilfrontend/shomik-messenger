@@ -33,9 +33,9 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
       return;
     }
 
-    console.log('1.4 BEFORE User.findOne')
+    console.log('1.4 BEFORE User.findOne');
     const existingUser = await User.findOne({
-      $or: [{ email }, { username }]
+      $or: [{ email }, { username }],
     });
     console.log('2 existingUser: ', existingUser);
 
@@ -49,7 +49,7 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
       username,
       email,
       password: hashedPassword,
-      status: 'offline'
+      status: 'offline',
     });
     console.log('3 user: ', user);
 
@@ -57,7 +57,7 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
 
     const token = generateToken({
       userId: user._id.toString(),
-      username: user.username
+      username: user.username,
     });
     console.log('4 token: ', token);
 
@@ -69,8 +69,8 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
         email: user.email,
         avatar: user.avatar,
         status: user.status,
-        params: user.params || {}
-      }
+        params: user.params || {},
+      },
     });
   } catch (error: any) {
     console.log('ERRRRROOOR: ', error);
@@ -88,7 +88,7 @@ export const login = async (req: AuthRequest, res: Response): Promise<void> => {
     }
 
     const user = await User.findOne({
-      $or: [{ username }, { email: username }]
+      $or: [{ username }, { email: username }],
     });
 
     if (!user) {
@@ -109,7 +109,7 @@ export const login = async (req: AuthRequest, res: Response): Promise<void> => {
 
     const token = generateToken({
       userId: user._id.toString(),
-      username: user.username
+      username: user.username,
     });
 
     res.json({
@@ -120,8 +120,8 @@ export const login = async (req: AuthRequest, res: Response): Promise<void> => {
         email: user.email,
         avatar: user.avatar,
         status: user.status,
-        params: user.params || {}
-      }
+        params: user.params || {},
+      },
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -145,7 +145,7 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
       status: user.status,
       lastSeen: user.lastSeen,
       contacts: user.contacts,
-      params: user.params || {}
+      params: user.params || {},
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

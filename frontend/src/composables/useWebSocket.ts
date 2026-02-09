@@ -24,10 +24,8 @@ export const useWebSocket = () => {
   };
 
   const userStatusHandler = (data: { userId: string; status: string; lastSeen?: string | Date }) => {
-    chatStore.chats.forEach(chat => {
-      const participant = chat.participants.find(p => 
-        (typeof p === 'string' ? p : p.id) === data.userId
-      );
+    chatStore.chats.forEach((chat) => {
+      const participant = chat.participants.find((p) => (typeof p === 'string' ? p : p.id) === data.userId);
       if (participant && typeof participant !== 'string') {
         participant.status = data.status as 'online' | 'offline' | 'away';
         if (data.lastSeen) {
@@ -35,9 +33,9 @@ export const useWebSocket = () => {
         }
       }
     });
-    
+
     // Обновляем данные отправителя во всех сообщениях
-    chatStore.messages.forEach(message => {
+    chatStore.messages.forEach((message) => {
       if (typeof message.senderId !== 'string' && message.senderId && message.senderId.id === data.userId) {
         message.senderId.status = data.status as 'online' | 'offline' | 'away';
         if (data.lastSeen) {
@@ -75,7 +73,7 @@ export const useWebSocket = () => {
   const userUpdatedHandler = (user: User) => {
     // Обновляем данные пользователя в чатах
     chatStore.updateUserInChats(user);
-    
+
     // Если это текущий пользователь, обновляем его данные в auth store
     if (authStore.user && authStore.user.id === user.id) {
       authStore.updateUser(user);
@@ -94,7 +92,7 @@ export const useWebSocket = () => {
     chatStore.updateMessageContent(data.message._id, {
       content: data.message.content,
       updatedAt: data.message.updatedAt,
-      reactions: data.message.reactions
+      reactions: data.message.reactions,
     });
   };
 

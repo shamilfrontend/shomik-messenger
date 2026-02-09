@@ -4,6 +4,9 @@ module.exports = {
     node: true,
     es2021: true,
   },
+  globals: {
+    Express: 'readonly',
+  },
   extends: [
     'airbnb-base',
     'plugin:@typescript-eslint/recommended',
@@ -42,11 +45,11 @@ module.exports = {
     'import/no-unresolved': 'off', // TypeScript handles this
     
     // General rules
-    'no-console': ['warn', { allow: ['warn', 'error', 'log'] }],
+    'no-console': 'off',
     'no-debugger': 'warn',
     'max-len': ['warn', { code: 120, ignoreUrls: true, ignoreStrings: true }],
     'no-param-reassign': ['error', { props: false }],
-    'no-underscore-dangle': ['error', { allow: ['_id'] }],
+    'no-underscore-dangle': 'off',
     'class-methods-use-this': 'off',
     'consistent-return': 'off',
     'no-restricted-syntax': [

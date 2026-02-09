@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import {
+  ref, computed, watch, nextTick, onMounted, onUnmounted,
+} from 'vue';
 
 import { useChat } from '../composables/useChat';
 import { useChatStore } from '../stores/chat.store';
@@ -12,8 +14,7 @@ const props = defineProps<{
 	isOpen: boolean;
 }>();
 
-const emit = defineEmits<{
-	(e: 'close'): void;
+const emit = defineEmits<{(e: 'close'): void;
 	(e: 'created', chatId: string): void;
 }>();
 
@@ -36,83 +37,79 @@ watch(() => props.isOpen, (open) => {
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
-const canCreate = computed(() => {
-	return groupName.value.trim().length > 0 && selectedParticipants.value.length > 0 && !creating.value;
-});
+const canCreate = computed(() => groupName.value.trim().length > 0 && selectedParticipants.value.length > 0 && !creating.value);
 
 const handleSearch = (): void => {
-	if (searchTimeout) {
-		clearTimeout(searchTimeout);
-	}
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
 
-	searchTimeout = setTimeout(async () => {
-		if (searchQuery.value.trim()) {
-			const results = await searchUsers(searchQuery.value.trim());
-			searchResults.value = results.filter((u: unknown) => !isSelected(u.id));
-		} else {
-			searchResults.value = [];
-		}
-	}, 500);
+  searchTimeout = setTimeout(async () => {
+    if (searchQuery.value.trim()) {
+      const results = await searchUsers(searchQuery.value.trim());
+      searchResults.value = results.filter((u: unknown) => !isSelected(u.id));
+    } else {
+      searchResults.value = [];
+    }
+  }, 500);
 };
 
 const toggleParticipant = (user: User): void => {
-	const index = selectedParticipants.value.findIndex(p => p.id === user.id);
-	if (index === -1) {
-		selectedParticipants.value.push(user);
-	} else {
-		selectedParticipants.value.splice(index, 1);
-	}
+  const index = selectedParticipants.value.findIndex((p) => p.id === user.id);
+  if (index === -1) {
+    selectedParticipants.value.push(user);
+  } else {
+    selectedParticipants.value.splice(index, 1);
+  }
 };
 
 const removeParticipant = (userId: string): void => {
-	selectedParticipants.value = selectedParticipants.value.filter(p => p.id !== userId);
+  selectedParticipants.value = selectedParticipants.value.filter((p) => p.id !== userId);
 };
 
-const isSelected = (userId: string): boolean => {
-	return selectedParticipants.value.some(p => p.id === userId);
-};
+const isSelected = (userId: string): boolean => selectedParticipants.value.some((p) => p.id === userId);
 
 const createGroup = async (): Promise<void> => {
-	if (!canCreate.value) return;
+  if (!canCreate.value) return;
 
-	creating.value = true;
+  creating.value = true;
 
-	const participantIds = selectedParticipants.value.map(p => p.id);
+  const participantIds = selectedParticipants.value.map((p) => p.id);
 
-	try {
-		const chat = await chatStore.createChat('group', participantIds, groupName.value.trim());
+  try {
+    const chat = await chatStore.createChat('group', participantIds, groupName.value.trim());
 
-		notifySuccess(`Группа "${groupName.value.trim()}" создана!`);
-		emit('created', chat._id);
-		close();
-	} catch (err: any) {
-		const errorMsg = err.response?.data?.error || 'Ошибка создания группы';
-		notifyError(errorMsg);
-	} finally {
-		creating.value = false;
-	}
+    notifySuccess(`Группа "${groupName.value.trim()}" создана!`);
+    emit('created', chat._id);
+    close();
+  } catch (err: any) {
+    const errorMsg = err.response?.data?.error || 'Ошибка создания группы';
+    notifyError(errorMsg);
+  } finally {
+    creating.value = false;
+  }
 };
 
 const close = (): void => {
-	groupName.value = '';
-	searchQuery.value = '';
-	searchResults.value = [];
-	selectedParticipants.value = [];
-	emit('close');
+  groupName.value = '';
+  searchQuery.value = '';
+  searchResults.value = [];
+  selectedParticipants.value = [];
+  emit('close');
 };
 
 const handleKeyDown = (event: KeyboardEvent): void => {
-	if (event.key === 'Escape' && props.isOpen) {
-		close();
-	}
+  if (event.key === 'Escape' && props.isOpen) {
+    close();
+  }
 };
 
 onMounted(() => {
-	document.addEventListener('keydown', handleKeyDown);
+  document.addEventListener('keydown', handleKeyDown);
 });
 
 onUnmounted(() => {
-	document.removeEventListener('keydown', handleKeyDown);
+  document.removeEventListener('keydown', handleKeyDown);
 });
 </script>
 

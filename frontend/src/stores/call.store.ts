@@ -7,8 +7,7 @@ const STUN_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 const STORAGE_MIC_KEY = 'call-preferred-mic-id';
 const STORAGE_CAMERA_KEY = 'call-preferred-camera-id';
 
-const MEDIA_NOT_AVAILABLE_MSG =
-  'Микрофон и камера недоступны. Откройте сайт по HTTPS и используйте современный браузер.';
+const MEDIA_NOT_AVAILABLE_MSG = 'Микрофон и камера недоступны. Откройте сайт по HTTPS и используйте современный браузер.';
 
 function ensureMediaDevices(): void {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
@@ -126,14 +125,14 @@ export const useCallStore = defineStore('call', () => {
       : true;
     const videoConstraint: boolean | MediaTrackConstraints = needVideo
       ? {
-          ...(selectedCameraId.value ? { deviceId: { ideal: selectedCameraId.value } } : {}),
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        }
+        ...(selectedCameraId.value ? { deviceId: { ideal: selectedCameraId.value } } : {}),
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+      }
       : false;
     localStream = await navigator.mediaDevices.getUserMedia({
       audio: audioConstraint,
-      video: videoConstraint
+      video: videoConstraint,
     });
     if (localVideoRef && needVideo) {
       localVideoRef.srcObject = localStream;
@@ -144,7 +143,7 @@ export const useCallStore = defineStore('call', () => {
   function createPeerConnection(
     peerUserId: string,
     onTrack?: (stream: MediaStream) => void,
-    isVideo?: boolean
+    isVideo?: boolean,
   ): RTCPeerConnection {
     const pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
 
@@ -152,7 +151,7 @@ export const useCallStore = defineStore('call', () => {
       if (event.candidate) {
         websocketService.send('call:signal', {
           targetUserId: peerUserId,
-          signal: { type: 'ice', candidate: event.candidate }
+          signal: { type: 'ice', candidate: event.candidate },
         });
       }
     };
@@ -213,8 +212,8 @@ export const useCallStore = defineStore('call', () => {
       const stream = await getLocalStream({ video: isVideo });
       const onTrack = isVideo
         ? (remoteStream: MediaStream) => {
-            remoteStreams.value = { ...remoteStreams.value, [targetUserId]: remoteStream };
-          }
+          remoteStreams.value = { ...remoteStreams.value, [targetUserId]: remoteStream };
+        }
         : undefined;
       peerConnection = createPeerConnection(targetUserId, onTrack, isVideo);
       stream.getTracks().forEach((track) => peerConnection!.addTrack(track, stream));
@@ -226,7 +225,7 @@ export const useCallStore = defineStore('call', () => {
         peerUserId: targetUserId,
         participants: [currentUserId.value, targetUserId],
         isInitiator: true,
-        isVideo
+        isVideo,
       };
       websocketService.send('call:start', { chatId, targetUserId, isVideo });
     } catch (err) {
@@ -249,7 +248,7 @@ export const useCallStore = defineStore('call', () => {
         callType: 'group',
         participants: [currentUserId.value],
         isInitiator: true,
-        isVideo
+        isVideo,
       };
       groupCallAvailable.value = null;
       websocketService.send('call:start', { chatId, isVideo });
@@ -294,7 +293,7 @@ export const useCallStore = defineStore('call', () => {
     chatId: string,
     participants: string[],
     initiatorId?: string,
-    isVideo?: boolean
+    isVideo?: boolean,
   ): Promise<void> {
     if (!currentUserId.value) return;
     const me = currentUserId.value;
@@ -313,8 +312,8 @@ export const useCallStore = defineStore('call', () => {
       others.forEach((peerId) => {
         const onTrack = isVideo
           ? (remoteStream: MediaStream) => {
-              remoteStreams.value = { ...remoteStreams.value, [peerId]: remoteStream };
-            }
+            remoteStreams.value = { ...remoteStreams.value, [peerId]: remoteStream };
+          }
           : undefined;
         const pc = createPeerConnection(peerId, onTrack, isVideo);
         stream.getTracks().forEach((track) => pc.addTrack(track, stream));
@@ -325,7 +324,7 @@ export const useCallStore = defineStore('call', () => {
         callType: 'group',
         participants: [me, ...others],
         isInitiator,
-        isVideo
+        isVideo,
       };
     } finally {
       isConnecting.value = false;
@@ -339,8 +338,8 @@ export const useCallStore = defineStore('call', () => {
     const stream = localStream || (await getLocalStream({ video: isVideo }));
     const onTrack = isVideo
       ? (remoteStream: MediaStream) => {
-          remoteStreams.value = { ...remoteStreams.value, [userId]: remoteStream };
-        }
+        remoteStreams.value = { ...remoteStreams.value, [userId]: remoteStream };
+      }
       : undefined;
     const pc = createPeerConnection(userId, onTrack, isVideo);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
@@ -350,7 +349,7 @@ export const useCallStore = defineStore('call', () => {
     websocketService.send('call:signal', { targetUserId: userId, signal: { type: 'offer', sdp: offer.sdp } });
     activeCall.value = {
       ...activeCall.value,
-      participants: [...activeCall.value.participants, userId]
+      participants: [...activeCall.value.participants, userId],
     };
   }
 
@@ -368,36 +367,34 @@ export const useCallStore = defineStore('call', () => {
     if (activeCall.value?.chatId === chatId && activeCall.value.participants) {
       activeCall.value = {
         ...activeCall.value,
-        participants: activeCall.value.participants.filter((id) => id !== userId)
+        participants: activeCall.value.participants.filter((id) => id !== userId),
       };
     }
   }
 
   function onCallAccepted(chatId: string, acceptedByUserId: string): void {
     if (
-      !activeCall.value ||
-      activeCall.value.chatId !== chatId ||
-      activeCall.value.peerUserId !== acceptedByUserId
-    )
-      return;
+      !activeCall.value
+      || activeCall.value.chatId !== chatId
+      || activeCall.value.peerUserId !== acceptedByUserId
+    ) return;
     if (!peerConnection) return;
     const offer = peerConnection.localDescription;
     if (offer) {
       websocketService.send('call:signal', {
         targetUserId: acceptedByUserId,
-        signal: { type: 'offer', sdp: offer.sdp }
+        signal: { type: 'offer', sdp: offer.sdp },
       });
     }
   }
 
   async function acceptCall(chatId: string, fromUserId: string): Promise<void> {
     if (
-      activeCall.value ||
-      !incomingCall.value ||
-      incomingCall.value.fromUserId !== fromUserId ||
-      incomingCall.value.chatId !== chatId
-    )
-      return;
+      activeCall.value
+      || !incomingCall.value
+      || incomingCall.value.fromUserId !== fromUserId
+      || incomingCall.value.chatId !== chatId
+    ) return;
     const isVideo = incomingCall.value.isVideo === true;
     isMuted.value = false;
     isVideoOff.value = false;
@@ -407,8 +404,8 @@ export const useCallStore = defineStore('call', () => {
       const stream = await getLocalStream({ video: isVideo });
       const onTrack = isVideo
         ? (remoteStream: MediaStream) => {
-            remoteStreams.value = { ...remoteStreams.value, [fromUserId]: remoteStream };
-          }
+          remoteStreams.value = { ...remoteStreams.value, [fromUserId]: remoteStream };
+        }
         : undefined;
       peerConnection = createPeerConnection(fromUserId, onTrack, isVideo);
       stream.getTracks().forEach((track) => peerConnection!.addTrack(track, stream));
@@ -418,7 +415,7 @@ export const useCallStore = defineStore('call', () => {
         peerUserId: fromUserId,
         participants: [currentUserId.value!, fromUserId],
         isInitiator: false,
-        isVideo
+        isVideo,
       };
       websocketService.send('call:accept', { chatId, fromUserId });
     } catch (err) {
@@ -454,7 +451,7 @@ export const useCallStore = defineStore('call', () => {
 
   async function handleRemoteSignal(
     fromUserId: string,
-    signal: { type: string; sdp?: string; candidate?: RTCIceCandidateInit }
+    signal: { type: string; sdp?: string; candidate?: RTCIceCandidateInit },
   ): Promise<void> {
     const pc = getPCForPeer(fromUserId);
     if (!pc) return;
@@ -464,7 +461,7 @@ export const useCallStore = defineStore('call', () => {
       await pc.setLocalDescription(answer);
       websocketService.send('call:signal', {
         targetUserId: fromUserId,
-        signal: { type: 'answer', sdp: answer.sdp }
+        signal: { type: 'answer', sdp: answer.sdp },
       });
     } else if (signal.type === 'answer' && signal.sdp) {
       await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: signal.sdp }));
@@ -605,6 +602,6 @@ export const useCallStore = defineStore('call', () => {
     switchVideoInput,
     setIncomingCall,
     setCallEnded,
-    cleanup
+    cleanup,
   };
 });

@@ -4,9 +4,13 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://155.212.218.104:5001';
 
 class WebSocketService {
   private ws: WebSocket | null = null;
+
   private reconnectAttempts = 0;
+
   private maxReconnectAttempts = 5;
+
   private reconnectDelay = 3000;
+
   private listeners: Map<string, Set<(data: any) => void>> = new Map();
 
   connect(token: string): Promise<void> {

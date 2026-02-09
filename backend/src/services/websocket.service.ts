@@ -7,10 +7,14 @@ import User from '../models/User.model';
 
 class WebSocketService {
   private wss: WebSocketServer;
+
   private clients: Map<string, AuthenticatedWebSocket> = new Map();
+
   private typingUsers: Map<string, Set<string>> = new Map();
+
   /** Групповые созвоны: chatId -> Set участников (userId) */
   private activeGroupCalls: Map<string, Set<string>> = new Map();
+
   /** Групповой созвон с видео: chatId -> isVideo */
   private activeGroupCallVideo: Map<string, boolean> = new Map();
 
@@ -46,14 +50,14 @@ class WebSocketService {
     const now = new Date();
     await User.findByIdAndUpdate(userId, {
       status: 'online',
-      lastSeen: now
+      lastSeen: now,
     });
 
     this.broadcastUserStatus(userId, 'online', now);
 
     authWs.send(JSON.stringify({
       type: 'connection:established',
-      data: { userId }
+      data: { userId },
     }));
 
     // Отправляем информацию об активных групповых звонках в чатах пользователя
@@ -79,7 +83,7 @@ class WebSocketService {
       const now = new Date();
       await User.findByIdAndUpdate(userId, {
         status: 'offline',
-        lastSeen: now
+        lastSeen: now,
       });
 
       this.broadcastUserStatus(userId, 'offline', now);
@@ -141,13 +145,15 @@ class WebSocketService {
       default:
         ws.send(JSON.stringify({
           type: 'error',
-          data: { message: 'Неизвестный тип сообщения' }
+          data: { message: 'Неизвестный тип сообщения' },
         }));
     }
   }
 
   private async handleSendMessage(userId: string, data: any): Promise<void> {
-    const { chatId, content, type = 'text', fileUrl, replyTo } = data;
+    const {
+      chatId, content, type = 'text', fileUrl, replyTo,
+    } = data;
 
     try {
       const chat = await Chat.findById(chatId);
@@ -171,7 +177,7 @@ class WebSocketService {
         content,
         type,
         fileUrl: fileUrl || '',
-        replyTo: replyToId
+        replyTo: replyToId,
       });
 
       await message.save();
@@ -182,8 +188,8 @@ class WebSocketService {
           select: 'content senderId type',
           populate: {
             path: 'senderId',
-            select: 'username'
-          }
+            select: 'username',
+          },
         });
       }
 
@@ -198,19 +204,19 @@ class WebSocketService {
           username: messageObj.senderId.username,
           avatar: messageObj.senderId.avatar,
           status: messageObj.senderId.status,
-          lastSeen: messageObj.senderId.lastSeen
+          lastSeen: messageObj.senderId.lastSeen,
         };
       }
       if (messageObj.replyTo && typeof messageObj.replyTo === 'object') {
         const replyToObj: any = {
           _id: messageObj.replyTo._id.toString(),
           content: messageObj.replyTo.content,
-          type: messageObj.replyTo.type
+          type: messageObj.replyTo.type,
         };
         if (messageObj.replyTo.senderId && typeof messageObj.replyTo.senderId === 'object') {
           replyToObj.senderId = {
             id: messageObj.replyTo.senderId._id.toString(),
-            username: messageObj.replyTo.senderId.username
+            username: messageObj.replyTo.senderId.username,
           };
         }
         messageObj.replyTo = replyToObj;
@@ -228,7 +234,7 @@ class WebSocketService {
 
       const messageData = {
         type: 'message:new',
-        data: messageObj
+        data: messageObj,
       };
 
       chat.participants.forEach((participantId: any) => {
@@ -263,7 +269,7 @@ class WebSocketService {
   private broadcastTyping(chatId: string, userId: string, isTyping: boolean): void {
     const typingData = {
       type: 'typing:update',
-      data: { chatId, userId, isTyping }
+      data: { chatId, userId, isTyping },
     };
 
     this.clients.forEach((client, clientUserId) => {
@@ -285,7 +291,7 @@ class WebSocketService {
         if (chat) {
           const readData = {
             type: 'message:read',
-            data: { messageId, userId }
+            data: { messageId, userId },
           };
 
           chat.participants.forEach((participantId: any) => {
@@ -319,7 +325,9 @@ class WebSocketService {
         const participants = Array.from(this.activeGroupCalls.get(chatId)!);
         this.sendToUser(callerId, {
           type: 'call:joined',
-          data: { chatId, participants, initiatorId: callerId, isVideo }
+          data: {
+            chatId, participants, initiatorId: callerId, isVideo,
+          },
         });
         participantIds.forEach((pid: string) => {
           if (pid !== callerId) {
@@ -327,7 +335,9 @@ class WebSocketService {
             if (client) {
               client.send(JSON.stringify({
                 type: 'call:started',
-                data: { chatId, participants, initiatorId: callerId, isVideo }
+                data: {
+                  chatId, participants, initiatorId: callerId, isVideo,
+                },
               }));
             }
           }
@@ -350,8 +360,8 @@ class WebSocketService {
             fromUserId: callerId,
             chatId,
             isVideo,
-            caller: caller ? { id: caller._id.toString(), username: caller.username, avatar: caller.avatar } : null
-          }
+            caller: caller ? { id: caller._id.toString(), username: caller.username, avatar: caller.avatar } : null,
+          },
         }));
       }
     } catch (error) {
@@ -374,14 +384,14 @@ class WebSocketService {
       const isVideo = this.activeGroupCallVideo.get(chatId) ?? false;
       this.sendToUser(userId, {
         type: 'call:joined',
-        data: { chatId, participants: others, isVideo }
+        data: { chatId, participants: others, isVideo },
       });
       others.forEach((pid: string) => {
         const client = this.clients.get(pid);
         if (client) {
           client.send(JSON.stringify({
             type: 'call:participant_joined',
-            data: { chatId, userId }
+            data: { chatId, userId },
           }));
         }
       });
@@ -400,7 +410,7 @@ class WebSocketService {
           if (client) {
             client.send(JSON.stringify({
               type: 'call:participant_left',
-              data: { chatId, userId }
+              data: { chatId, userId },
             }));
           }
         });
@@ -417,7 +427,7 @@ class WebSocketService {
       // Находим все групповые чаты, где пользователь является участником
       const userChats = await Chat.find({
         participants: userId,
-        type: 'group'
+        type: 'group',
       }).select('_id participants');
 
       // Проверяем каждый чат на наличие активного звонка
@@ -432,7 +442,7 @@ class WebSocketService {
           if (client) {
             client.send(JSON.stringify({
               type: 'call:started',
-              data: { chatId, participants, isVideo }
+              data: { chatId, participants, isVideo },
             }));
           }
         }
@@ -467,7 +477,7 @@ class WebSocketService {
       if (client) {
         client.send(JSON.stringify({
           type: 'call:participant_left',
-          data: { chatId, userId }
+          data: { chatId, userId },
         }));
       }
     });
@@ -492,7 +502,7 @@ class WebSocketService {
     if (callerClient) {
       callerClient.send(JSON.stringify({
         type: 'call:accepted',
-        data: { chatId: data.chatId, acceptedByUserId: acceptorId }
+        data: { chatId: data.chatId, acceptedByUserId: acceptorId },
       }));
     }
   }
@@ -503,7 +513,7 @@ class WebSocketService {
     if (callerClient) {
       callerClient.send(JSON.stringify({
         type: 'call:rejected',
-        data: { chatId: data.chatId }
+        data: { chatId: data.chatId },
       }));
     }
   }
@@ -520,7 +530,7 @@ class WebSocketService {
     if (targetClient) {
       targetClient.send(JSON.stringify({
         type: 'call:signal',
-        data: { fromUserId: userId, signal: data.signal }
+        data: { fromUserId: userId, signal: data.signal },
       }));
     }
   }
@@ -528,7 +538,7 @@ class WebSocketService {
   private broadcastUserStatus(userId: string, status: string, lastSeen?: Date): void {
     const statusData = {
       type: 'user:status',
-      data: { userId, status, lastSeen: lastSeen || new Date() }
+      data: { userId, status, lastSeen: lastSeen || new Date() },
     };
 
     this.clients.forEach((client) => {
@@ -561,13 +571,13 @@ class WebSocketService {
   public broadcastChatCreated(chat: any): void {
     const chatData = {
       type: 'chat:created',
-      data: chat
+      data: chat,
     };
 
     // Отправляем событие всем участникам чата
     chat.participants.forEach((participant: any) => {
       let participantId: string;
-      
+
       if (typeof participant === 'string') {
         participantId = participant;
       } else if (participant.id) {
@@ -577,7 +587,7 @@ class WebSocketService {
       } else {
         return; // Пропускаем, если не можем определить ID
       }
-      
+
       const client = this.clients.get(participantId);
       if (client) {
         try {
@@ -595,13 +605,13 @@ class WebSocketService {
   public broadcastChatUpdated(chat: any): void {
     const chatData = {
       type: 'chat:updated',
-      data: chat
+      data: chat,
     };
 
     // Отправляем событие всем участникам чата
     chat.participants.forEach((participant: any) => {
       let participantId: string;
-      
+
       if (typeof participant === 'string') {
         participantId = participant;
       } else if (participant.id) {
@@ -611,7 +621,7 @@ class WebSocketService {
       } else {
         return;
       }
-      
+
       const client = this.clients.get(participantId);
       if (client) {
         try {
@@ -626,7 +636,7 @@ class WebSocketService {
   public broadcastChatDeleted(chatId: string, participantIds: string[]): void {
     const chatData = {
       type: 'chat:deleted',
-      data: { chatId }
+      data: { chatId },
     };
 
     participantIds.forEach((participantId: string) => {
@@ -645,7 +655,7 @@ class WebSocketService {
   public broadcastRemovedFromGroup(chatId: string, groupName: string, removedParticipantIds: string[]): void {
     const payload = {
       type: 'chat:removed-from-group',
-      data: { chatId, groupName }
+      data: { chatId, groupName },
     };
 
     removedParticipantIds.forEach((participantId: string) => {
@@ -669,8 +679,8 @@ class WebSocketService {
         email: user.email,
         avatar: user.avatar,
         status: user.status,
-        lastSeen: user.lastSeen
-      }
+        lastSeen: user.lastSeen,
+      },
     };
 
     // Отправляем событие всем подключенным клиентам, включая самого пользователя
@@ -689,8 +699,8 @@ class WebSocketService {
       type: 'message:reaction',
       data: {
         messageId,
-        reactions
-      }
+        reactions,
+      },
     };
 
     participantIds.forEach((participantId) => {
@@ -708,7 +718,7 @@ class WebSocketService {
   public broadcastMessage(message: any, participantIds: string[]): void {
     const messageData = {
       type: 'message:new',
-      data: message
+      data: message,
     };
 
     participantIds.forEach((participantId: string) => {
@@ -728,8 +738,8 @@ class WebSocketService {
       type: 'message:deleted',
       data: {
         chatId,
-        messageId
-      }
+        messageId,
+      },
     };
 
     participantIds.forEach((participantId: string) => {
@@ -749,8 +759,8 @@ class WebSocketService {
       type: 'message:edited',
       data: {
         chatId,
-        message
-      }
+        message,
+      },
     };
 
     participantIds.forEach((participantId: string) => {

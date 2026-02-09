@@ -1,124 +1,3 @@
-<template>
-  <div class="message-input">
-    <div v-if="props.editMessage" class="message-input__edit">
-      <div class="message-input__edit-content">
-        <div class="message-input__edit-line"></div>
-        <div class="message-input__edit-info">
-          <span class="message-input__edit-label">Редактирование</span>
-          <span class="message-input__edit-text">{{ getEditPreview() }}</span>
-        </div>
-        <button @click="clearEdit" class="message-input__edit-close" type="button">×</button>
-      </div>
-    </div>
-    <div v-if="props.replyTo" class="message-input__reply">
-      <div class="message-input__reply-content">
-        <div class="message-input__reply-line"></div>
-        <div class="message-input__reply-info">
-          <span class="message-input__reply-sender">{{ getReplySenderName() }}</span>
-          <span class="message-input__reply-text">{{ getReplyText() }}</span>
-        </div>
-        <button @click="clearReply" class="message-input__reply-close">×</button>
-      </div>
-    </div>
-    <div v-if="previewFile" class="message-input__preview">
-      <img v-if="previewFile.type === 'image'" :src="previewFile.url" alt="Preview" />
-      <div v-else class="message-input__file-preview">
-        <span>{{ previewFile.filename }}</span>
-        <button @click="clearPreview" class="message-input__remove-preview">×</button>
-      </div>
-    </div>
-    <div class="message-input__container">
-      <FileUpload
-				v-if="false"
-        accept="image/*,application/pdf,.doc,.docx,.txt"
-        @uploaded="handleFileUploaded"
-        @error="handleUploadError"
-      />
-      <input
-        ref="imageInputRef"
-        type="file"
-        accept="image/*"
-        class="message-input__file-hidden"
-        aria-label="Выбрать изображение"
-        @change="handleImageSelect"
-      />
-      <div class="message-input__input-wrapper">
-        <button
-          v-if="!props.editMessage"
-          type="button"
-          class="message-input__image-button"
-          aria-label="Прикрепить изображение"
-          @click="triggerImageSelect"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-            <polyline points="21 15 16 10 5 21"></polyline>
-          </svg>
-        </button>
-        <button 
-          @click="toggleEmojiPicker" 
-          class="message-input__emoji-button"
-          type="button"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
-            <line x1="9" y1="9" x2="9.01" y2="9"></line>
-            <line x1="15" y1="9" x2="15.01" y2="9"></line>
-          </svg>
-        </button>
-        <textarea
-          ref="inputField"
-          v-model="message"
-          @keydown="handleKeydown"
-          @input="handleTyping"
-          rows="1"
-          :placeholder="props.editMessage ? 'Введите новый текст...' : 'Введите сообщение...'"
-          class="message-input__field"
-        />
-        <EmojiPicker 
-          :is-open="showEmojiPicker" 
-          @select="insertEmoji"
-          @close="showEmojiPicker = false"
-        />
-      </div>
-
-			<div class="message-input__voice-wrapper">
-				<button
-					@click="showVoiceTooltip = !showVoiceTooltip"
-					@mouseenter="showVoiceTooltip = true"
-					@mouseleave="showVoiceTooltip = false"
-					class="message-input__voice-button"
-					type="button"
-					aria-label="Голосовое сообщение"
-				>
-					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-						<path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-						<line x1="12" y1="19" x2="12" y2="23"></line>
-						<line x1="8" y1="23" x2="16" y2="23"></line>
-					</svg>
-				</button>
-				<div v-if="showVoiceTooltip" class="message-input__voice-tooltip">
-					СКОРО БУДЕТ!
-				</div>
-			</div>
-
-			<button
-				@click="handleSend"
-				class="message-input__button"
-				type="button"
-			>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<line x1="22" y1="2" x2="11" y2="13"></line>
-					<polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-				</svg>
-			</button>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { ref, nextTick, watch } from 'vue';
 import { useChatStore } from '../stores/chat.store';
@@ -135,8 +14,7 @@ const props = defineProps<{
   editMessage?: Message | null;
 }>();
 
-const emit = defineEmits<{
-  (e: 'clear-reply'): void;
+const emit = defineEmits<{(e: 'clear-reply'): void;
   (e: 'clear-edit'): void;
   (e: 'start-edit-last'): void;
 }>();
@@ -160,14 +38,12 @@ const focusInput = (): void => {
 };
 
 // Expose метод для проверки фокуса
-const hasFocus = (): boolean => {
-  return document.activeElement === inputField.value;
-};
+const hasFocus = (): boolean => document.activeElement === inputField.value;
 
 defineExpose({
   focusInput,
   hasFocus,
-  inputField
+  inputField,
 });
 
 watch(() => props.editMessage, (editMsg) => {
@@ -219,7 +95,7 @@ const handleSend = (): void => {
 const getEditPreview = (): string => {
   if (!props.editMessage || !props.editMessage.content) return '';
   const text = props.editMessage.content;
-  return text.length > 50 ? text.slice(0, 50) + '…' : text;
+  return text.length > 50 ? `${text.slice(0, 50)}…` : text;
 };
 
 const clearEdit = (): void => {
@@ -304,7 +180,7 @@ const handleImageSelect = async (e: Event): Promise<void> => {
     previewFile.value = {
       url: dataUrl,
       filename: file.name || 'image.jpg',
-      type: 'image'
+      type: 'image',
     };
   } catch (err) {
     notifyError(err instanceof Error ? err.message : 'Не удалось обработать изображение');
@@ -338,7 +214,7 @@ const insertEmoji = (emoji: string): void => {
     const textBefore = message.value.substring(0, start);
     const textAfter = message.value.substring(end);
     message.value = textBefore + emoji + textAfter;
-    
+
     // Устанавливаем курсор после вставленного эмоджи
     nextTick(() => {
       input.focus();
@@ -348,11 +224,132 @@ const insertEmoji = (emoji: string): void => {
   } else {
     message.value += emoji;
   }
-  
+
   showEmojiPicker.value = false;
   handleTyping();
 };
 </script>
+
+<template>
+  <div class="message-input">
+    <div v-if="props.editMessage" class="message-input__edit">
+      <div class="message-input__edit-content">
+        <div class="message-input__edit-line"></div>
+        <div class="message-input__edit-info">
+          <span class="message-input__edit-label">Редактирование</span>
+          <span class="message-input__edit-text">{{ getEditPreview() }}</span>
+        </div>
+        <button @click="clearEdit" class="message-input__edit-close" type="button">×</button>
+      </div>
+    </div>
+    <div v-if="props.replyTo" class="message-input__reply">
+      <div class="message-input__reply-content">
+        <div class="message-input__reply-line"></div>
+        <div class="message-input__reply-info">
+          <span class="message-input__reply-sender">{{ getReplySenderName() }}</span>
+          <span class="message-input__reply-text">{{ getReplyText() }}</span>
+        </div>
+        <button @click="clearReply" class="message-input__reply-close">×</button>
+      </div>
+    </div>
+    <div v-if="previewFile" class="message-input__preview">
+      <img v-if="previewFile.type === 'image'" :src="previewFile.url" alt="Preview" />
+      <div v-else class="message-input__file-preview">
+        <span>{{ previewFile.filename }}</span>
+        <button @click="clearPreview" class="message-input__remove-preview">×</button>
+      </div>
+    </div>
+    <div class="message-input__container">
+      <FileUpload
+				v-if="false"
+        accept="image/*,application/pdf,.doc,.docx,.txt"
+        @uploaded="handleFileUploaded"
+        @error="handleUploadError"
+      />
+      <input
+        ref="imageInputRef"
+        type="file"
+        accept="image/*"
+        class="message-input__file-hidden"
+        aria-label="Выбрать изображение"
+        @change="handleImageSelect"
+      />
+      <div class="message-input__input-wrapper">
+        <button
+          v-if="!props.editMessage"
+          type="button"
+          class="message-input__image-button"
+          aria-label="Прикрепить изображение"
+          @click="triggerImageSelect"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+        </button>
+        <button
+          @click="toggleEmojiPicker"
+          class="message-input__emoji-button"
+          type="button"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+            <line x1="9" y1="9" x2="9.01" y2="9"></line>
+            <line x1="15" y1="9" x2="15.01" y2="9"></line>
+          </svg>
+        </button>
+        <textarea
+          ref="inputField"
+          v-model="message"
+          @keydown="handleKeydown"
+          @input="handleTyping"
+          rows="1"
+          :placeholder="props.editMessage ? 'Введите новый текст...' : 'Введите сообщение...'"
+          class="message-input__field"
+        />
+        <EmojiPicker
+          :is-open="showEmojiPicker"
+          @select="insertEmoji"
+          @close="showEmojiPicker = false"
+        />
+      </div>
+
+			<div class="message-input__voice-wrapper">
+				<button
+					@click="showVoiceTooltip = !showVoiceTooltip"
+					@mouseenter="showVoiceTooltip = true"
+					@mouseleave="showVoiceTooltip = false"
+					class="message-input__voice-button"
+					type="button"
+					aria-label="Голосовое сообщение"
+				>
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+						<path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+						<line x1="12" y1="19" x2="12" y2="23"></line>
+						<line x1="8" y1="23" x2="16" y2="23"></line>
+					</svg>
+				</button>
+				<div v-if="showVoiceTooltip" class="message-input__voice-tooltip">
+					СКОРО БУДЕТ!
+				</div>
+			</div>
+
+			<button
+				@click="handleSend"
+				class="message-input__button"
+				type="button"
+			>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<line x1="22" y1="2" x2="11" y2="13"></line>
+					<polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+				</svg>
+			</button>
+    </div>
+  </div>
+</template>
 
 <style scoped lang="scss">
 .message-input {

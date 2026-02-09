@@ -41,10 +41,10 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
       // Подсчитываем непрочитанные сообщения для каждого чата на основе lastMessage
-      chats.value.forEach(chat => {
+      chats.value.forEach((chat) => {
         if (chat.lastMessage && user.value) {
-          const senderId = typeof chat.lastMessage.senderId === 'string' 
-            ? chat.lastMessage.senderId 
+          const senderId = typeof chat.lastMessage.senderId === 'string'
+            ? chat.lastMessage.senderId
             : chat.lastMessage.senderId.id;
           const isUnread = senderId !== user.value.id && !chat.lastMessage.readBy.includes(user.value.id);
           if (isUnread) {
@@ -61,9 +61,9 @@ export const useChatStore = defineStore('chat', () => {
   };
 
   const createChat = async (
-      type: 'private' | 'group',
-      participantIds: string[],
-      groupName?: string
+    type: 'private' | 'group',
+    participantIds: string[],
+    groupName?: string,
   ): Promise<Chat> => {
     console.log('4 type', type);
     console.log('5 participantIds', participantIds);
@@ -76,7 +76,7 @@ export const useChatStore = defineStore('chat', () => {
       const newChat = response.data;
       // Не добавляем чат здесь, он будет добавлен через WebSocket событие
       // Но если WebSocket не сработал, добавляем локально
-      if (!chats.value.find(c => c._id === newChat._id)) {
+      if (!chats.value.find((c) => c._id === newChat._id)) {
         chats.value.unshift(newChat);
       }
       return newChat;
@@ -88,7 +88,7 @@ export const useChatStore = defineStore('chat', () => {
 
   const addChat = (chat: Chat): void => {
     // Проверяем, нет ли уже такого чата
-    if (!chats.value.find(c => c._id === chat._id)) {
+    if (!chats.value.find((c) => c._id === chat._id)) {
       chats.value.unshift(chat);
       // Инициализируем счетчик непрочитанных
       unreadCounts.value.set(chat._id, 0);
@@ -99,12 +99,12 @@ export const useChatStore = defineStore('chat', () => {
     try {
       hasMoreOlderMessages.value = true;
       const response = await api.get(`/chats/${chatId}/messages`, {
-        params: { limit: MESSAGES_PAGE_SIZE }
+        params: { limit: MESSAGES_PAGE_SIZE },
       });
       if (currentChat.value?._id !== chatId) return;
       const list = (response.data as Message[]).map((msg: Message) => ({
         ...msg,
-        reactions: msg.reactions || {}
+        reactions: msg.reactions || {},
       }));
       messages.value = list;
       if (list.length < MESSAGES_PAGE_SIZE) {
@@ -127,12 +127,12 @@ export const useChatStore = defineStore('chat', () => {
     loadingOlderMessages.value = true;
     try {
       const response = await api.get(`/chats/${chatId}/messages`, {
-        params: { limit: MESSAGES_PAGE_SIZE, before }
+        params: { limit: MESSAGES_PAGE_SIZE, before },
       });
       if (currentChat.value?._id !== chatId) return false;
       const list = (response.data as Message[]).map((msg: Message) => ({
         ...msg,
-        reactions: msg.reactions || {}
+        reactions: msg.reactions || {},
       }));
       if (list.length < MESSAGES_PAGE_SIZE) {
         hasMoreOlderMessages.value = false;
@@ -155,12 +155,12 @@ export const useChatStore = defineStore('chat', () => {
     const previousMessages = [...messages.value];
     try {
       const response = await api.get(`/chats/${chatId}/messages`, {
-        params: { limit: MESSAGES_PAGE_SIZE, messageId }
+        params: { limit: MESSAGES_PAGE_SIZE, messageId },
       });
       if (currentChat.value?._id !== chatId) return false;
       const listUpTo = (response.data as Message[]).map((msg: Message) => ({
         ...msg,
-        reactions: msg.reactions || {}
+        reactions: msg.reactions || {},
       }));
       const found = listUpTo.some((m: Message) => m._id === messageId);
       if (!found) {
@@ -171,22 +171,21 @@ export const useChatStore = defineStore('chat', () => {
       const pinnedMsg = listUpTo.find((m: Message) => m._id === messageId) ?? listUpTo[listUpTo.length - 1];
       const pinnedTime = toDate(pinnedMsg.createdAt).getTime();
       const existingAfter = previousMessages.filter(
-        (m: Message) => m.chatId === chatId && toDate(m.createdAt).getTime() > pinnedTime
+        (m: Message) => m.chatId === chatId && toDate(m.createdAt).getTime() > pinnedTime,
       );
       const existingIds = new Set(existingAfter.map((m: Message) => m._id));
       let listAfter: Message[] = [];
       try {
-        const afterDate =
-          typeof pinnedMsg.createdAt === 'string'
-            ? pinnedMsg.createdAt
-            : (pinnedMsg.createdAt as Date).toISOString();
+        const afterDate = typeof pinnedMsg.createdAt === 'string'
+          ? pinnedMsg.createdAt
+          : (pinnedMsg.createdAt as Date).toISOString();
         const afterRes = await api.get(`/chats/${chatId}/messages`, {
-          params: { limit: MESSAGES_PAGE_SIZE, after: afterDate }
+          params: { limit: MESSAGES_PAGE_SIZE, after: afterDate },
         });
         if (currentChat.value?._id === chatId) {
           listAfter = (afterRes.data as Message[]).map((msg: Message) => ({
             ...msg,
-            reactions: msg.reactions || {}
+            reactions: msg.reactions || {},
           }));
         }
       } catch {
@@ -210,7 +209,9 @@ export const useChatStore = defineStore('chat', () => {
   };
 
   const sendMessage = async (chatId: string, content: string, type: 'text' | 'image' | 'file' = 'text', fileUrl?: string, replyTo?: string): Promise<void> => {
-    websocketService.send('message:send', { chatId, content, type, fileUrl, replyTo });
+    websocketService.send('message:send', {
+      chatId, content, type, fileUrl, replyTo,
+    });
   };
 
   const setCurrentChat = (chat: Chat | null): void => {
@@ -223,20 +224,20 @@ export const useChatStore = defineStore('chat', () => {
   };
 
   const addMessage = (message: Message): void => {
-    const senderId = typeof message.senderId === 'string' 
-      ? message.senderId 
+    const senderId = typeof message.senderId === 'string'
+      ? message.senderId
       : message.senderId.id;
-    
+
     const isFromCurrentUser = senderId === user.value?.id;
     const isCurrentChatOpen = currentChat.value && message.chatId === currentChat.value._id;
     const isSystemMessage = message.type === 'system';
-    
+
     // Проверяем, нет ли уже такого сообщения в массиве
-    const messageExists = messages.value.some(msg => msg._id === message._id);
+    const messageExists = messages.value.some((msg) => msg._id === message._id);
     if (messageExists) {
       return; // Сообщение уже существует, не добавляем дубликат
     }
-    
+
     // Воспроизводим звук только для обычных сообщений не от текущего пользователя
     if (!isFromCurrentUser && !isSystemMessage) {
       const chat = chats.value.find((c) => c._id === message.chatId);
@@ -247,12 +248,12 @@ export const useChatStore = defineStore('chat', () => {
         console.error('Ошибка воспроизведения звука:', error);
       }
     }
-    
+
     if (isCurrentChatOpen) {
       // Инициализируем реакции если их нет
       const messageWithReactions = {
         ...message,
-        reactions: message.reactions || {}
+        reactions: message.reactions || {},
       };
       messages.value.push(messageWithReactions);
       // Если сообщение не от текущего пользователя, помечаем как прочитанное автоматически
@@ -267,10 +268,10 @@ export const useChatStore = defineStore('chat', () => {
       }
     }
 
-    const chat = chats.value.find(c => c._id === message.chatId);
+    const chat = chats.value.find((c) => c._id === message.chatId);
     if (chat) {
       chat.lastMessage = message;
-      chats.value = chats.value.filter(c => c._id !== chat._id);
+      chats.value = chats.value.filter((c) => c._id !== chat._id);
       chats.value.unshift(chat);
     }
   };
@@ -281,14 +282,14 @@ export const useChatStore = defineStore('chat', () => {
 
   const markChatAsRead = (chatId: string): void => {
     // Помечаем все непрочитанные сообщения как прочитанные
-    const unreadMessages = messages.value.filter(msg => {
-      const senderId = typeof msg.senderId === 'string' 
-        ? msg.senderId 
+    const unreadMessages = messages.value.filter((msg) => {
+      const senderId = typeof msg.senderId === 'string'
+        ? msg.senderId
         : msg.senderId.id;
       return senderId !== user.value?.id && !msg.readBy.includes(user.value?.id || '');
     });
 
-    unreadMessages.forEach(msg => {
+    unreadMessages.forEach((msg) => {
       markAsRead(msg._id);
       // Добавляем текущего пользователя в readBy
       if (!msg.readBy.includes(user.value?.id || '')) {
@@ -302,15 +303,15 @@ export const useChatStore = defineStore('chat', () => {
 
   const markMessageAsRead = (messageId: string, userId: string): void => {
     // Обновляем статус прочитанности сообщения
-    const message = messages.value.find(m => m._id === messageId);
+    const message = messages.value.find((m) => m._id === messageId);
     if (message && !message.readBy.includes(userId)) {
       message.readBy.push(userId);
     }
 
     // Если это сообщение из текущего чата и от другого пользователя, уменьшаем счетчик
     if (currentChat.value && message && message.chatId === currentChat.value._id) {
-      const senderId = typeof message.senderId === 'string' 
-        ? message.senderId 
+      const senderId = typeof message.senderId === 'string'
+        ? message.senderId
         : message.senderId.id;
       if (senderId !== user.value?.id) {
         const currentCount = unreadCounts.value.get(message.chatId) || 0;
@@ -321,9 +322,7 @@ export const useChatStore = defineStore('chat', () => {
     }
   };
 
-  const getUnreadCount = (chatId: string): number => {
-    return unreadCounts.value.get(chatId) || 0;
-  };
+  const getUnreadCount = (chatId: string): number => unreadCounts.value.get(chatId) || 0;
 
   const totalUnreadCount = computed(() => {
     let total = 0;
@@ -335,8 +334,8 @@ export const useChatStore = defineStore('chat', () => {
 
   const isMessageUnread = (message: Message): boolean => {
     if (!user.value) return false;
-    const senderId = typeof message.senderId === 'string' 
-      ? message.senderId 
+    const senderId = typeof message.senderId === 'string'
+      ? message.senderId
       : message.senderId.id;
     // Сообщение непрочитанное, если оно не от текущего пользователя и не в списке readBy
     return senderId !== user.value.id && !message.readBy.includes(user.value.id);
@@ -384,14 +383,14 @@ export const useChatStore = defineStore('chat', () => {
   };
 
   const updateMessageContent = (messageId: string, updated: Partial<Message>): void => {
-    const index = messages.value.findIndex(msg => msg._id === messageId);
+    const index = messages.value.findIndex((msg) => msg._id === messageId);
     if (index !== -1) {
       const msg = messages.value[index];
       if (updated.content !== undefined) msg.content = updated.content;
       if (updated.updatedAt !== undefined) msg.updatedAt = updated.updatedAt;
       if (updated.reactions !== undefined) msg.reactions = updated.reactions || {};
     }
-    chats.value.forEach(chat => {
+    chats.value.forEach((chat) => {
       if (chat.lastMessage && chat.lastMessage._id === messageId && updated.content !== undefined) {
         chat.lastMessage.content = updated.content;
         if (updated.updatedAt !== undefined) chat.lastMessage.updatedAt = updated.updatedAt;
@@ -401,16 +400,16 @@ export const useChatStore = defineStore('chat', () => {
 
   const removeMessage = (messageId: string): void => {
     // Удаляем сообщение из списка сообщений
-    const index = messages.value.findIndex(msg => msg._id === messageId);
+    const index = messages.value.findIndex((msg) => msg._id === messageId);
     if (index !== -1) {
       messages.value.splice(index, 1);
     }
-    
+
     // Если это было последнее сообщение, обновляем lastMessage в чатах
-    chats.value.forEach(chat => {
+    chats.value.forEach((chat) => {
       if (chat.lastMessage && chat.lastMessage._id === messageId) {
         // Находим новое последнее сообщение в текущем чате
-        const chatMessages = messages.value.filter(msg => msg.chatId === chat._id);
+        const chatMessages = messages.value.filter((msg) => msg.chatId === chat._id);
         if (chatMessages.length > 0) {
           const lastMsg = chatMessages[chatMessages.length - 1];
           chat.lastMessage = {
@@ -420,7 +419,7 @@ export const useChatStore = defineStore('chat', () => {
             type: lastMsg.type,
             createdAt: lastMsg.createdAt,
             readBy: lastMsg.readBy,
-            reactions: lastMsg.reactions || {}
+            reactions: lastMsg.reactions || {},
           };
         } else {
           chat.lastMessage = undefined;
@@ -430,7 +429,7 @@ export const useChatStore = defineStore('chat', () => {
   };
 
   const updateMessageReactions = (messageId: string, reactions: { [emoji: string]: string[] }): void => {
-    const messageIndex = messages.value.findIndex(msg => msg._id === messageId);
+    const messageIndex = messages.value.findIndex((msg) => msg._id === messageId);
     if (messageIndex !== -1) {
       // Прямо обновляем свойство reactions для правильной реактивности Vue 3
       const message = messages.value[messageIndex];
@@ -439,7 +438,7 @@ export const useChatStore = defineStore('chat', () => {
       }
     }
     // Также обновляем реакции в lastMessage чатов, если сообщение является последним
-    chats.value.forEach(chat => {
+    chats.value.forEach((chat) => {
       if (chat.lastMessage && chat.lastMessage._id === messageId) {
         chat.lastMessage.reactions = reactions || {};
       }
@@ -463,7 +462,7 @@ export const useChatStore = defineStore('chat', () => {
       const response = await api.patch(`/chats/${chatId}/name`, { groupName });
       const updatedChat = response.data;
       // Обновляем чат в списке
-      const index = chats.value.findIndex(c => c._id === chatId);
+      const index = chats.value.findIndex((c) => c._id === chatId);
       if (index !== -1) {
         chats.value[index] = updatedChat;
       }
@@ -483,7 +482,7 @@ export const useChatStore = defineStore('chat', () => {
       const response = await api.patch(`/chats/${chatId}/avatar`, { groupAvatar });
       const updatedChat = response.data;
       // Обновляем чат в списке
-      const index = chats.value.findIndex(c => c._id === chatId);
+      const index = chats.value.findIndex((c) => c._id === chatId);
       if (index !== -1) {
         chats.value[index] = updatedChat;
       }
@@ -503,7 +502,7 @@ export const useChatStore = defineStore('chat', () => {
       const response = await api.post(`/chats/${chatId}/participants`, { participantIds });
       const updatedChat = response.data;
       // Обновляем чат в списке
-      const index = chats.value.findIndex(c => c._id === chatId);
+      const index = chats.value.findIndex((c) => c._id === chatId);
       if (index !== -1) {
         chats.value[index] = updatedChat;
       }
@@ -523,7 +522,7 @@ export const useChatStore = defineStore('chat', () => {
       const response = await api.delete(`/chats/${chatId}/participants`, { data: { participantIds } });
       const updatedChat = response.data;
       // Обновляем чат в списке
-      const index = chats.value.findIndex(c => c._id === chatId);
+      const index = chats.value.findIndex((c) => c._id === chatId);
       if (index !== -1) {
         chats.value[index] = updatedChat;
       }
@@ -573,7 +572,7 @@ export const useChatStore = defineStore('chat', () => {
   };
 
   const removeChatFromList = (chatId: string): void => {
-    chats.value = chats.value.filter(c => c._id !== chatId);
+    chats.value = chats.value.filter((c) => c._id !== chatId);
     // Если удаленный чат был открыт, закрываем его
     if (currentChat.value && currentChat.value._id === chatId) {
       setCurrentChat(null);
@@ -582,14 +581,13 @@ export const useChatStore = defineStore('chat', () => {
 
   const updateUserInChats = (updatedUser: User): void => {
     // Обновляем данные пользователя во всех чатах
-    chats.value.forEach(chat => {
+    chats.value.forEach((chat) => {
       // Обновляем участников чата
-      chat.participants = chat.participants.map(participant => {
+      chat.participants = chat.participants.map((participant) => {
         if (typeof participant === 'string') {
           return participant === updatedUser.id ? updatedUser : participant;
-        } else {
-          return participant.id === updatedUser.id ? updatedUser : participant;
         }
+        return participant.id === updatedUser.id ? updatedUser : participant;
       });
 
       // Обновляем админа группы если это он
@@ -598,26 +596,22 @@ export const useChatStore = defineStore('chat', () => {
           if (chat.admin === updatedUser.id) {
             chat.admin = updatedUser;
           }
-        } else {
-          if (chat.admin.id === updatedUser.id) {
-            chat.admin = updatedUser;
-          }
+        } else if (chat.admin.id === updatedUser.id) {
+          chat.admin = updatedUser;
         }
       }
 
       // Обновляем отправителей сообщений
-      messages.value.forEach(message => {
+      messages.value.forEach((message) => {
         // Обновляем senderId сообщения
         if (typeof message.senderId === 'string') {
           if (message.senderId === updatedUser.id) {
             message.senderId = updatedUser;
           }
-        } else {
-          if (message.senderId && message.senderId.id === updatedUser.id) {
-            message.senderId = updatedUser;
-          }
+        } else if (message.senderId && message.senderId.id === updatedUser.id) {
+          message.senderId = updatedUser;
         }
-        
+
         // Обновляем senderId в replyTo если есть
         if (message.replyTo && typeof message.replyTo !== 'string') {
           if (message.replyTo.senderId) {
@@ -625,10 +619,8 @@ export const useChatStore = defineStore('chat', () => {
               if (message.replyTo.senderId === updatedUser.id) {
                 message.replyTo.senderId = updatedUser;
               }
-            } else {
-              if (message.replyTo.senderId.id === updatedUser.id) {
-                message.replyTo.senderId = updatedUser;
-              }
+            } else if (message.replyTo.senderId.id === updatedUser.id) {
+              message.replyTo.senderId = updatedUser;
             }
           }
         }
@@ -637,12 +629,11 @@ export const useChatStore = defineStore('chat', () => {
 
     // Обновляем текущий чат если он открыт
     if (currentChat.value) {
-      currentChat.value.participants = currentChat.value.participants.map(participant => {
+      currentChat.value.participants = currentChat.value.participants.map((participant) => {
         if (typeof participant === 'string') {
           return participant === updatedUser.id ? updatedUser : participant;
-        } else {
-          return participant.id === updatedUser.id ? updatedUser : participant;
         }
+        return participant.id === updatedUser.id ? updatedUser : participant;
       });
 
       if (currentChat.value.admin) {
@@ -650,10 +641,8 @@ export const useChatStore = defineStore('chat', () => {
           if (currentChat.value.admin === updatedUser.id) {
             currentChat.value.admin = updatedUser;
           }
-        } else {
-          if (currentChat.value.admin.id === updatedUser.id) {
-            currentChat.value.admin = updatedUser;
-          }
+        } else if (currentChat.value.admin.id === updatedUser.id) {
+          currentChat.value.admin = updatedUser;
         }
       }
     }
@@ -666,7 +655,7 @@ export const useChatStore = defineStore('chat', () => {
       if (typeof updatedChat.lastMessage.senderId === 'object' && !updatedChat.lastMessage.senderId.username) {
         const senderId = updatedChat.lastMessage.senderId.id || updatedChat.lastMessage.senderId._id;
         if (senderId) {
-          const participant = updatedChat.participants.find(p => {
+          const participant = updatedChat.participants.find((p) => {
             const pId = typeof p === 'string' ? p : p.id;
             return pId === senderId;
           });
@@ -676,15 +665,15 @@ export const useChatStore = defineStore('chat', () => {
               username: participant.username || 'Пользователь',
               avatar: participant.avatar,
               status: participant.status,
-              lastSeen: participant.lastSeen
+              lastSeen: participant.lastSeen,
             };
           }
         }
       }
     }
-    
+
     // Обновляем чат в списке
-    const index = chats.value.findIndex(c => c._id === updatedChat._id);
+    const index = chats.value.findIndex((c) => c._id === updatedChat._id);
     if (index !== -1) {
       chats.value[index] = updatedChat;
     } else {
@@ -742,6 +731,6 @@ export const useChatStore = defineStore('chat', () => {
     deleteMessage,
     editMessage,
     updateMessageContent,
-    removeMessage
+    removeMessage,
   };
 });

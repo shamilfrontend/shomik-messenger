@@ -23,17 +23,18 @@ module.exports = {
   ],
   rules: {
     // Vue specific rules
+    'vue/block-order': ['error', { order: ['script', 'template', 'style'] }],
     'vue/multi-word-component-names': 'off',
     'vue/no-v-html': 'warn',
     'vue/require-default-prop': 'off',
     'vue/require-explicit-emits': 'warn',
-    
+
     // TypeScript specific rules
     '@typescript-eslint/no-explicit-any': 'warn',
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-    
+
     // Import rules
     'import/extensions': [
       'error',
@@ -49,7 +50,7 @@ module.exports = {
     'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
     'import/prefer-default-export': 'off',
     'import/no-unresolved': 'off', // TypeScript handles this
-    
+
     // General rules
     'no-console': ['warn', { allow: ['warn', 'error'] }],
     'no-debugger': 'warn',
