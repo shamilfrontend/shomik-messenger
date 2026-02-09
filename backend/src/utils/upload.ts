@@ -1,4 +1,3 @@
-import type { Request } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -21,7 +20,7 @@ const storage = multer.diskStorage({
   },
 });
 
-const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter: multer.Options['fileFilter'] = (req, file, cb) => {
   const allowedMimes = [
     'image/jpeg',
     'image/png',
