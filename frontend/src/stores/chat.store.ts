@@ -14,6 +14,7 @@ export const useChatStore = defineStore('chat', () => {
   const typingUsers = ref<Map<string, Set<string>>>(new Map());
   const unreadCounts = ref<Map<string, number>>(new Map());
   const loadingOlderMessages = ref(false);
+  const loadingMessages = ref(false);
   const hasMoreOlderMessages = ref(true);
   /** Флаг для ChatWindow: после первой загрузки сообщений чата нужно проскроллить вниз */
   const requestScrollToBottom = ref(0);
@@ -96,6 +97,7 @@ export const useChatStore = defineStore('chat', () => {
   };
 
   const loadMessages = async (chatId: string): Promise<void> => {
+    loadingMessages.value = true;
     try {
       hasMoreOlderMessages.value = true;
       const response = await api.get(`/chats/${chatId}/messages`, {
@@ -114,6 +116,8 @@ export const useChatStore = defineStore('chat', () => {
       requestScrollToBottom.value += 1;
     } catch (error) {
       console.error('Ошибка загрузки сообщений:', error);
+    } finally {
+      loadingMessages.value = false;
     }
   };
 
@@ -704,6 +708,7 @@ export const useChatStore = defineStore('chat', () => {
     loadOlderMessages,
     loadMessagesIncluding,
     loadingOlderMessages,
+    loadingMessages,
     hasMoreOlderMessages,
     sendMessage,
     setCurrentChat,

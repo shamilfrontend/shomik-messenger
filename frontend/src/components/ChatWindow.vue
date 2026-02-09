@@ -1495,6 +1495,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 					<button type="button" class="chat-window__pinned-btn chat-window__pinned-btn--unpin" @click.stop="unpinMessage" aria-label="Открепить">Открепить</button>
 				</div>
 			</div>
+			<div v-if="chatStore.loadingMessages" class="chat-window__messages-loader">
+				<div class="chat-window__messages-loader-spinner" aria-hidden="true" />
+				<span class="chat-window__messages-loader-text">Загрузка сообщений...</span>
+			</div>
 			<template v-for="message in messages" :key="message._id">
 				<!-- Системное сообщение -->
 				<div
@@ -2239,6 +2243,36 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
       @media (max-width: 768px) {
         padding-top: calc(0.75rem + 73px + 80px + env(safe-area-inset-top, 0px));
       }
+    }
+  }
+
+  &__messages-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 2rem;
+    min-height: 120px;
+  }
+
+  &__messages-loader-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: chat-window-loader-spin 0.8s linear infinite;
+  }
+
+  &__messages-loader-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  @keyframes chat-window-loader-spin {
+    to {
+      transform: rotate(360deg);
     }
   }
 
