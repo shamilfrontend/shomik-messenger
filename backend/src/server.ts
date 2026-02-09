@@ -61,15 +61,15 @@ https.createServer(httpsOptions, app)
 		console.log(`🔑 Сертификаты: ${CERT_PATH}`);
 		console.log('========================================');
 	})
-	.on('error', (err) => {
-		if (err.code === 'EACCES') {
+	.on('error', (err: any) => {
+		if (err?.code === 'EACCES') {
 			console.error(`ОШИБКА: Нет прав на использование порта ${PORT_HTTPS}`);
 			console.log('Запустите с sudo или используйте порт выше 1024');
-		} else if (err.code === 'EADDRINUSE') {
+		} else if (err?.code === 'EADDRINUSE') {
 			console.error(`ОШИБКА: Порт ${PORT_HTTPS} уже занят`);
 			console.log('Закройте другие серверы или измените порт');
 		} else {
-			console.error('ОШИБКА запуска сервера:', err.message);
+			console.error('ОШИБКА запуска сервера:', err?.message);
 		}
 	});
 
