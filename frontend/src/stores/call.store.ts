@@ -45,6 +45,7 @@ export const useCallStore = defineStore('call', () => {
   const groupCallAvailable = ref<GroupCallAvailable | null>(null);
   const isMuted = ref(false);
   const isVideoOff = ref(false);
+  const isScreenSharing = ref(false);
   const isConnecting = ref(false);
   /** Удалённые видеопотоки по userId (для видеозвонка) */
   const remoteStreams = ref<Record<string, MediaStream>>({});
@@ -61,6 +62,8 @@ export const useCallStore = defineStore('call', () => {
   let peerConnection: RTCPeerConnection | null = null;
   let peerConnections: Map<string, RTCPeerConnection> = new Map();
   let localStream: MediaStream | null = null;
+  let screenStream: MediaStream | null = null;
+  let originalVideoTrack: MediaStreamTrack | null = null;
   let remoteAudioRef: HTMLAudioElement | null = null;
   let localVideoRef: HTMLVideoElement | null = null;
   let combinedRemoteStream: MediaStream | null = null;
@@ -134,6 +137,9 @@ export const useCallStore = defineStore('call', () => {
       audio: audioConstraint,
       video: videoConstraint,
     });
+    if (needVideo && localStream.getVideoTracks().length > 0) {
+      originalVideoTrack = localStream.getVideoTracks()[0];
+    }
     if (localVideoRef && needVideo) {
       localVideoRef.srcObject = localStream;
     }
@@ -188,6 +194,12 @@ export const useCallStore = defineStore('call', () => {
       localStream.getTracks().forEach((t) => t.stop());
       localStream = null;
     }
+    if (screenStream) {
+      screenStream.getTracks().forEach((t) => t.stop());
+      screenStream = null;
+    }
+    originalVideoTrack = null;
+    isScreenSharing.value = false;
     combinedRemoteStream = null;
     remoteStreams.value = {};
     if (remoteAudioRef) {
@@ -525,6 +537,10 @@ export const useCallStore = defineStore('call', () => {
     setSelectedCamera(deviceId);
     if (!localStream) return;
     if (!navigator.mediaDevices?.getUserMedia) return;
+    // Если идет демонстрация экрана, сначала остановим её
+    if (isScreenSharing.value) {
+      await toggleScreenShare();
+    }
     const constraint: MediaTrackConstraints | boolean = deviceId ? { deviceId: { exact: deviceId } } : true;
     try {
       const newStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: constraint });
@@ -540,6 +556,7 @@ export const useCallStore = defineStore('call', () => {
       }
       newTrack.enabled = !isVideoOff.value;
       localStream.addTrack(newTrack);
+      originalVideoTrack = newTrack;
       newStream.getTracks().forEach((t) => {
         if (t !== newTrack) t.stop();
       });
@@ -552,6 +569,135 @@ export const useCallStore = defineStore('call', () => {
       peerConnections.forEach(replaceInPc);
     } catch (err) {
       console.error('switchVideoInput error:', err);
+    }
+  }
+
+  async function toggleScreenShare(): Promise<void> {
+    if (!localStream || !activeCall.value?.isVideo) return;
+    
+    try {
+      if (isScreenSharing.value) {
+        // Останавливаем демонстрацию экрана, возвращаем камеру
+        if (screenStream) {
+          screenStream.getTracks().forEach((t) => {
+            t.stop();
+            t.onended = null;
+          });
+          screenStream = null;
+        }
+        
+        if (originalVideoTrack && localStream) {
+          // Возвращаем оригинальную видеодорожку
+          const currentVideoTrack = localStream.getVideoTracks()[0];
+          if (currentVideoTrack) {
+            localStream.removeTrack(currentVideoTrack);
+            currentVideoTrack.stop();
+          }
+          originalVideoTrack.enabled = !isVideoOff.value;
+          localStream.addTrack(originalVideoTrack);
+          if (localVideoRef) localVideoRef.srcObject = localStream;
+          
+          // Заменяем трек во всех peer connections
+          const replaceInPc = (pc: RTCPeerConnection): void => {
+            const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+            if (sender) void sender.replaceTrack(originalVideoTrack);
+          };
+          if (peerConnection) replaceInPc(peerConnection);
+          peerConnections.forEach(replaceInPc);
+          
+          // Сохраняем originalVideoTrack для возможного повторного использования
+          // Не обнуляем, чтобы можно было снова переключиться на экран
+        } else {
+          // Если originalVideoTrack потерян, создаем новую видеодорожку
+          try {
+            const videoConstraint: boolean | MediaTrackConstraints = selectedCameraId.value
+              ? { deviceId: { ideal: selectedCameraId.value } }
+              : true;
+            const newStream = await navigator.mediaDevices.getUserMedia({
+              audio: false,
+              video: videoConstraint,
+            });
+            const newTrack = newStream.getVideoTracks()[0];
+            if (newTrack) {
+              const currentVideoTrack = localStream.getVideoTracks()[0];
+              if (currentVideoTrack) {
+                localStream.removeTrack(currentVideoTrack);
+                currentVideoTrack.stop();
+              }
+              newTrack.enabled = !isVideoOff.value;
+              localStream.addTrack(newTrack);
+              originalVideoTrack = newTrack;
+              if (localVideoRef) localVideoRef.srcObject = localStream;
+              const replaceInPc = (pc: RTCPeerConnection): void => {
+                const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+                if (sender) void sender.replaceTrack(newTrack);
+              };
+              if (peerConnection) replaceInPc(peerConnection);
+              peerConnections.forEach(replaceInPc);
+              newStream.getTracks().forEach((t) => {
+                if (t !== newTrack) t.stop();
+              });
+            }
+          } catch (err) {
+            console.error('Failed to restore camera:', err);
+          }
+        }
+        
+        isScreenSharing.value = false;
+      } else {
+        // Начинаем демонстрацию экрана
+        if (!navigator.mediaDevices?.getDisplayMedia) {
+          console.error('Screen sharing not supported');
+          return;
+        }
+        
+        // Сохраняем текущую видеодорожку
+        const currentVideoTrack = localStream.getVideoTracks()[0];
+        if (currentVideoTrack) {
+          originalVideoTrack = currentVideoTrack;
+        }
+        
+        // Запрашиваем доступ к экрану
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: 'always' } as MediaTrackConstraints,
+          audio: false,
+        });
+        
+        const screenTrack = screenStream.getVideoTracks()[0];
+        if (!screenTrack) {
+          screenStream.getTracks().forEach((t) => t.stop());
+          screenStream = null;
+          return;
+        }
+        
+        // Обработка остановки демонстрации экрана пользователем
+        screenTrack.onended = () => {
+          if (isScreenSharing.value) {
+            toggleScreenShare();
+          }
+        };
+
+        // Заменяем видеодорожку на экран
+        if (currentVideoTrack) {
+          localStream.removeTrack(currentVideoTrack);
+        }
+        screenTrack.enabled = true;
+        localStream.addTrack(screenTrack);
+        if (localVideoRef) localVideoRef.srcObject = localStream;
+        
+        // Заменяем трек во всех peer connections
+        const replaceInPc = (pc: RTCPeerConnection): void => {
+          const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+          if (sender) void sender.replaceTrack(screenTrack);
+        };
+        if (peerConnection) replaceInPc(peerConnection);
+        peerConnections.forEach(replaceInPc);
+        
+        isScreenSharing.value = true;
+      }
+    } catch (err) {
+      console.error('toggleScreenShare error:', err);
+      isScreenSharing.value = false;
     }
   }
 
@@ -569,6 +715,7 @@ export const useCallStore = defineStore('call', () => {
     groupCallAvailable,
     isMuted,
     isVideoOff,
+    isScreenSharing,
     isConnecting,
     remoteStreams,
     audioDevices,
@@ -600,6 +747,7 @@ export const useCallStore = defineStore('call', () => {
     setVideoOff,
     switchAudioInput,
     switchVideoInput,
+    toggleScreenShare,
     setIncomingCall,
     setCallEnded,
     cleanup,
