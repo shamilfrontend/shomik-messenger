@@ -76,6 +76,67 @@ const getReplyToText = (replyTo: any): string => {
   }
   return replyTo.content || '';
 };
+
+const hasLinks = (content: string): boolean => {
+  if (!content) return false;
+  // Регулярное выражение для обнаружения URL
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/gi;
+  return urlRegex.test(content);
+};
+
+const renderMessageContent = (content: string): string => {
+  if (!content) return '';
+  
+  let result = content;
+  
+  // Сначала заменяем [icq:filename.gif] на временные плейсхолдеры, чтобы не обрабатывать их как ссылки
+  const icqPlaceholders: string[] = [];
+  result = result.replace(
+    /\[icq:([^\]]+\.gif)\]/g,
+    (_match, filename) => {
+      const placeholder = `__ICQ_PLACEHOLDER_${icqPlaceholders.length}__`;
+      icqPlaceholders.push(`<img src="/images/icq_smiles_hd/${filename}" alt="${filename}" class="message-view-modal__icq-smile" />`);
+      return placeholder;
+    },
+  );
+  
+  // Затем заменяем URL на ссылки
+  const urlRegex = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+|[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}[^\s<>"']*)/gi;
+  
+  result = result.replace(urlRegex, (url) => {
+    // Пропускаем плейсхолдеры ICQ
+    if (url.includes('__ICQ_PLACEHOLDER')) {
+      return url;
+    }
+    
+    // Если URL уже внутри тега, не обрабатываем
+    if (/<[^>]*>/.test(url)) {
+      return url;
+    }
+    
+    // Добавляем протокол если его нет
+    let href = url;
+    if (!url.match(/^https?:\/\//i)) {
+      href = url.match(/^www\./i) ? `http://${url}` : `https://${url}`;
+    }
+    
+    // Экранируем HTML для безопасности
+    const escapedUrl = url.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="message-view-modal__link">${escapedUrl}</a>`;
+  });
+  
+  // Возвращаем ICQ смайлы обратно
+  icqPlaceholders.forEach((placeholder, index) => {
+    result = result.replace(`__ICQ_PLACEHOLDER_${index}__`, placeholder);
+  });
+  
+  return result;
+};
+
+const hasIcqSmiles = (content: string): boolean => {
+  return /\[icq:[^\]]+\.gif\]/.test(content || '');
+};
 </script>
 
 <template>
@@ -102,8 +163,28 @@ const getReplyToText = (replyTo: any): string => {
             <div v-if="message.type === 'image' && message.fileUrl" class="message-view-modal__image">
               <img :src="imageUrl" :alt="message.content || 'Изображение'" />
             </div>
-            <div v-else class="message-view-modal__text">{{ message.content }}</div>
-            <div v-if="message.type === 'image' && message.content" class="message-view-modal__caption">{{ message.content }}</div>
+            <div
+              v-else
+              class="message-view-modal__text"
+              :class="{ 'message-view-modal__text--html': hasIcqSmiles(message.content || '') || hasLinks(message.content || '') }"
+            >
+              <span
+                v-if="hasIcqSmiles(message.content || '') || hasLinks(message.content || '')"
+                v-html="renderMessageContent(message.content || '')"
+              />
+              <span v-else>{{ message.content }}</span>
+            </div>
+            <div
+              v-if="message.type === 'image' && message.content"
+              class="message-view-modal__caption"
+              :class="{ 'message-view-modal__caption--html': hasIcqSmiles(message.content) || hasLinks(message.content) }"
+            >
+              <span
+                v-if="hasIcqSmiles(message.content) || hasLinks(message.content)"
+                v-html="renderMessageContent(message.content)"
+              />
+              <span v-else>{{ message.content }}</span>
+            </div>
             <div class="message-view-modal__footer">
               <span class="message-view-modal__time">{{ formatMessageTime(message.createdAt) }}</span>
             </div>
@@ -248,6 +329,15 @@ const getReplyToText = (replyTo: any): string => {
   color: var(--text-secondary);
   word-wrap: break-word;
   overflow-wrap: break-word;
+
+  img {
+    display: inline-block;
+    vertical-align: middle;
+    width: 20px;
+    height: 20px;
+    margin: 0 2px;
+    object-fit: contain;
+  }
 }
 
 .message-view-modal__image {
@@ -277,6 +367,46 @@ const getReplyToText = (replyTo: any): string => {
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow-wrap: break-word;
+
+  &--html {
+    white-space: normal;
+  }
+}
+
+.message-view-modal__caption {
+  color: var(--text-secondary);
+}
+
+.message-view-modal__caption {
+  &--html {
+    white-space: normal;
+  }
+}
+
+.message-view-modal__icq-smile {
+  display: inline-block;
+  vertical-align: middle;
+  width: 28px;
+  height: 28px;
+  margin: 0 2px;
+  object-fit: contain;
+  image-rendering: high-quality;
+}
+
+.message-view-modal__link {
+  color: inherit;
+  text-decoration: underline;
+  word-break: break-all;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.8;
+  }
+
+  &:visited {
+    color: inherit;
+    opacity: 0.9;
+  }
 }
 
 .message-view-modal__footer {

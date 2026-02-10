@@ -974,6 +974,107 @@ const copyMessageToClipboard = async (message: Message): Promise<void> => {
   }
 };
 
+const hasLinks = (content: string): boolean => {
+  if (!content) return false;
+  // Регулярное выражение для обнаружения URL
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/gi;
+  return urlRegex.test(content);
+};
+
+const renderMessageContent = (content: string): string => {
+  if (!content) return '';
+  
+  let result = content;
+  
+  // Сначала заменяем [icq:filename.gif] на временные плейсхолдеры, чтобы не обрабатывать их как ссылки
+  const icqPlaceholders: string[] = [];
+  result = result.replace(
+    /\[icq:([^\]]+\.gif)\]/g,
+    (_match, filename) => {
+      const placeholder = `__ICQ_PLACEHOLDER_${icqPlaceholders.length}__`;
+      icqPlaceholders.push(`<img src="/images/icq_smiles_hd/${filename}" alt="${filename}" class="chat-window__icq-smile" />`);
+      return placeholder;
+    },
+  );
+  
+  // Затем заменяем URL на ссылки
+  // Регулярное выражение для обнаружения URL (http, https, www, или домены)
+  const urlRegex = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+|[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}[^\s<>"']*)/gi;
+  
+  result = result.replace(urlRegex, (url) => {
+    // Пропускаем плейсхолдеры ICQ
+    if (url.includes('__ICQ_PLACEHOLDER')) {
+      return url;
+    }
+    
+    // Если URL уже внутри тега, не обрабатываем
+    if (/<[^>]*>/.test(url)) {
+      return url;
+    }
+    
+    // Добавляем протокол если его нет
+    let href = url;
+    if (!url.match(/^https?:\/\//i)) {
+      href = url.match(/^www\./i) ? `http://${url}` : `https://${url}`;
+    }
+    
+    // Экранируем HTML для безопасности
+    const escapedUrl = url.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="chat-window__message-link">${escapedUrl}</a>`;
+  });
+  
+  // Возвращаем ICQ смайлы обратно
+  icqPlaceholders.forEach((placeholder, index) => {
+    result = result.replace(`__ICQ_PLACEHOLDER_${index}__`, placeholder);
+  });
+  
+  return result;
+};
+
+const hasIcqSmiles = (content: string): boolean => {
+  return /\[icq:[^\]]+\.gif\]/.test(content || '');
+};
+
+const isOnlyEmojis = (content: string): boolean => {
+  if (!content || typeof content !== 'string') return false;
+  
+  const trimmedContent = content.trim();
+  if (!trimmedContent) return false;
+  
+  // Убираем все ICQ смайлы из текста
+  let text = trimmedContent.replace(/\[icq:[^\]]+\.gif\]/g, '');
+  
+  // Убираем все пробелы, переносы строк и другие пробельные символы
+  text = text.replace(/\s+/g, '');
+  
+  // Если после удаления ICQ смайлов и пробелов ничего не осталось,
+  // значит сообщение состояло только из ICQ смайлов (и пробелов)
+  if (!text) {
+    // Проверяем, что были ICQ смайлы
+    return /\[icq:[^\]]+\.gif\]/.test(trimmedContent);
+  }
+  
+  // Проверяем наличие обычных символов (буквы, цифры, знаки препинания кроме эмоджи)
+  // Если есть обычные символы, значит это не только эмоджи
+  const hasRegularChars = /[a-zA-Z0-9\u0400-\u04FF\u0500-\u052F\u2DE0-\u2DFF\uA640-\uA69F\u0021-\u007E\u00A0-\u00FF\u0100-\u017F\u0180-\u024F\u1E00-\u1EFF]/.test(text);
+  
+  if (hasRegularChars) {
+    return false;
+  }
+  
+  // Проверяем, что все оставшиеся символы являются эмоджи
+  // Используем Unicode свойства для эмоджи
+  try {
+    const emojiPattern = /^[\p{Emoji}\p{Emoji_Presentation}\p{Emoji_Modifier_Base}\p{Emoji_Component}\u{FE0F}\u{200D}]+$/u;
+    return emojiPattern.test(text);
+  } catch {
+    // Fallback: если регулярное выражение не поддерживается, проверяем вручную
+    // Проверяем, что нет обычных печатных символов
+    return !/[!-~]/.test(text);
+  }
+};
+
 const enterSelectionMode = (initialMessage?: Message): void => {
   selectionMode.value = true;
   const next = new Set<string>();
@@ -1616,8 +1717,20 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 									<a :href="getImageUrl(message.fileUrl) || message.fileUrl" target="_blank">{{ message.content }}</a>
 								</div>
 								<div v-else class="chat-window__message-text-wrapper">
-									<div class="chat-window__message-text">
-										{{ shouldTruncateMessage(message) ? getTruncatedText(message.content) : message.content }}
+									<div
+										class="chat-window__message-text"
+										:class="{
+											'chat-window__message-text--html': hasIcqSmiles(message.content || '') || hasLinks(message.content || ''),
+											'chat-window__message-text--only-emojis': isOnlyEmojis(message.content || '')
+										}"
+									>
+										<span
+											v-if="hasIcqSmiles(message.content || '') || hasLinks(message.content || '')"
+											v-html="renderMessageContent(shouldTruncateMessage(message) ? getTruncatedText(message.content) : (message.content || ''))"
+										/>
+										<span v-else>
+											{{ shouldTruncateMessage(message) ? getTruncatedText(message.content) : message.content }}
+										</span>
 									</div>
 									<button
 										v-if="shouldTruncateMessage(message)"
@@ -2711,6 +2824,45 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     word-wrap: break-word;
     overflow-wrap: break-word;
     white-space: pre-wrap;
+    color: var(--text-primary);
+
+    &--html {
+      white-space: normal;
+      line-height: 1.5;
+    }
+
+    &--only-emojis {
+      --message-text-size: 48px;
+      font-size: 48px;
+      line-height: 1.2;
+    }
+  }
+
+  &__icq-smile {
+    display: inline-block;
+    vertical-align: middle;
+    width: 24px;
+    height: 24px;
+    margin: 0 2px;
+    object-fit: contain;
+    image-rendering: high-quality;
+  }
+
+  &__message-link {
+    color: inherit;
+    text-decoration: underline;
+    word-break: break-all;
+    transition: opacity 0.2s;
+		outline: 1px solid red;
+
+    &:hover {
+      opacity: 0.8;
+    }
+
+    &:visited {
+      color: inherit;
+      opacity: 0.9;
+    }
   }
 
   &__message-expand-button {

@@ -109,3 +109,11 @@ $tablet: 1024px;
 @media (min-width: $mobile + 1px) and (max-width: $tablet) {
   /* Планшетные стили при необходимости */
 }
+
+a {
+  color: inherit;
+
+  &:hover {
+    text-decoration: none;
+  }
+}

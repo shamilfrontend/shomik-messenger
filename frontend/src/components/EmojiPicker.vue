@@ -49,6 +49,7 @@ const categories = [
   { name: 'activities', icon: '⚽' },
   { name: 'objects', icon: '💡' },
   { name: 'symbols', icon: '❤️' },
+  { name: 'icq', icon: 'give_rose.gif', isImage: true },
 ];
 
 const emojis: Record<string, string[]> = {
@@ -204,7 +205,111 @@ const emojis: Record<string, string[]> = {
     '📢', '💬', '💭', '🗯️', '♠️', '♣️', '♥️', '♦️', '🃏', '🎴',
     '🀄', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘',
     '🕙', '🕚', '🕛', '🕜', '🕝', '🕞', '🕟', '🕠', '🕡', '🕢',
-    '🕣', '🕤', '🕥', '🕦', '🕧',
+    '🕣', '🕤', '🕥', '🕦',     '🕧',
+  ],
+  icq: [
+    'acute.gif',
+    'aggressive.gif',
+    'air_kiss.gif',
+    'angel.gif',
+    'bad.gif',
+    'bb.gif',
+    'beach.gif',
+    'beee.gif',
+    'big_boss.gif',
+    'biggrin.gif',
+    'blum2.gif',
+    'blush.gif',
+    'boast.gif',
+    'bomb.gif',
+    'boredom.gif',
+    'bye.gif',
+    'censored.gif',
+    'clapping.gif',
+    'cray.gif',
+    'crazy.gif',
+    'curtsey.gif',
+    'dance4.gif',
+    'dash1.gif',
+    'dirol.gif',
+    'drinks.gif',
+    'feminist.gif',
+    'flirt.gif',
+    'focus.gif',
+    'fool.gif',
+    'friends.gif',
+    'gamer4.gif',
+    'girl_cray2.gif',
+    'girl_crazy.gif',
+    'girl_drink4.gif',
+    'girl_haha.gif',
+    'girl_hospital.gif',
+    'girl_impossible.gif',
+    'girl_in_love.gif',
+    'girl_sigh.gif',
+    'give_heart2.gif',
+    'give_rose.gif',
+    'good.gif',
+    'heart.gif',
+    'help.gif',
+    'hi.gif',
+    'hunter.gif',
+    'hysteric.gif',
+    'i-m_so_happy.gif',
+    'ireful1.gif',
+    'king.gif',
+    'kiss2.gif',
+    'kiss3.gif',
+    'lazy.gif',
+    'lol.gif',
+    'mail1.gif',
+    'mamba.gif',
+    'mega_shock.gif',
+    'mocking.gif',
+    'moil.gif',
+    'music.gif',
+    'nea.gif',
+    'new_russian.gif',
+    'ok.gif',
+    'paint2.gif',
+    'pardon.gif',
+    'party2.gif',
+    'pleasantry.gif',
+    'popcorn1.gif',
+    'prankster2.gif',
+    'preved.gif',
+    'punish.gif',
+    'rofl.gif',
+    'sad.gif',
+    'sarcastic.gif',
+    'scare.gif',
+    'scratch_one-s_head.gif',
+    'search.gif',
+    'secret.gif',
+    'shock.gif',
+    'shout.gif',
+    'slow.gif',
+    'smile.gif',
+    'smoke.gif',
+    'sorry2.gif',
+    'spiteful.gif',
+    'spruce_up.gif',
+    'stop.gif',
+    'tease.gif',
+    'tender.gif',
+    'thank_you2.gif',
+    'this.gif',
+    'training1.gif',
+    'unknown.gif',
+    'vampire.gif',
+    'vava.gif',
+    'victory.gif',
+    'wacko2.gif',
+    'wink.gif',
+    'wizard.gif',
+    'yahoo.gif',
+    'yes3.gif',
+    'yess.gif',
   ],
 };
 
@@ -215,6 +320,10 @@ const getCurrentCategoryEmojis = (): string[] => {
   return emojis[activeCategory.value] || [];
 };
 
+const isIcqCategory = (): boolean => activeCategory.value === 'icq';
+
+const getIcqImageUrl = (filename: string): string => `/images/icq_smiles_hd/${filename}`;
+
 const addToRecent = (emoji: string): void => {
   const next = [emoji, ...recentEmojis.value.filter((e) => e !== emoji)].slice(0, RECENT_EMOJIS_MAX);
   recentEmojis.value = next;
@@ -222,8 +331,10 @@ const addToRecent = (emoji: string): void => {
 };
 
 const selectEmoji = (emoji: string): void => {
-  addToRecent(emoji);
-  emit('select', emoji);
+  // Для ICQ смайлов используем специальный формат
+  const emojiToSend = isIcqCategory() ? `[icq:${emoji}]` : emoji;
+  addToRecent(emojiToSend);
+  emit('select', emojiToSend);
 };
 
 // Закрытие при клике вне компонента
@@ -257,7 +368,13 @@ onUnmounted(() => {
           @click="activeCategory = category.name"
           :class="['emoji-picker__category', { 'emoji-picker__category--active': activeCategory === category.name }]"
         >
-          {{ category.icon }}
+          <img
+            v-if="category.isImage"
+            :src="getIcqImageUrl(category.icon)"
+            :alt="category.name"
+            class="emoji-picker__category-icon"
+          />
+          <span v-else>{{ category.icon }}</span>
         </button>
       </div>
       <div class="emoji-picker__emojis">
@@ -270,8 +387,15 @@ onUnmounted(() => {
             :key="emoji"
             @click="selectEmoji(emoji)"
             class="emoji-picker__emoji"
+            :class="{ 'emoji-picker__emoji--image': isIcqCategory() }"
           >
-            {{ emoji }}
+            <img
+              v-if="isIcqCategory()"
+              :src="getIcqImageUrl(emoji)"
+              :alt="emoji"
+              class="emoji-picker__icq-image"
+            />
+            <span v-else>{{ emoji }}</span>
           </button>
         </template>
       </div>
@@ -353,6 +477,13 @@ onUnmounted(() => {
       background: var(--accent-color);
       opacity: 0.8;
     }
+  }
+
+  &__category-icon {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    image-rendering: high-quality;
   }
 
   &__empty {
@@ -441,6 +572,17 @@ onUnmounted(() => {
     &:active {
       transform: scale(1.1);
     }
+
+    &--image {
+      padding: 2px;
+    }
+  }
+
+  &__icq-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
   }
 }
 </style>
