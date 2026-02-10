@@ -11,6 +11,7 @@ import UserInfoModal from './UserInfoModal.vue';
 import GroupSettingsModal from './GroupSettingsModal.vue';
 import MessageViewModal from './MessageViewModal.vue';
 import ContextMenu from './ContextMenu.vue';
+import Tooltip from './Tooltip.vue';
 import type { Message, User } from '../types';
 import { getImageUrl } from '../utils/image';
 import { isUserOnline, getComputedStatus } from '../utils/status';
@@ -1264,7 +1265,14 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				</svg>
 			</button>
 			<div class="chat-window__header-info">
-				<div class="chat-window__avatar" role="button" tabindex="0" @click="handleHeaderAvatarClick" @keydown.enter="handleHeaderAvatarClick" @keydown.space.prevent="handleHeaderAvatarClick">
+				<div
+					class="chat-window__avatar"
+					role="button"
+					tabindex="0"
+					@click="handleHeaderAvatarClick"
+					@keydown.enter="handleHeaderAvatarClick"
+					@keydown.space.prevent="handleHeaderAvatarClick"
+				>
 					<img
 						v-if="getAvatar()"
 						:src="getAvatar()"
@@ -1292,56 +1300,60 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 					<span v-if="getStatus()" class="chat-window__status">{{ getStatus() }}</span>
 				</div>
 			</div>
+		<Tooltip :text="callButtonTitle('Голосовой звонок')" position="bottom">
 			<button
 				v-if="currentChat && currentChat.type === 'private' && getOtherParticipant()"
 				@click="handleStartCall"
 				:disabled="callsDisabledInProd || callStore.isConnecting || !!callStore.activeCall"
 				class="chat-window__call-button"
 				:aria-label="callButtonTitle('Голосовой звонок')"
-				:title="callButtonTitle('Голосовой звонок')"
 			>
 				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
 				</svg>
 			</button>
+		</Tooltip>
+		<Tooltip :text="callButtonTitle('Видеозвонок')" position="bottom">
 			<button
 				v-if="currentChat && currentChat.type === 'private' && getOtherParticipant()"
 				@click="handleStartVideoCall"
 				:disabled="callsDisabledInProd || callStore.isConnecting || !!callStore.activeCall"
 				class="chat-window__call-button"
 				:aria-label="callButtonTitle('Видеозвонок')"
-				:title="callButtonTitle('Видеозвонок')"
 			>
 				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M23 7l-7 5 7 5V7z"></path>
 					<rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
 				</svg>
 			</button>
+		</Tooltip>
+		<Tooltip :text="callButtonTitle('Начать групповой звонок')" position="bottom">
 			<button
 				v-if="currentChat && currentChat.type === 'group' && !callStore.activeCall && (!callStore.groupCallAvailable || callStore.groupCallAvailable.chatId !== currentChat._id)"
 				@click="handleStartGroupCall"
 				:disabled="callsDisabledInProd || callStore.isConnecting"
 				class="chat-window__call-button"
 				:aria-label="callButtonTitle('Групповой звонок')"
-				:title="callButtonTitle('Начать групповой звонок')"
 			>
 				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
 				</svg>
 			</button>
+		</Tooltip>
+		<Tooltip :text="callButtonTitle('Начать групповой видеозвонок')" position="bottom">
 			<button
 				v-if="currentChat && currentChat.type === 'group' && !callStore.activeCall && (!callStore.groupCallAvailable || callStore.groupCallAvailable.chatId !== currentChat._id)"
 				@click="handleStartGroupVideoCall"
 				:disabled="callsDisabledInProd || callStore.isConnecting"
 				class="chat-window__call-button"
 				:aria-label="callButtonTitle('Групповой видеозвонок')"
-				:title="callButtonTitle('Начать групповой видеозвонок')"
 			>
 				<svg width="20" height="20" viewBox="0 0 24 24" style="fill: none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M23 7l-7 5 7 5V7z"></path>
 					<rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
 				</svg>
 			</button>
+		</Tooltip>
 		</div>
 
 		<div v-else class="chat-window__empty">

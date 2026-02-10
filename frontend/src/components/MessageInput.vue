@@ -6,6 +6,7 @@ import { useNotifications } from '../composables/useNotifications';
 import { compressImageToBase64 } from '../utils/imageCompress';
 import FileUpload from './FileUpload.vue';
 import EmojiPicker from './EmojiPicker.vue';
+import Tooltip from './Tooltip.vue';
 import type { Message } from '../types';
 
 const props = defineProps<{
@@ -27,7 +28,6 @@ const previewFile = ref<{ url: string; filename: string; type: string } | null>(
 const inputField = ref<HTMLTextAreaElement | null>(null);
 const imageInputRef = ref<HTMLInputElement | null>(null);
 const showEmojiPicker = ref(false);
-const showVoiceTooltip = ref(false);
 let typingTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // Expose метод для фокуса извне
@@ -316,11 +316,9 @@ const insertEmoji = (emoji: string): void => {
         />
       </div>
 
-			<div class="message-input__voice-wrapper">
+		<div class="message-input__voice-wrapper">
+			<Tooltip text="В разработке" position="top">
 				<button
-					@click="showVoiceTooltip = !showVoiceTooltip"
-					@mouseenter="showVoiceTooltip = true"
-					@mouseleave="showVoiceTooltip = false"
 					class="message-input__voice-button"
 					type="button"
 					aria-label="Голосовое сообщение"
@@ -332,10 +330,8 @@ const insertEmoji = (emoji: string): void => {
 						<line x1="8" y1="23" x2="16" y2="23"></line>
 					</svg>
 				</button>
-				<div v-if="showVoiceTooltip" class="message-input__voice-tooltip">
-					СКОРО БУДЕТ!
-				</div>
-			</div>
+			</Tooltip>
+		</div>
 
 			<button
 				@click="handleSend"
@@ -561,44 +557,6 @@ const insertEmoji = (emoji: string): void => {
     }
   }
 
-  &__voice-tooltip {
-    position: absolute;
-    bottom: calc(100% + 0.5rem);
-    right: 0;
-    padding: 0.5rem 0.75rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    color: var(--text-primary);
-    font-size: 0.75rem;
-    font-weight: 600;
-    white-space: nowrap;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 10;
-    pointer-events: none;
-    max-width: calc(100vw - 2rem);
-
-    @media (min-width: 769px) {
-      left: 50%;
-      right: auto;
-      transform: translateX(-50%);
-    }
-
-    &::after {
-      content: '';
-      position: absolute;
-      top: 100%;
-      right: 1rem;
-      border: 6px solid transparent;
-      border-top-color: var(--bg-secondary);
-
-      @media (min-width: 769px) {
-        right: auto;
-        left: 50%;
-        transform: translateX(-50%);
-      }
-    }
-  }
 
   &__preview {
     padding: 0.5rem 1rem;
