@@ -5,3 +5,7 @@ import AuthForm from '../components/AuthForm.vue';
 <template>
   <AuthForm />
 </template>
+
+<style scoped lang="scss">
+// Пустой стиль для предотвращения ошибки предзагрузки CSS
+</style>
