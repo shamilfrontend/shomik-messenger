@@ -55,7 +55,6 @@ export default defineConfig({
         },
       },
     },
-    cssMinify: 'lightningcss',
   },
   preview: {
     port: 3000,
