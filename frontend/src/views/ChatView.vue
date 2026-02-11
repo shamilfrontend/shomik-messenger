@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  ref, onMounted, watch, computed, onUnmounted,
+  ref, onMounted, watch, computed, onUnmounted, nextTick,
 } from 'vue';
 import type { ComponentPublicInstance } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -9,6 +9,8 @@ import ChatWindow from '../components/ChatWindow.vue';
 import NewChat from '../components/NewChat.vue';
 import CreateGroupModal from '../components/CreateGroupModal.vue';
 import ProfileView from './ProfileView.vue';
+import CallsView from './CallsView.vue';
+import TasksView from './TasksView.vue';
 import { useChatStore } from '../stores/chat.store';
 import { useWebSocket } from '../composables/useWebSocket';
 import api from '../services/api';
@@ -18,11 +20,169 @@ const chatStore = useChatStore();
 const route = useRoute();
 const router = useRouter();
 const chatWindowRef = ref<ComponentPublicInstance<{ scrollToBottom:() => void }> | null>(null);
+const chatListRef = ref<ComponentPublicInstance<{ getCallById: (id: string) => any; getCallsHistory: () => any[]; getTaskById: (id: string) => any; getTasks: () => any[] }> | null>(null);
 const showNewChat = ref(false);
 const showNewGroup = ref(false);
 const isMobile = ref(window.innerWidth <= 768);
 const showChatWindow = computed(() => !!route.params.id || route.path === '/chat/new' || !!route.query.userId);
-const showProfile = computed(() => route.path === '/profile');
+const showProfile = computed(() => route.path.startsWith('/profile'));
+const showCalls = computed(() => route.path.startsWith('/calls'));
+const showTasks = computed(() => route.path.startsWith('/tasks'));
+const profileSection = computed(() => {
+  const path = route.path;
+  if (path === '/profile/me') return 'me';
+  if (path === '/profile/design') return 'design';
+  if (path === '/profile/audio-and-video') return 'audio-and-video';
+  if (path === '/profile/language') return 'language';
+  if (path === '/profile/sessions') return 'sessions';
+  return null;
+});
+const callId = computed(() => route.params.callId as string | undefined);
+const isNewCall = computed(() => route.path === '/calls/new');
+const selectedCall = ref<any>(null);
+const taskId = computed(() => route.params.taskId as string | undefined);
+const isNewTask = computed(() => route.path === '/tasks/new');
+const selectedTask = ref<any>(null);
+
+const loadCall = async (): Promise<void> => {
+  if (!callId.value || isNewCall.value) {
+    selectedCall.value = null;
+    return;
+  }
+  
+  // Ждем, пока компонент ChatList будет готов
+  let attempts = 0;
+  const maxAttempts = 10;
+  
+  const tryLoadCall = async (): Promise<void> => {
+    await nextTick();
+    
+    if (chatListRef.value) {
+      try {
+        if (typeof chatListRef.value.getCallById === 'function') {
+          const call = chatListRef.value.getCallById(callId.value);
+          if (call) {
+            selectedCall.value = call;
+            return;
+          }
+        }
+        // Если функция еще не доступна, попробуем через getCallsHistory
+        if (typeof chatListRef.value.getCallsHistory === 'function') {
+          const calls = chatListRef.value.getCallsHistory();
+          const call = calls.find((c: any) => c.id === callId.value);
+          if (call) {
+            selectedCall.value = call;
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Ошибка загрузки звонка:', error);
+      }
+    }
+    
+    // Если не получилось, пробуем еще раз
+    attempts++;
+    if (attempts < maxAttempts) {
+      setTimeout(tryLoadCall, 50);
+    } else {
+      selectedCall.value = null;
+    }
+  };
+  
+  await tryLoadCall();
+};
+
+watch(callId, () => {
+  if (callId.value) {
+    loadCall();
+  } else {
+    selectedCall.value = null;
+  }
+}, { immediate: true });
+
+watch(() => chatListRef.value, () => {
+  if (callId.value && chatListRef.value) {
+    loadCall();
+  }
+});
+
+const loadTask = async (): Promise<void> => {
+  if (!taskId.value || isNewTask.value) {
+    selectedTask.value = null;
+    return;
+  }
+  
+  // Ждем, пока компонент ChatList будет готов
+  let attempts = 0;
+  const maxAttempts = 10;
+  
+  const tryLoadTask = async (): Promise<void> => {
+    await nextTick();
+    
+    if (chatListRef.value) {
+      try {
+        if (typeof chatListRef.value.getTaskById === 'function') {
+          const task = chatListRef.value.getTaskById(taskId.value);
+          if (task) {
+            selectedTask.value = task;
+            return;
+          }
+        }
+        // Если функция еще не доступна, попробуем через getTasks
+        if (typeof chatListRef.value.getTasks === 'function') {
+          const tasks = chatListRef.value.getTasks();
+          const task = tasks.find((t: any) => t.id === taskId.value);
+          if (task) {
+            selectedTask.value = task;
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Ошибка загрузки задачи:', error);
+      }
+    }
+    
+    // Если не получилось, пробуем еще раз
+    attempts++;
+    if (attempts < maxAttempts) {
+      setTimeout(tryLoadTask, 50);
+    } else {
+      selectedTask.value = null;
+    }
+  };
+  
+  await tryLoadTask();
+};
+
+watch(taskId, () => {
+  if (taskId.value) {
+    loadTask();
+  } else {
+    selectedTask.value = null;
+  }
+}, { immediate: true });
+
+watch(() => chatListRef.value, () => {
+  if (taskId.value && chatListRef.value) {
+    loadTask();
+  }
+}, { immediate: true });
+
+watch(() => route.path, () => {
+  if (route.path === '/calls/new') {
+    selectedCall.value = null;
+  } else if (route.path.startsWith('/calls') && callId.value) {
+    loadCall();
+  } else if (route.path === '/calls') {
+    selectedCall.value = null;
+  } else if (route.path === '/tasks/new') {
+    selectedTask.value = null;
+  } else if (route.path.startsWith('/tasks') && taskId.value) {
+    loadTask();
+  } else if (route.path === '/tasks') {
+    selectedTask.value = null;
+  }
+});
 
 const handleResize = (): void => {
   isMobile.value = window.innerWidth <= 768;
@@ -43,6 +203,14 @@ onMounted(async () => {
   const chatId = route.params.id as string;
   if (chatId && chatId !== 'new') {
     await loadChatFromRoute(chatId);
+  }
+  // Загружаем звонок, если мы на странице звонков
+  if (route.path.startsWith('/calls')) {
+    await loadCall();
+  }
+  // Загружаем задачу, если мы на странице задач
+  if (route.path.startsWith('/tasks')) {
+    await loadTask();
   }
 });
 
@@ -125,20 +293,38 @@ const handleGroupCreated = async (chatId: string): Promise<void> => {
 <template>
   <div class="chat-view">
     <ChatList
-      :class="{ 'chat-view__list--hidden': (showChatWindow || showProfile) && isMobile }"
+      ref="chatListRef"
+      :class="{ 'chat-view__list--hidden': (showChatWindow || showProfile || showCalls || showTasks) && isMobile }"
       @new-chat="showNewChat = true"
       @new-group="showNewGroup = true"
       @scroll-to-bottom-request="handleScrollToBottomRequest"
     />
     <ChatWindow
-      v-if="showChatWindow && !showProfile"
+      v-if="showChatWindow && !showProfile && !showCalls"
       ref="chatWindowRef"
       @back="handleBack"
       :class="{ 'chat-view__window--full': showChatWindow && isMobile }"
     />
     <ProfileView
-      v-if="showProfile && !showChatWindow"
+      v-if="showProfile && !showChatWindow && !showCalls && !showTasks"
+      :section="profileSection"
       :class="{ 'chat-view__profile--full': showProfile && isMobile }"
+    />
+    <CallsView
+      v-if="showCalls && !showChatWindow && !showProfile && !showTasks"
+      :selected-call="selectedCall"
+      :call-id="callId"
+      :is-new-call="isNewCall"
+      :is-calls-page="route.path === '/calls'"
+      :class="{ 'chat-view__calls--full': showCalls && isMobile }"
+    />
+    <TasksView
+      v-if="showTasks && !showChatWindow && !showProfile && !showCalls"
+      :selected-task="selectedTask"
+      :task-id="taskId"
+      :is-new-task="isNewTask"
+      :is-tasks-page="route.path === '/tasks'"
+      :class="{ 'chat-view__tasks--full': showTasks && isMobile }"
     />
     <NewChat
       :is-open="showNewChat"
@@ -187,6 +373,40 @@ const handleGroupCreated = async (chatId: string): Promise<void> => {
   }
 
   &__profile {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
+
+    &--full {
+      @media (max-width: 768px) {
+        width: 100%;
+        position: absolute;
+        left: 0;
+        top: 0;
+        z-index: 10;
+      }
+    }
+  }
+
+  &__calls {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
+
+    &--full {
+      @media (max-width: 768px) {
+        width: 100%;
+        position: absolute;
+        left: 0;
+        top: 0;
+        z-index: 10;
+      }
+    }
+  }
+
+  &__tasks {
     flex: 1;
     display: flex;
     flex-direction: column;

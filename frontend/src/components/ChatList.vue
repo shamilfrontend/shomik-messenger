@@ -12,6 +12,29 @@ import { getImageUrl } from '../utils/image';
 import { getComputedStatus } from '../utils/status';
 import type { User } from '../types';
 
+interface CallHistory {
+  id: string;
+  type: 'incoming' | 'outgoing';
+  callType: 'audio' | 'video';
+  status: 'answered' | 'missed' | 'rejected';
+  participant: User | { id: string; username: string; avatar?: string };
+  participantsCount?: number; // количество участников (для групповых звонков)
+  chatId?: string;
+  duration?: number; // в секундах
+  createdAt: Date;
+}
+
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  completed: boolean;
+  priority: 'low' | 'medium' | 'high';
+  dueDate?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 const emit = defineEmits<{(e: 'new-chat'): void;
   (e: 'new-group'): void;
   (e: 'scroll-to-bottom-request'): void;
@@ -230,20 +253,363 @@ const goToGroups = (): void => {
   router.push('/');
 };
 
-const goToProfile = (): void => {
-  router.push('/profile');
+const goToCalls = (): void => {
+  router.push('/calls');
 };
 
-const isProfilePage = computed(() => route.path === '/profile');
+const goToTasks = (): void => {
+  router.push('/tasks');
+};
+
+const goToProfile = (): void => {
+  router.push('/profile/me');
+};
+
+const isCallsPage = computed(() => route.path.startsWith('/calls'));
+const isProfilePage = computed(() => route.path.startsWith('/profile'));
+const isTasksPage = computed(() => route.path.startsWith('/tasks'));
+const isChatsPage = computed(() => {
+  const path = route.path;
+  return path === '/' || path === '/chat' || path.startsWith('/chat/');
+});
+const currentCallId = computed(() => route.params.callId as string | undefined);
+const currentProfileSection = computed(() => {
+  const path = route.path;
+  if (path === '/profile/me') return 'me';
+  if (path === '/profile/design') return 'design';
+  if (path === '/profile/audio-and-video') return 'audio-and-video';
+  if (path === '/profile/language') return 'language';
+  if (path === '/profile/sessions') return 'sessions';
+  return null;
+});
+
+interface ProfileSection {
+  id: string;
+  label: string;
+  path: string;
+  icon: string;
+}
+
+const profileSections = ref<ProfileSection[]>([
+  {
+    id: 'me',
+    label: 'Мой профиль',
+    path: '/profile/me',
+    icon: 'user',
+  },
+  {
+    id: 'design',
+    label: 'Оформление',
+    path: '/profile/design',
+    icon: 'palette',
+  },
+  {
+    id: 'audio-and-video',
+    label: 'Аудио и Видео',
+    path: '/profile/audio-and-video',
+    icon: 'mic',
+  },
+  {
+    id: 'language',
+    label: 'Язык',
+    path: '/profile/language',
+    icon: 'globe',
+  },
+  {
+    id: 'sessions',
+    label: 'Активные сессии',
+    path: '/profile/sessions',
+    icon: 'monitor',
+  },
+]);
+
+const selectProfileSection = (section: ProfileSection): void => {
+  router.push(section.path);
+};
+
+// Моковые данные для истории звонков
+const callsHistory = ref<CallHistory[]>([
+  {
+    id: '1',
+    type: 'incoming',
+    callType: 'video',
+    status: 'answered',
+    participant: { id: '2', username: 'Анна Петрова', avatar: undefined },
+    chatId: 'chat1',
+    duration: 1250,
+    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 часа назад
+  },
+  {
+    id: '2',
+    type: 'outgoing',
+    callType: 'audio',
+    status: 'answered',
+    participant: { id: '3', username: 'Иван Сидоров', avatar: undefined },
+    chatId: 'chat2',
+    duration: 340,
+    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000), // 5 часов назад
+  },
+  {
+    id: '3',
+    type: 'incoming',
+    callType: 'audio',
+    status: 'missed',
+    participant: { id: '4', username: 'Мария Иванова', avatar: undefined },
+    chatId: 'chat3',
+    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // вчера
+  },
+  {
+    id: '4',
+    type: 'outgoing',
+    callType: 'video',
+    status: 'rejected',
+    participant: { id: '5', username: 'Петр Смирнов', avatar: undefined },
+    chatId: 'chat4',
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 дня назад
+  },
+  {
+    id: '5',
+    type: 'incoming',
+    callType: 'audio',
+    status: 'answered',
+    participant: { id: '6', username: 'Елена Козлова', avatar: undefined },
+    chatId: 'chat5',
+    duration: 890,
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 дня назад
+  },
+  {
+    id: '6',
+    type: 'outgoing',
+    callType: 'audio',
+    status: 'missed',
+    participant: { id: '7', username: 'Дмитрий Волков', avatar: undefined },
+    chatId: 'chat6',
+    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000), // 4 дня назад
+  },
+  {
+    id: '7',
+    type: 'incoming',
+    callType: 'video',
+    status: 'answered',
+    participant: { id: '8', username: 'Ольга Новикова', avatar: undefined },
+    participantsCount: 5,
+    chatId: 'chat7',
+    duration: 2150,
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 дней назад
+  },
+  {
+    id: '8',
+    type: 'outgoing',
+    callType: 'audio',
+    status: 'answered',
+    participant: { id: '9', username: 'Сергей Морозов', avatar: undefined },
+    participantsCount: 3,
+    chatId: 'chat8',
+    duration: 120,
+    createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), // 6 дней назад
+  },
+  {
+    id: '9',
+    type: 'incoming',
+    callType: 'audio',
+    status: 'missed',
+    participant: { id: '10', username: 'Татьяна Лебедева', avatar: undefined },
+    participantsCount: 8,
+    chatId: 'chat9',
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // неделю назад
+  },
+  {
+    id: '10',
+    type: 'outgoing',
+    callType: 'video',
+    status: 'answered',
+    participant: { id: '11', username: 'Алексей Соколов', avatar: undefined },
+    participantsCount: 4,
+    chatId: 'chat10',
+    duration: 450,
+    createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), // 8 дней назад
+  },
+]);
+
+const filteredCalls = computed(() => {
+  let result = callsHistory.value;
+
+  // Фильтруем по поисковому запросу
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter((call) => {
+      const name = getCallParticipantName(call).toLowerCase();
+      return name.includes(query);
+    });
+  }
+
+  return result;
+});
+
+const getCallParticipantName = (call: CallHistory): string => {
+  const participantName = typeof call.participant === 'object' && 'username' in call.participant
+    ? call.participant.username
+    : 'Пользователь';
+  
+  // Если это групповой звонок, показываем имя первого участника и количество
+  if (call.participantsCount && call.participantsCount > 1) {
+    return `${participantName} и еще ${call.participantsCount - 1}`;
+  }
+  
+  return participantName;
+};
+
+const getCallParticipantAvatar = (call: CallHistory): string | undefined => {
+  return typeof call.participant === 'object' && 'avatar' in call.participant
+    ? call.participant.avatar
+    : undefined;
+};
+
+const formatCallDuration = (seconds?: number): string => {
+  if (!seconds) return '';
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+};
+
+const selectCall = (call: CallHistory): void => {
+  router.push(`/calls/${call.id}`);
+};
+
+const getCallById = (callId: string): CallHistory | undefined => {
+  return callsHistory.value.find(call => call.id === callId);
+};
+
+const getCallsHistory = (): CallHistory[] => {
+  return callsHistory.value;
+};
+
+// Моковые данные для задач
+const tasks = ref<Task[]>([
+  {
+    id: '1',
+    title: 'Завершить проект мессенджера',
+    description: 'Добавить финальные функции и провести тестирование',
+    completed: false,
+    priority: 'high',
+    dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // через 3 дня
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+  },
+  {
+    id: '2',
+    title: 'Обновить документацию',
+    description: 'Обновить README и добавить примеры использования',
+    completed: false,
+    priority: 'medium',
+    dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // через 5 дней
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+  },
+  {
+    id: '3',
+    title: 'Исправить баги в чате',
+    description: 'Исправить проблемы с отправкой сообщений и уведомлениями',
+    completed: true,
+    priority: 'high',
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+  },
+  {
+    id: '4',
+    title: 'Добавить темную тему',
+    description: 'Реализовать переключение между светлой и темной темой',
+    completed: false,
+    priority: 'low',
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+  },
+  {
+    id: '5',
+    title: 'Оптимизировать производительность',
+    description: 'Улучшить скорость загрузки и отклика интерфейса',
+    completed: false,
+    priority: 'medium',
+    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // через неделю
+    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+  },
+]);
+
+const filteredTasks = computed(() => {
+  let result = tasks.value;
+
+  // Фильтруем по поисковому запросу
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter((task) => {
+      const title = task.title.toLowerCase();
+      const description = task.description?.toLowerCase() || '';
+      return title.includes(query) || description.includes(query);
+    });
+  }
+
+  // Сортируем: незавершенные сначала, затем по приоритету
+  result.sort((a, b) => {
+    if (a.completed !== b.completed) {
+      return a.completed ? 1 : -1;
+    }
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    return priorityOrder[a.priority] - priorityOrder[b.priority];
+  });
+
+  return result;
+});
+
+const selectTask = (task: Task): void => {
+  router.push(`/tasks/${task.id}`);
+};
+
+const getTaskById = (taskId: string): Task | undefined => {
+  return tasks.value.find(task => task.id === taskId);
+};
+
+const getTasks = (): Task[] => {
+  return tasks.value;
+};
+
+const formatTaskDueDate = (date: Date): string => {
+  const d = new Date(date);
+  const now = new Date();
+  const diff = d.getTime() - now.getTime();
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  if (days === 0) {
+    return 'Сегодня';
+  } if (days === 1) {
+    return 'Завтра';
+  } if (days === -1) {
+    return 'Вчера';
+  } if (days > 0 && days < 7) {
+    return `Через ${days} дн.`;
+  } if (days < 0) {
+    return `${Math.abs(days)} дн. назад`;
+  }
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+};
+
+defineExpose({
+  getCallById,
+  getCallsHistory,
+  callsHistory,
+  getTaskById,
+  getTasks,
+  tasks,
+});
 </script>
 
 <template>
   <div class="chat-list">
     <div class="chat-list__header">
-      <h2>{{ activeTab === 'private' ? 'Чаты' : 'Группы' }}</h2>
+      <h2>{{ isProfilePage ? 'Профиль' : (isCallsPage ? 'Звонки' : (isTasksPage ? 'Задачи' : (activeTab === 'private' ? 'Чаты' : 'Группы'))) }}</h2>
       <div class="chat-list__header-buttons">
         <button
-          v-if="activeTab === 'private'"
+          v-if="activeTab === 'private' && !isCallsPage && !isProfilePage && !isTasksPage"
           @click="$emit('new-chat')"
           class="chat-list__new-button"
           title="Новый чат"
@@ -255,7 +621,7 @@ const isProfilePage = computed(() => route.path === '/profile');
           </svg>
         </button>
         <button
-          v-if="activeTab === 'group'"
+          v-if="activeTab === 'group' && !isCallsPage && !isProfilePage && !isTasksPage"
           @click="$emit('new-group')"
           class="chat-list__new-button"
           title="Создать группу"
@@ -267,78 +633,323 @@ const isProfilePage = computed(() => route.path === '/profile');
             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
           </svg>
         </button>
+        <button
+          v-if="isCallsPage && !isProfilePage"
+          @click="router.push('/calls/new')"
+          class="chat-list__new-button"
+          title="Создать звонок"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+        </button>
+        <button
+          v-if="isTasksPage && !isProfilePage"
+          @click="router.push('/tasks/new')"
+          class="chat-list__new-button"
+          title="Создать задачу"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11l3 3L22 4"></path>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+          </svg>
+        </button>
       </div>
     </div>
 
-    <div class="chat-list__search">
+    <!-- Табы для переключения между чатами и группами -->
+    <div v-if="!isProfilePage && !isCallsPage && !isTasksPage" class="chat-list__tabs">
+      <button
+        @click="activeTab = 'private'"
+        :class="['chat-list__tab', { 'chat-list__tab--active': activeTab === 'private' }]"
+      >
+        Чаты
+      </button>
+      <button
+        @click="activeTab = 'group'"
+        :class="['chat-list__tab', { 'chat-list__tab--active': activeTab === 'group' }]"
+      >
+        Группы
+      </button>
+    </div>
+
+    <div v-if="!isProfilePage" class="chat-list__search">
       <input
         v-model="searchQuery"
         type="text"
-        placeholder="Поиск чатов..."
+        :placeholder="isCallsPage ? 'Поиск звонков...' : (isTasksPage ? 'Поиск задач...' : 'Поиск чатов...')"
       />
     </div>
 
     <div class="chat-list__items">
-      <div
-        v-for="chat in filteredChats"
-        :key="chat._id"
-        :class="['chat-list__item', { 'chat-list__item--active': currentChat?._id === chat._id }]"
-        @click="selectChat(chat)"
-        @contextmenu.prevent="onChatContextMenu(chat, $event)"
-      >
-        <div class="chat-list__avatar">
-          <img
-            v-if="getAvatar(chat)"
-            :src="getAvatar(chat)"
-            :alt="getChatName(chat)"
-          />
-          <div v-else class="chat-list__avatar-placeholder">
-            {{ getChatName(chat).charAt(0).toUpperCase() }}
-          </div>
-          <span
-            v-if="chat.type === 'private' && getOtherParticipant(chat)"
-            :class="['chat-list__status-indicator', `chat-list__status-indicator--${getComputedStatus(getOtherParticipant(chat))}`]"
-          ></span>
-        </div>
-
-        <div class="chat-list__content">
-          <div class="chat-list__header-row">
-            <span class="chat-list__name">
-              {{ getChatName(chat) }}
-              <svg
-                v-if="chatStore.isChatPinned(chat._id)"
-                class="chat-list__pin-icon"
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                stroke="none"
-              >
-                <path d="M16 12V4h1V2H7v2h1v8l-4 4v2h16v-2l-4-4z"/>
+      <!-- Список звонков -->
+      <template v-if="isCallsPage">
+        <div
+          v-for="call in filteredCalls"
+          :key="call.id"
+          :class="['chat-list__item', 'chat-list__item--call', { 'chat-list__item--active': currentCallId === call.id }]"
+          @click="selectCall(call)"
+        >
+          <div class="chat-list__avatar">
+            <div v-if="call.participantsCount && call.participantsCount > 1" class="chat-list__avatar-group-icon">
+              <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
               </svg>
-            </span>
-            <div class="chat-list__header-right">
-              <span class="chat-list__time">{{ formatTime(chat.lastMessage?.createdAt) }}</span>
-              <span v-if="getUnreadCount(chat._id) > 0" class="chat-list__unread-badge">
-                {{ getUnreadCount(chat._id) }}
+            </div>
+            <div v-else-if="getCallParticipantAvatar(call)" class="chat-list__avatar-img">
+              <img
+                :src="getCallParticipantAvatar(call)"
+                :alt="getCallParticipantName(call)"
+              />
+            </div>
+            <div v-else class="chat-list__avatar-placeholder">
+              {{ getCallParticipantName(call).charAt(0).toUpperCase() }}
+            </div>
+          </div>
+
+          <div class="chat-list__content">
+            <div class="chat-list__header-row">
+              <span class="chat-list__name">
+                {{ getCallParticipantName(call) }}
+              </span>
+              <span class="chat-list__time">{{ formatTime(call.createdAt) }}</span>
+            </div>
+            <div class="chat-list__call-details">
+              <span
+                :class="[
+                  'chat-list__call-type-icon',
+                  `chat-list__call-type-icon--${call.type}`,
+                  `chat-list__call-type-icon--${call.status}`,
+                ]"
+              >
+                <svg
+                  v-if="call.type === 'incoming'"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+                <svg
+                  v-else
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+              </span>
+              <span class="chat-list__call-info">
+                {{ call.callType === 'video' ? 'Видеозвонок' : 'Аудиозвонок' }}
+                <span v-if="call.participantsCount && call.participantsCount > 1" class="chat-list__call-participants">
+                  · {{ call.participantsCount }} участников
+                </span>
+                <span v-if="call.duration" class="chat-list__call-duration">
+                  · {{ formatCallDuration(call.duration) }}
+                </span>
+              </span>
+              <span
+                :class="['chat-list__call-status', `chat-list__call-status--${call.status}`]"
+              >
+                {{ call.status === 'answered' ? 'Принят' : call.status === 'missed' ? 'Пропущен' : 'Отклонен' }}
               </span>
             </div>
           </div>
-          <div class="chat-list__preview">
-            <span v-if="chat.lastMessage && chat.lastMessage.content" :class="['chat-list__message', { 'chat-list__message--unread': getUnreadCount(chat._id) > 0 }]">
-              {{ getSenderName(chat.lastMessage) }}: {{ chat.lastMessage.content }}
-            </span>
-            <span v-else class="chat-list__empty">Нет сообщений</span>
+        </div>
+      </template>
+
+      <!-- Список задач -->
+      <template v-else-if="isTasksPage">
+        <div
+          v-for="task in filteredTasks"
+          :key="task.id"
+          :class="['chat-list__item', 'chat-list__item--task', { 'chat-list__item--active': route.params.taskId === task.id, 'chat-list__item--completed': task.completed }]"
+          @click="selectTask(task)"
+        >
+          <div class="chat-list__task-checkbox">
+            <svg
+              v-if="task.completed"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 11l3 3L22 4"></path>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+            </svg>
+            <svg
+              v-else
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+            </svg>
+          </div>
+
+          <div class="chat-list__content">
+            <div class="chat-list__header-row">
+              <span :class="['chat-list__name', { 'chat-list__name--completed': task.completed }]">
+                {{ task.title }}
+              </span>
+              <span
+                v-if="task.dueDate"
+                :class="['chat-list__task-due', { 'chat-list__task-due--overdue': !task.completed && new Date(task.dueDate) < new Date() }]"
+              >
+                {{ formatTaskDueDate(task.dueDate) }}
+              </span>
+            </div>
+            <div v-if="task.description" class="chat-list__task-description">
+              {{ task.description }}
+            </div>
+            <div class="chat-list__task-meta">
+              <span :class="['chat-list__task-priority', `chat-list__task-priority--${task.priority}`]">
+                {{ task.priority === 'high' ? 'Высокий' : task.priority === 'medium' ? 'Средний' : 'Низкий' }}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
+
+      <!-- Список подразделов профиля -->
+      <template v-else-if="isProfilePage">
+        <div
+          v-for="section in profileSections"
+          :key="section.id"
+          :class="['chat-list__item', 'chat-list__item--profile', { 'chat-list__item--active': currentProfileSection === section.id }]"
+          @click="selectProfileSection(section)"
+        >
+          <div class="chat-list__avatar">
+            <div class="chat-list__avatar-placeholder chat-list__avatar-placeholder--icon">
+              <!-- Иконка пользователя -->
+              <svg v-if="section.icon === 'user'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              <!-- Иконка палитры -->
+              <svg v-else-if="section.icon === 'palette'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="13.5" cy="6.5" r=".5"></circle>
+                <circle cx="17.5" cy="10.5" r=".5"></circle>
+                <circle cx="8.5" cy="7.5" r=".5"></circle>
+                <circle cx="6.5" cy="12.5" r=".5"></circle>
+                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.074 2.26-.21"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 .11 14.11"></path>
+              </svg>
+              <!-- Иконка глобуса -->
+              <svg v-else-if="section.icon === 'globe'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+              </svg>
+              <!-- Иконка микрофона/аудио -->
+              <svg v-else-if="section.icon === 'mic'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+              <!-- Иконка монитора -->
+              <svg v-else-if="section.icon === 'monitor'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+            </div>
+          </div>
+
+          <div class="chat-list__content">
+            <div class="chat-list__header-row">
+              <span class="chat-list__name">{{ section.label }}</span>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Список чатов -->
+      <template v-else>
+        <div
+          v-for="chat in filteredChats"
+          :key="chat._id"
+          :class="['chat-list__item', { 'chat-list__item--active': currentChat?._id === chat._id }]"
+          @click="selectChat(chat)"
+          @contextmenu.prevent="onChatContextMenu(chat, $event)"
+        >
+          <div class="chat-list__avatar">
+            <img
+              v-if="getAvatar(chat)"
+              :src="getAvatar(chat)"
+              :alt="getChatName(chat)"
+            />
+            <div v-else class="chat-list__avatar-placeholder">
+              {{ getChatName(chat).charAt(0).toUpperCase() }}
+            </div>
+            <span
+              v-if="chat.type === 'private' && getOtherParticipant(chat)"
+              :class="['chat-list__status-indicator', `chat-list__status-indicator--${getComputedStatus(getOtherParticipant(chat))}`]"
+            ></span>
+          </div>
+
+          <div class="chat-list__content">
+            <div class="chat-list__header-row">
+              <span class="chat-list__name">
+                {{ getChatName(chat) }}
+                <svg
+                  v-if="chatStore.isChatPinned(chat._id)"
+                  class="chat-list__pin-icon"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  stroke="none"
+                >
+                  <path d="M16 12V4h1V2H7v2h1v8l-4 4v2h16v-2l-4-4z"/>
+                </svg>
+              </span>
+              <div class="chat-list__header-right">
+                <span class="chat-list__time">{{ formatTime(chat.lastMessage?.createdAt) }}</span>
+                <span v-if="getUnreadCount(chat._id) > 0" class="chat-list__unread-badge">
+                  {{ getUnreadCount(chat._id) }}
+                </span>
+              </div>
+            </div>
+            <div class="chat-list__preview">
+              <span v-if="chat.lastMessage && chat.lastMessage.content" :class="['chat-list__message', { 'chat-list__message--unread': getUnreadCount(chat._id) > 0 }]">
+                {{ getSenderName(chat.lastMessage) }}: {{ chat.lastMessage.content }}
+              </span>
+              <span v-else class="chat-list__empty">Нет сообщений</span>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- Нижняя навигация -->
     <div class="chat-list__bottom-nav">
       <button
         @click="goToChats"
-        :class="['chat-list__nav-item', { 'chat-list__nav-item--active': activeTab === 'private' && !isProfilePage }]"
+        :class="['chat-list__nav-item', { 'chat-list__nav-item--active': isChatsPage }]"
         title="Чаты"
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -350,20 +961,25 @@ const isProfilePage = computed(() => route.path === '/profile');
         </span>
       </button>
       <button
-        @click="goToGroups"
-        :class="['chat-list__nav-item', { 'chat-list__nav-item--active': activeTab === 'group' && !isProfilePage }]"
-        title="Группы"
+        @click="goToCalls"
+        :class="['chat-list__nav-item', { 'chat-list__nav-item--active': isCallsPage }]"
+        title="Звонки"
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-          <circle cx="9" cy="7" r="4"></circle>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
         </svg>
-        <span class="chat-list__nav-label">Группы</span>
-        <span v-if="unreadGroupChatsCount > 0" class="chat-list__nav-badge">
-          {{ unreadGroupChatsCount }}
-        </span>
+        <span class="chat-list__nav-label">Звонки</span>
+      </button>
+      <button
+        @click="goToTasks"
+        :class="['chat-list__nav-item', { 'chat-list__nav-item--active': route.path.startsWith('/tasks') }]"
+        title="Задачи"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 11l3 3L22 4"></path>
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+        </svg>
+        <span class="chat-list__nav-label">Задачи</span>
       </button>
       <button
         @click="goToProfile"
@@ -503,6 +1119,50 @@ const isProfilePage = computed(() => route.path === '/profile');
     }
   }
 
+  &__tabs {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+
+    @media (max-width: 768px) {
+      padding: 0.5rem;
+    }
+  }
+
+  &__tab {
+    flex: 1;
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    @media (max-width: 768px) {
+      padding: 0.625rem 0.875rem;
+      font-size: 0.875rem;
+    }
+
+    &:hover {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    &--active {
+      background: var(--accent-color);
+      color: white;
+
+      &:hover {
+        background: var(--accent-color);
+        opacity: 0.9;
+      }
+    }
+  }
+
   &__items {
     flex: 1;
     overflow-y: auto;
@@ -535,8 +1195,8 @@ const isProfilePage = computed(() => route.path === '/profile');
   }
 
   &__avatar {
-    width: 50px;
-    height: 50px;
+    width: 36px;
+    height: 36px;
     flex-shrink: 0;
     position: relative;
 		overflow: hidden;
@@ -583,6 +1243,12 @@ const isProfilePage = computed(() => route.path === '/profile');
     font-weight: 600;
     font-size: 1.25rem;
 		border-radius: 50%;
+
+    &--icon {
+      background: var(--bg-secondary);
+      color: var(--accent-color);
+      border: 2px solid var(--accent-color);
+    }
   }
 
   &__content {
@@ -590,6 +1256,8 @@ const isProfilePage = computed(() => route.path === '/profile');
     min-width: 0;
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
     gap: 0.25rem;
   }
 
@@ -786,6 +1454,172 @@ const isProfilePage = computed(() => route.path === '/profile');
       padding: 0.1rem 0.3rem;
       min-width: 16px;
     }
+  }
+
+  &__avatar-img {
+    width: 100%;
+    height: 100%;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+    }
+  }
+
+  &__avatar-group-icon {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    color: var(--accent-color);
+    border-radius: 50%;
+    border: 2px solid var(--accent-color);
+    padding: 0.5rem;
+
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  &__call-details {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+
+  &__call-type-icon {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+
+    &--incoming {
+      color: #52c41a;
+    }
+
+    &--outgoing {
+      color: var(--accent-color);
+    }
+
+    &--missed {
+      color: #ff4d4f;
+    }
+
+    &--rejected {
+      color: #ff4d4f;
+    }
+  }
+
+  &__call-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__call-participants {
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  &__call-duration {
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  &__call-status {
+    white-space: nowrap;
+    font-size: 0.8rem;
+
+    &--answered {
+      color: #52c41a;
+    }
+
+    &--missed {
+      color: #ff4d4f;
+    }
+
+    &--rejected {
+      color: #ff4d4f;
+    }
+  }
+
+  &__task-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    color: var(--text-secondary);
+    cursor: pointer;
+
+    svg {
+      width: 24px;
+      height: 24px;
+    }
+  }
+
+  &__task-description {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__task-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  &__task-priority {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 500;
+
+    &--high {
+      background: rgba(255, 77, 79, 0.1);
+      color: #ff4d4f;
+    }
+
+    &--medium {
+      background: rgba(250, 173, 20, 0.1);
+      color: #faad14;
+    }
+
+    &--low {
+      background: rgba(82, 196, 26, 0.1);
+      color: #52c41a;
+    }
+  }
+
+  &__task-due {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+
+    &--overdue {
+      color: #ff4d4f;
+      font-weight: 500;
+    }
+  }
+
+  &__name--completed {
+    text-decoration: line-through;
+    opacity: 0.6;
+  }
+
+  &__item--completed {
+    opacity: 0.7;
   }
 }
 </style>
