@@ -1,7 +1,6 @@
 import { Response } from 'express';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.model';
-import Contact from '../models/Contact.model';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { validateEmail, validateUsername, validatePassword } from '../utils/validators';
 import { wsService } from '../server';
@@ -60,56 +59,6 @@ export const getUserById = async (req: AuthRequest, res: Response): Promise<void
       status: user.status,
       lastSeen: user.lastSeen,
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const addContact = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { contactId } = req.body;
-
-    if (!contactId) {
-      res.status(400).json({ error: 'contactId обязателен' });
-      return;
-    }
-
-    if (contactId === req.userId) {
-      res.status(400).json({ error: 'Нельзя добавить самого себя' });
-      return;
-    }
-
-    const contactUser = await User.findById(contactId);
-
-    if (!contactUser) {
-      res.status(404).json({ error: 'Пользователь не найден' });
-      return;
-    }
-
-    const existingContact = await Contact.findOne({
-      userId: req.userId,
-      contactId,
-    });
-
-    if (existingContact) {
-      res.status(400).json({ error: 'Контакт уже добавлен' });
-      return;
-    }
-
-    const contact = new Contact({
-      userId: req.userId,
-      contactId,
-    });
-
-    await contact.save();
-
-    const user = await User.findById(req.userId);
-    if (user && !user.contacts.includes(contactId as any)) {
-      user.contacts.push(contactId as any);
-      await user.save();
-    }
-
-    res.status(201).json({ message: 'Контакт добавлен', contact });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

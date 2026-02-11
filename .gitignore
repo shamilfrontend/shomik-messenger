@@ -3,3 +3,5 @@ dist
 .env
 uploads/
 node_modules
+./ARTICLE.md
+./ARTICLE2.md

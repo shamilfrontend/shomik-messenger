@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  searchUsers, getUserById, addContact, updateProfile, changePassword,
+  searchUsers, getUserById, updateProfile, changePassword,
 } from '../controllers/user.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 
@@ -10,7 +10,6 @@ router.use(authMiddleware);
 
 router.get('/search', searchUsers);
 router.get('/:id', getUserById);
-router.post('/contacts', addContact);
 router.put('/profile', updateProfile);
 router.put('/password', changePassword);
 

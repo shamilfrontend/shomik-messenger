@@ -17,23 +17,9 @@ export const useChat = () => {
     }
   };
 
-  const addContact = async (contactId: string): Promise<void> => {
-    loading.value = true;
-    error.value = null;
-    try {
-      await api.post('/users/contacts', { contactId });
-    } catch (err: any) {
-      error.value = err.response?.data?.error || 'Ошибка добавления контакта';
-      throw err; // Пробрасываем ошибку дальше для обработки в компоненте
-    } finally {
-      loading.value = false;
-    }
-  };
-
   return {
     loading,
     error,
     searchUsers,
-    addContact,
   };
 };
