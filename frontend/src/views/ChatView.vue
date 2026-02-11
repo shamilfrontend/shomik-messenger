@@ -21,7 +21,7 @@ const chatWindowRef = ref<ComponentPublicInstance<{ scrollToBottom:() => void }>
 const showNewChat = ref(false);
 const showNewGroup = ref(false);
 const isMobile = ref(window.innerWidth <= 768);
-const showChatWindow = computed(() => !!route.params.id);
+const showChatWindow = computed(() => !!route.params.id || route.path === '/chat/new' || !!route.query.userId);
 const showProfile = computed(() => route.path === '/profile');
 
 const handleResize = (): void => {
@@ -39,9 +39,9 @@ const handleScrollToBottomRequest = (): void => {
 onMounted(async () => {
   window.addEventListener('resize', handleResize);
   await chatStore.loadChats();
-  // Загружаем чат из роута, если есть ID
+  // Загружаем чат из роута, если есть ID и это не роут /chat/new
   const chatId = route.params.id as string;
-  if (chatId) {
+  if (chatId && chatId !== 'new') {
     await loadChatFromRoute(chatId);
   }
 });
@@ -52,17 +52,14 @@ onUnmounted(() => {
 
 useWebSocket();
 
-onMounted(async () => {
-  await chatStore.loadChats();
-  // Загружаем чат из роута, если есть ID
-  const chatId = route.params.id as string;
-  if (chatId) {
-    await loadChatFromRoute(chatId);
-  }
-});
 
 // Отслеживаем изменения роута
 watch(() => route.params.id, async (newChatId) => {
+  // Не загружаем чат если это роут /chat/new
+  if (newChatId === 'new') {
+    chatStore.setCurrentChat(null);
+    return;
+  }
   if (newChatId) {
     await loadChatFromRoute(newChatId as string);
   } else {
@@ -70,7 +67,21 @@ watch(() => route.params.id, async (newChatId) => {
   }
 });
 
+// Отслеживаем изменения роута для нового чата (/chat/new)
+watch(() => [route.path, route.query.userId], ([path, userId]) => {
+  if (path === '/chat/new' || (userId && !route.params.id)) {
+    // Для нового чата не устанавливаем currentChat
+    chatStore.setCurrentChat(null);
+  }
+});
+
 const loadChatFromRoute = async (chatId: string): Promise<void> => {
+  // Не загружаем чат если это роут /chat/new
+  if (chatId === 'new') {
+    chatStore.setCurrentChat(null);
+    return;
+  }
+
   // Проверяем, есть ли чат в списке
   let chat = chatStore.chats.find((c) => c._id === chatId);
 
@@ -99,13 +110,10 @@ const loadChatFromRoute = async (chatId: string): Promise<void> => {
 };
 
 const handleSelectUser = async (user: User): Promise<void> => {
-  try {
-    const chat = await chatStore.createChat('private', [user.id]);
-    router.push(`/chat/${chat._id}`);
-    showNewChat.value = false;
-  } catch (error) {
-    console.error('Ошибка создания чата:', error);
-  }
+  // Открываем чат с выбранным пользователем без создания чата
+  // Чат будет создан при отправке первого сообщения
+  router.push(`/chat/new?userId=${user.id}`);
+  showNewChat.value = false;
 };
 
 const handleGroupCreated = async (chatId: string): Promise<void> => {

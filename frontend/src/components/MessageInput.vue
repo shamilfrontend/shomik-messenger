@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useChatStore } from '../stores/chat.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useNotifications } from '../composables/useNotifications';
@@ -10,7 +11,8 @@ import Tooltip from './Tooltip.vue';
 import type { Message } from '../types';
 
 const props = defineProps<{
-  chatId: string;
+  chatId?: string;
+  userId?: string; // Для нового чата
   replyTo?: Message | null;
   editMessage?: Message | null;
 }>();
@@ -20,6 +22,7 @@ const emit = defineEmits<{(e: 'clear-reply'): void;
   (e: 'start-edit-last'): void;
 }>();
 
+const router = useRouter();
 const chatStore = useChatStore();
 const authStore = useAuthStore();
 const { error: notifyError } = useNotifications();
@@ -53,13 +56,13 @@ watch(() => props.editMessage, (editMsg) => {
   }
 }, { immediate: true });
 
-const handleSend = (): void => {
+const handleSend = async (): Promise<void> => {
   const trimmedMessage = message.value.trim();
   const hasFile = !!previewFile.value;
   const hasText = trimmedMessage.length > 0;
 
   if (props.editMessage) {
-    if (!hasText) return;
+    if (!hasText || !props.chatId) return;
     chatStore.editMessage(props.chatId, props.editMessage._id, trimmedMessage);
     chatStore.stopTyping(props.chatId);
     message.value = '';
@@ -80,8 +83,15 @@ const handleSend = (): void => {
 
   if (type === 'text' && !content) return;
 
-  chatStore.sendMessage(props.chatId, content, type as 'text' | 'image' | 'file', fileUrl, replyToId);
-  chatStore.stopTyping(props.chatId);
+  // Если это новый чат (есть userId, но нет chatId), создаем чат при отправке
+  if (props.userId && !props.chatId) {
+    const chat = await chatStore.sendMessageToNewChat(props.userId, content, type as 'text' | 'image' | 'file', fileUrl, replyToId);
+    // После создания чата перенаправляем на правильный URL
+    router.push(`/chat/${chat._id}`);
+  } else if (props.chatId) {
+    chatStore.sendMessage(props.chatId, content, type as 'text' | 'image' | 'file', fileUrl, replyToId);
+    chatStore.stopTyping(props.chatId);
+  }
   message.value = '';
   previewFile.value = null;
   if (imageInputRef.value) imageInputRef.value.value = '';
@@ -89,6 +99,10 @@ const handleSend = (): void => {
   if (typingTimeout) {
     clearTimeout(typingTimeout);
     typingTimeout = null;
+  }
+  // Останавливаем typing для нового чата тоже
+  if (props.chatId) {
+    chatStore.stopTyping(props.chatId);
   }
 };
 
@@ -190,16 +204,23 @@ const handleImageSelect = async (e: Event): Promise<void> => {
 };
 
 const handleTyping = (): void => {
-  chatStore.startTyping(props.chatId);
+  if (props.chatId) {
+    chatStore.startTyping(props.chatId);
+  } else if (props.userId) {
+    // Для нового чата пока не отправляем typing события
+    // Можно добавить поддержку позже если нужно
+  }
 
   if (typingTimeout) {
     clearTimeout(typingTimeout);
   }
 
-  typingTimeout = setTimeout(() => {
-    chatStore.stopTyping(props.chatId);
-    typingTimeout = null;
-  }, 3000);
+  if (props.chatId) {
+    typingTimeout = setTimeout(() => {
+      chatStore.stopTyping(props.chatId!);
+      typingTimeout = null;
+    }, 3000);
+  }
 };
 
 const toggleEmojiPicker = (): void => {

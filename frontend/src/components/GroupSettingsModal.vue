@@ -169,27 +169,19 @@ const confirmLeave = async (): Promise<void> => {
 };
 
 const openChatWithParticipant = async (participant: User | string): Promise<void> => {
-  try {
-    const participantId = typeof participant === 'string' ? participant : participant.id;
+  const participantId = typeof participant === 'string' ? participant : participant.id;
 
-    // Проверяем, что это не текущий пользователь
-    if (!participantId || participantId === authStore.user?.id) {
-      return;
-    }
-
-    // Создаем или открываем приватный чат с выбранным участником
-    const chat = await chatStore.createChat('private', [participantId]);
-
-    // Закрываем модальное окно настроек группы
-    emit('close');
-
-    // Открываем созданный чат
-    router.push(`/chat/${chat._id}`);
-  } catch (error: any) {
-    console.error('Ошибка создания чата:', error);
-    const errorMsg = error.response?.data?.error || 'Ошибка создания чата';
-    notifyError(errorMsg);
+  // Проверяем, что это не текущий пользователь
+  if (!participantId || participantId === authStore.user?.id) {
+    return;
   }
+
+  // Закрываем модальное окно настроек группы
+  emit('close');
+
+  // Переходим на страницу нового чата с userId
+  // Чат будет создан при отправке первого сообщения
+  router.push(`/chat/new?userId=${participantId}`);
 };
 
 const leaveGroup = async (): Promise<void> => {

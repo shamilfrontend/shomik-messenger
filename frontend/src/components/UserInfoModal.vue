@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import {
-  computed, onMounted, onUnmounted, watch,
+  computed, onMounted, onUnmounted,
 } from 'vue';
+import { useRouter } from 'vue-router';
 import { User } from '../types';
 import { getImageUrl } from '../utils/image';
 import { getComputedStatus } from '../utils/status';
@@ -15,6 +16,7 @@ const emit = defineEmits<{(e: 'close'): void;
   (e: 'send-message', userId: string): void;
 }>();
 
+const router = useRouter();
 const avatarUrl = computed(() => getImageUrl(props.user?.avatar));
 
 const getStatusText = (status?: string): string => {
@@ -35,8 +37,9 @@ const handleSendMessage = (): void => {
     return;
   }
 
-  // Проверяем, что это не текущий пользователь (должно быть проверено в родительском компоненте, но на всякий случай)
-  emit('send-message', props.user.id);
+  // Переходим на страницу нового чата с userId
+  // Чат будет создан при отправке первого сообщения
+  router.push(`/chat/new?userId=${props.user.id}`);
   emit('close');
 };
 

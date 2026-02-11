@@ -227,6 +227,19 @@ export const useChatStore = defineStore('chat', () => {
     });
   };
 
+  const sendMessageToNewChat = async (userId: string, content: string, type: 'text' | 'image' | 'file' = 'text', fileUrl?: string, replyTo?: string): Promise<Chat> => {
+    try {
+      // Создаем чат перед отправкой сообщения
+      const chat = await createChat('private', [userId]);
+      // Отправляем сообщение в созданный чат
+      await sendMessage(chat._id, content, type, fileUrl, replyTo);
+      return chat;
+    } catch (error: any) {
+      console.error('Ошибка создания чата и отправки сообщения:', error);
+      throw error;
+    }
+  };
+
   const setCurrentChat = (chat: Chat | null): void => {
     currentChat.value = chat;
     hasMoreOlderMessages.value = true;
@@ -736,6 +749,7 @@ export const useChatStore = defineStore('chat', () => {
     loadingMessages,
     hasMoreOlderMessages,
     sendMessage,
+    sendMessageToNewChat,
     setCurrentChat,
     addMessage,
     markAsRead,

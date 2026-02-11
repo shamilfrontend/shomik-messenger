@@ -2,7 +2,7 @@
 import {
   computed, watch, ref, nextTick, onMounted, onUnmounted,
 } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 
 import { useChatStore } from '../stores/chat.store';
 import { useCallStore } from '../stores/call.store';
@@ -17,6 +17,7 @@ import { getImageUrl } from '../utils/image';
 import { isUserOnline, getComputedStatus } from '../utils/status';
 import { useNotifications } from '../composables/useNotifications';
 import { useConfirm } from '../composables/useConfirm';
+import api from '../services/api';
 
 const chatStore = useChatStore();
 const callStore = useCallStore();
@@ -546,6 +547,10 @@ watch(
 );
 
 const getChatName = (): string => {
+  // Для нового чата используем информацию о пользователе
+  if (isNewChat.value && newChatUser.value) {
+    return newChatUser.value.username || 'Пользователь';
+  }
   if (!currentChat.value) return '';
   if (currentChat.value.type === 'group') {
     return currentChat.value.groupName || 'Группа';
@@ -555,6 +560,10 @@ const getChatName = (): string => {
 };
 
 const getAvatar = (): string | undefined => {
+  // Для нового чата используем информацию о пользователе
+  if (isNewChat.value && newChatUser.value) {
+    return getImageUrl(newChatUser.value.avatar);
+  }
   if (!currentChat.value) return;
   if (currentChat.value.type === 'group') {
     return getImageUrl(currentChat.value.groupAvatar);
@@ -564,6 +573,10 @@ const getAvatar = (): string | undefined => {
 };
 
 const getOtherParticipant = (): User | null => {
+  // Для нового чата возвращаем загруженного пользователя
+  if (isNewChat.value && newChatUser.value) {
+    return newChatUser.value;
+  }
   if (!currentChat.value || currentChat.value.type === 'group') {
     return null;
   }
@@ -575,6 +588,10 @@ const getOtherParticipant = (): User | null => {
 };
 
 const getStatus = (): string => {
+  // Для нового чата используем информацию о пользователе
+  if (isNewChat.value && newChatUser.value) {
+    return isUserOnline(newChatUser.value) ? 'в сети' : 'не в сети';
+  }
   if (!currentChat.value || currentChat.value.type === 'group') return '';
   const otherParticipant = currentChat.value.participants.find((p) => (typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id));
   if (typeof otherParticipant === 'string') return '';
@@ -802,22 +819,44 @@ const handleHeaderTitleClick = (): void => {
 };
 
 const router = useRouter();
+const route = useRoute();
+
+// Поддержка нового чата с userId из query параметра или роута /chat/new
+const newChatUserId = computed(() => {
+  // Поддерживаем как /chat/new?userId=... так и /chat?userId=...
+  return route.query.userId as string | undefined;
+});
+const isNewChat = computed(() => {
+  // Новый чат если есть userId в query и нет текущего чата, или если роут /chat/new
+  return (route.path === '/chat/new' || !!route.query.userId) && !currentChat.value;
+});
+const newChatUser = ref<User | null>(null);
+
+// Загружаем информацию о пользователе для нового чата
+watch([() => route.path, newChatUserId], async ([path, userId]) => {
+  if ((path === '/chat/new' || userId) && !currentChat.value && userId) {
+    try {
+      const response = await api.get(`/users/${userId}`);
+      newChatUser.value = response.data;
+    } catch (error) {
+      console.error('Ошибка загрузки пользователя:', error);
+      router.push('/');
+    }
+  } else {
+    newChatUser.value = null;
+  }
+}, { immediate: true });
 
 const handleSendMessage = async (userId: string): Promise<void> => {
-  try {
-    // Проверяем, что это не текущий пользователь
-    if (!userId || userId === chatStore.user?.id) {
-      console.error('Нельзя создать чат с самим собой. userId:', userId, 'currentUserId:', chatStore.user?.id);
-      return;
-    }
-
-    // Создаем приватный чат с выбранным пользователем
-    // Backend автоматически добавит текущего пользователя в участники
-    const chat = await chatStore.createChat('private', [userId]);
-    router.push(`/chat/${chat._id}`);
-  } catch (error) {
-    console.error('Ошибка создания чата:', error);
+  // Проверяем, что это не текущий пользователь
+  if (!userId || userId === chatStore.user?.id) {
+    console.error('Нельзя создать чат с самим собой. userId:', userId, 'currentUserId:', chatStore.user?.id);
+    return;
   }
+
+  // Переходим на страницу нового чата с userId
+  // Чат будет создан при отправке первого сообщения
+  router.push(`/chat/new?userId=${userId}`);
 };
 
 const formatMessageTime = (date: Date | string): string => {
@@ -1457,8 +1496,27 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 		</Tooltip>
 		</div>
 
+		<div v-else-if="isNewChat && newChatUser" class="chat-window__empty">
+			<div class="chat-window__new-chat-info">
+				<div class="chat-window__new-chat-avatar">
+					<img v-if="getAvatar()" :src="getAvatar()" :alt="getChatName()" />
+					<div v-else class="chat-window__new-chat-avatar-placeholder">
+						{{ getChatName().charAt(0).toUpperCase() }}
+					</div>
+					<span
+						v-if="getOtherParticipant()"
+						:class="['chat-window__new-chat-status-indicator', `chat-window__new-chat-status-indicator--${getComputedStatus(getOtherParticipant())}`]"
+					></span>
+				</div>
+				<div class="chat-window__new-chat-details">
+					<h3>{{ getChatName() }}</h3>
+					<p class="chat-window__new-chat-status">{{ getStatus() }}</p>
+				</div>
+			</div>
+			<p class="chat-window__new-chat-message">Напишите первое сообщение</p>
+		</div>
 		<div v-else class="chat-window__empty">
-			<p>Выберите чат для начала общения</p>
+			<p>Напишите первое сообщение</p>
 		</div>
 
 		<!-- Входящий звонок -->
@@ -1835,8 +1893,9 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 
 		<MessageInput
 			ref="messageInputRef"
-			v-if="currentChat && !selectionMode"
-			:chat-id="currentChat._id"
+			v-if="(currentChat || isNewChat) && !selectionMode"
+			:chat-id="currentChat?._id"
+			:user-id="isNewChat ? newChatUserId : undefined"
 			:reply-to="replyToMessage"
 			:edit-message="editMessage"
 			@clear-reply="clearReplyToMessage"
@@ -2362,9 +2421,93 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
   &__empty {
     flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     color: var(--text-secondary);
+    padding: 2rem;
+  }
+
+  &__new-chat-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  &__new-chat-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: visible;
+    position: relative;
+    flex-shrink: 0;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+    }
+  }
+
+  &__new-chat-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-color);
+    color: white;
+    font-weight: 600;
+    font-size: 3rem;
+    border-radius: 50%;
+  }
+
+  &__new-chat-status-indicator {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 3px solid var(--bg-primary);
+    z-index: 1;
+
+    &--online {
+      background: #52c41a;
+    }
+
+    &--offline {
+      background: #ff4d4f;
+    }
+
+    &--away {
+      background: #faad14;
+    }
+  }
+
+  &__new-chat-details {
+    text-align: center;
+  }
+
+  &__new-chat-details h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+  }
+
+  &__new-chat-status {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+  }
+
+  &__new-chat-message {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 1rem;
   }
 
   &__messages {
