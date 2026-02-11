@@ -9,6 +9,7 @@ interface CallHistory {
   status: 'answered' | 'missed' | 'rejected';
   participant: { id: string; username: string; avatar?: string };
   participantsCount?: number;
+  participants?: Array<{ id: string; username: string; avatar?: string }>;
   chatId?: string;
   duration?: number;
   createdAt: Date;
@@ -151,7 +152,7 @@ const getParticipantAvatar = computed(() => {
               {{ getParticipantName ? getParticipantName.charAt(0).toUpperCase() : 'П' }}
             </div>
           </div>
-          <h2 class="calls-view__details-name">{{ getParticipantName }}</h2>
+          <h2 v-if="!props.selectedCall.participantsCount || props.selectedCall.participantsCount <= 1" class="calls-view__details-name">{{ getParticipantName }}</h2>
           <p v-if="props.selectedCall.participantsCount && props.selectedCall.participantsCount > 1" class="calls-view__details-group">
             Групповой звонок · {{ props.selectedCall.participantsCount }} участников
           </p>
@@ -183,6 +184,27 @@ const getParticipantAvatar = computed(() => {
           <div class="calls-view__info-item">
             <span class="calls-view__info-label">Дата и время</span>
             <span class="calls-view__info-value">{{ formatTime(props.selectedCall.createdAt) }}</span>
+          </div>
+
+          <div v-if="props.selectedCall.participantsCount && props.selectedCall.participantsCount > 1 && props.selectedCall.participants" class="calls-view__participants">
+            <h3 class="calls-view__participants-title">Участники ({{ props.selectedCall.participants.length }})</h3>
+            <div class="calls-view__participants-list">
+              <div
+                v-for="participant in props.selectedCall.participants"
+                :key="participant.id"
+                class="calls-view__participant-item"
+              >
+                <div class="calls-view__participant-avatar">
+                  <div v-if="participant.avatar" class="calls-view__participant-avatar-img">
+                    <img :src="participant.avatar" :alt="participant.username" />
+                  </div>
+                  <div v-else class="calls-view__participant-avatar-placeholder">
+                    {{ participant.username.charAt(0).toUpperCase() }}
+                  </div>
+                </div>
+                <span class="calls-view__participant-name">{{ participant.username }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -400,6 +422,76 @@ const getParticipantAvatar = computed(() => {
     @media (max-width: 768px) {
       text-align: left;
     }
+  }
+
+  &__participants {
+    margin-top: 1rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-color);
+  }
+
+  &__participants-title {
+    margin: 0 0 1rem 0;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  &__participants-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  &__participant-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    transition: background 0.2s;
+
+    &:hover {
+      background: var(--bg-primary);
+    }
+  }
+
+  &__participant-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  &__participant-avatar-img {
+    width: 100%;
+    height: 100%;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  &__participant-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-color);
+    color: white;
+    font-weight: 600;
+    font-size: 1rem;
+  }
+
+  &__participant-name {
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    font-weight: 500;
   }
 }
 </style>

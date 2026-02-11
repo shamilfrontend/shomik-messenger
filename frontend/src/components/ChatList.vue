@@ -19,6 +19,7 @@ interface CallHistory {
   status: 'answered' | 'missed' | 'rejected';
   participant: User | { id: string; username: string; avatar?: string };
   participantsCount?: number; // количество участников (для групповых звонков)
+  participants?: Array<{ id: string; username: string; avatar?: string }>; // список участников группового звонка
   chatId?: string;
   duration?: number; // в секундах
   createdAt: Date;
@@ -393,6 +394,13 @@ const callsHistory = ref<CallHistory[]>([
     status: 'answered',
     participant: { id: '8', username: 'Ольга Новикова', avatar: undefined },
     participantsCount: 5,
+    participants: [
+      { id: '8', username: 'Ольга Новикова', avatar: undefined },
+      { id: '2', username: 'Анна Петрова', avatar: undefined },
+      { id: '3', username: 'Иван Сидоров', avatar: undefined },
+      { id: '4', username: 'Мария Иванова', avatar: undefined },
+      { id: '5', username: 'Петр Смирнов', avatar: undefined },
+    ],
     chatId: 'chat7',
     duration: 2150,
     createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 дней назад
@@ -404,6 +412,11 @@ const callsHistory = ref<CallHistory[]>([
     status: 'answered',
     participant: { id: '9', username: 'Сергей Морозов', avatar: undefined },
     participantsCount: 3,
+    participants: [
+      { id: '9', username: 'Сергей Морозов', avatar: undefined },
+      { id: '6', username: 'Елена Козлова', avatar: undefined },
+      { id: '7', username: 'Дмитрий Волков', avatar: undefined },
+    ],
     chatId: 'chat8',
     duration: 120,
     createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), // 6 дней назад
@@ -415,6 +428,16 @@ const callsHistory = ref<CallHistory[]>([
     status: 'missed',
     participant: { id: '10', username: 'Татьяна Лебедева', avatar: undefined },
     participantsCount: 8,
+    participants: [
+      { id: '10', username: 'Татьяна Лебедева', avatar: undefined },
+      { id: '2', username: 'Анна Петрова', avatar: undefined },
+      { id: '3', username: 'Иван Сидоров', avatar: undefined },
+      { id: '4', username: 'Мария Иванова', avatar: undefined },
+      { id: '5', username: 'Петр Смирнов', avatar: undefined },
+      { id: '6', username: 'Елена Козлова', avatar: undefined },
+      { id: '7', username: 'Дмитрий Волков', avatar: undefined },
+      { id: '8', username: 'Ольга Новикова', avatar: undefined },
+    ],
     chatId: 'chat9',
     createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // неделю назад
   },
@@ -425,10 +448,72 @@ const callsHistory = ref<CallHistory[]>([
     status: 'answered',
     participant: { id: '11', username: 'Алексей Соколов', avatar: undefined },
     participantsCount: 4,
+    participants: [
+      { id: '11', username: 'Алексей Соколов', avatar: undefined },
+      { id: '2', username: 'Анна Петрова', avatar: undefined },
+      { id: '3', username: 'Иван Сидоров', avatar: undefined },
+      { id: '4', username: 'Мария Иванова', avatar: undefined },
+    ],
     chatId: 'chat10',
     duration: 450,
     createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), // 8 дней назад
   },
+  // Дополнительные звонки для тестирования
+  ...Array.from({ length: 40 }, (_, i) => {
+    const id = i + 11;
+    const daysAgo = Math.floor(Math.random() * 30) + 9;
+    const types: ('incoming' | 'outgoing')[] = ['incoming', 'outgoing'];
+    const callTypes: ('audio' | 'video')[] = ['audio', 'video'];
+    const statuses: ('answered' | 'missed' | 'rejected')[] = ['answered', 'missed', 'rejected'];
+    const names = [
+      'Андрей Кузнецов', 'Наталья Федорова', 'Владимир Орлов', 'Екатерина Семенова',
+      'Михаил Лебедев', 'Юлия Новикова', 'Александр Морозов', 'Ольга Петрова',
+      'Денис Волков', 'Марина Соколова', 'Роман Козлов', 'Анна Лебедева',
+      'Павел Новиков', 'Татьяна Морозова', 'Игорь Соколов', 'Елена Кузнецова',
+      'Сергей Орлов', 'Виктория Семенова', 'Алексей Федоров', 'Надежда Волкова',
+      'Дмитрий Козлов', 'Ирина Петрова', 'Максим Лебедев', 'Светлана Новикова',
+      'Артем Морозов', 'Оксана Соколова', 'Николай Кузнецов', 'Людмила Орлова',
+      'Вадим Семенов', 'Галина Федорова', 'Станислав Волков', 'Раиса Козлова',
+      'Вячеслав Петров', 'Зоя Лебедева', 'Геннадий Новиков', 'Валентина Морозова',
+      'Борис Соколов', 'Тамара Кузнецова', 'Валерий Орлов', 'Нина Семенова',
+    ];
+    const type = types[Math.floor(Math.random() * types.length)];
+    const callType = callTypes[Math.floor(Math.random() * callTypes.length)];
+    const status = statuses[Math.floor(Math.random() * statuses.length)];
+    const name = names[i % names.length];
+    const hasGroup = Math.random() > 0.7;
+    const participantsCount = hasGroup ? Math.floor(Math.random() * 10) + 2 : undefined;
+    const duration = status === 'answered' ? Math.floor(Math.random() * 3600) + 60 : undefined;
+    
+    // Генерируем список участников для групповых звонков
+    const participants = hasGroup && participantsCount ? Array.from({ length: participantsCount }, (_, idx) => {
+      const participantNames = [
+        'Анна Петрова', 'Иван Сидоров', 'Мария Иванова', 'Петр Смирнов',
+        'Елена Козлова', 'Дмитрий Волков', 'Ольга Новикова', 'Сергей Морозов',
+        'Татьяна Лебедева', 'Алексей Соколов', 'Андрей Кузнецов', 'Наталья Федорова',
+        'Владимир Орлов', 'Екатерина Семенова', 'Михаил Лебедев', 'Юлия Новикова',
+        'Александр Морозов', 'Денис Волков', 'Марина Соколова', 'Роман Козлов',
+      ];
+      return {
+        id: String(id + 100 + idx),
+        username: idx === 0 ? name : participantNames[(idx - 1) % participantNames.length],
+        avatar: undefined,
+      };
+    }) : undefined;
+    
+    return {
+      id: String(id),
+      type,
+      callType,
+      status,
+      participant: { id: String(id + 100), username: name, avatar: undefined },
+      participantsCount,
+      participants,
+      chatId: `chat${id}`,
+      duration,
+      createdAt: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000),
+    };
+  }),
 ]);
 
 const filteredCalls = computed(() => {
@@ -534,6 +619,99 @@ const tasks = ref<Task[]>([
     createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
     updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
   },
+  // Дополнительные задачи для тестирования
+  ...Array.from({ length: 45 }, (_, i) => {
+    const id = i + 6;
+    const daysAgo = Math.floor(Math.random() * 60) + 1;
+    const priorities: ('low' | 'medium' | 'high')[] = ['low', 'medium', 'high'];
+    const completed = Math.random() > 0.6;
+    const priority = priorities[Math.floor(Math.random() * priorities.length)];
+    const hasDueDate = Math.random() > 0.3;
+    const dueDateDays = hasDueDate ? (Math.random() > 0.5 ? Math.floor(Math.random() * 30) + 1 : -(Math.floor(Math.random() * 10) + 1)) : undefined;
+    
+    const taskTitles = [
+      'Реализовать систему уведомлений', 'Добавить поддержку файлов', 'Создать мобильное приложение',
+      'Настроить CI/CD пайплайн', 'Провести код-ревью', 'Написать unit-тесты',
+      'Оптимизировать базу данных', 'Добавить логирование', 'Реализовать кэширование',
+      'Создать API документацию', 'Добавить валидацию форм', 'Исправить ошибки линтера',
+      'Реализовать пагинацию', 'Добавить фильтрацию данных', 'Создать админ-панель',
+      'Настроить мониторинг', 'Добавить аналитику', 'Реализовать экспорт данных',
+      'Создать дашборд', 'Добавить поиск', 'Реализовать сортировку',
+      'Настроить авторизацию', 'Добавить двухфакторную аутентификацию', 'Создать систему ролей',
+      'Реализовать восстановление пароля', 'Добавить профиль пользователя', 'Создать настройки',
+      'Реализовать уведомления в реальном времени', 'Добавить поддержку тем', 'Создать систему плагинов',
+      'Оптимизировать изображения', 'Добавить lazy loading', 'Реализовать виртуализацию списков',
+      'Создать систему шаблонов', 'Добавить мультиязычность', 'Реализовать локализацию',
+      'Настроить SEO', 'Добавить мета-теги', 'Создать sitemap',
+      'Реализовать копирование данных', 'Добавить импорт из файлов', 'Создать экспорт в PDF',
+      'Настроить резервное копирование', 'Добавить восстановление данных', 'Реализовать версионирование',
+    ];
+    
+    const taskDescriptions = [
+      'Необходимо добавить push-уведомления для мобильных устройств',
+      'Поддержка загрузки и просмотра различных форматов файлов',
+      'Разработка нативных приложений для iOS и Android',
+      'Автоматизация процесса деплоя и тестирования',
+      'Проверка кода на соответствие стандартам',
+      'Покрытие критических функций тестами',
+      'Оптимизация запросов и индексов',
+      'Централизованное логирование всех событий',
+      'Кэширование часто используемых данных',
+      'Подробное описание всех эндпоинтов API',
+      'Проверка корректности введенных данных',
+      'Исправление всех предупреждений линтера',
+      'Разбиение больших списков на страницы',
+      'Возможность фильтрации по различным критериям',
+      'Панель управления для администраторов',
+      'Отслеживание производительности системы',
+      'Сбор статистики использования приложения',
+      'Экспорт данных в различные форматы',
+      'Визуализация ключевых метрик',
+      'Быстрый поиск по всем данным',
+      'Сортировка по различным полям',
+      'Безопасная система входа',
+      'Дополнительная защита аккаунта',
+      'Управление правами доступа',
+      'Восстановление доступа к аккаунту',
+      'Расширенные настройки профиля',
+      'Персонализация интерфейса',
+      'WebSocket для мгновенных обновлений',
+      'Переключение между темами оформления',
+      'Расширяемость функционала',
+      'Оптимизация размера изображений',
+      'Загрузка контента по требованию',
+      'Эффективная работа с большими списками',
+      'Готовые шаблоны для быстрого старта',
+      'Поддержка нескольких языков',
+      'Адаптация под разные регионы',
+      'Улучшение видимости в поисковиках',
+      'Метаданные для социальных сетей',
+      'Карта сайта для индексации',
+      'Дублирование важных данных',
+      'Импорт данных из внешних источников',
+      'Генерация PDF документов',
+      'Регулярное резервное копирование',
+      'Восстановление после сбоев',
+      'История изменений данных',
+    ];
+    
+    const title = taskTitles[i % taskTitles.length];
+    const description = taskDescriptions[i % taskDescriptions.length];
+    const dueDate = dueDateDays !== undefined ? new Date(Date.now() + dueDateDays * 24 * 60 * 60 * 1000) : undefined;
+    const createdAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+    const updatedAt = new Date(createdAt.getTime() + Math.floor(Math.random() * (daysAgo - 1)) * 24 * 60 * 60 * 1000);
+    
+    return {
+      id: String(id),
+      title,
+      description,
+      completed,
+      priority,
+      dueDate,
+      createdAt,
+      updatedAt,
+    };
+  }),
 ]);
 
 const filteredTasks = computed(() => {
