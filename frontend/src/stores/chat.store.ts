@@ -9,6 +9,7 @@ import { playNotificationSound } from '../utils/sound';
 export const useChatStore = defineStore('chat', () => {
   const authStore = useAuthStore();
   const chats = ref<Chat[]>([]);
+  const pinnedChats = ref<Set<string>>(new Set());
   const currentChat = ref<Chat | null>(null);
   const messages = ref<Message[]>([]);
   const typingUsers = ref<Map<string, Set<string>>>(new Map());
@@ -24,6 +25,10 @@ export const useChatStore = defineStore('chat', () => {
 
   const loadChats = async (): Promise<void> => {
     try {
+      // Инициализируем pinnedChats из данных пользователя если есть
+      if (user.value?.pinnedChats) {
+        pinnedChats.value = new Set(user.value.pinnedChats);
+      }
       const response = await api.get('/chats');
       // Поддерживаем старый формат (массив чатов) и новый (объект с chats и activeGroupCalls)
       const responseData = response.data;
@@ -31,6 +36,10 @@ export const useChatStore = defineStore('chat', () => {
         chats.value = responseData;
       } else {
         chats.value = responseData.chats || responseData;
+        // Обрабатываем закрепленные чаты
+        if (responseData.pinnedChats && Array.isArray(responseData.pinnedChats)) {
+          pinnedChats.value = new Set(responseData.pinnedChats);
+        }
         // Обрабатываем информацию об активных групповых звонках
         if (responseData.activeGroupCalls && Array.isArray(responseData.activeGroupCalls)) {
           // Используем динамический импорт, чтобы избежать циклических зависимостей
@@ -575,8 +584,23 @@ export const useChatStore = defineStore('chat', () => {
     }
   };
 
+  const isChatPinned = (chatId: string): boolean => pinnedChats.value.has(chatId);
+
+  const togglePinChat = async (chatId: string): Promise<void> => {
+    try {
+      const response = await api.patch(`/chats/${chatId}/pin`);
+      const { pinnedChats: updatedPinnedChats } = response.data;
+      pinnedChats.value = new Set(updatedPinnedChats);
+    } catch (error: any) {
+      console.error('Ошибка закрепления чата:', error.response?.data?.error || error.message);
+      throw error;
+    }
+  };
+
   const removeChatFromList = (chatId: string): void => {
     chats.value = chats.value.filter((c) => c._id !== chatId);
+    // Удаляем из закрепленных
+    pinnedChats.value.delete(chatId);
     // Если удаленный чат был открыт, закрываем его
     if (currentChat.value && currentChat.value._id === chatId) {
       setCurrentChat(null);
@@ -694,6 +718,7 @@ export const useChatStore = defineStore('chat', () => {
 
   return {
     chats,
+    pinnedChats,
     currentChat,
     messages,
     requestScrollToBottom,
@@ -729,6 +754,8 @@ export const useChatStore = defineStore('chat', () => {
     leaveGroup,
     deleteChat,
     removeChatFromList,
+    isChatPinned,
+    togglePinChat,
     updatePinnedMessage,
     updateUserInChats,
     toggleReaction,

@@ -6,6 +6,7 @@ export interface User {
   status: 'online' | 'offline' | 'away';
   lastSeen?: Date;
   contacts?: string[];
+  pinnedChats?: string[];
   params?: {
     messageTextSize?: number;
     theme?: string;

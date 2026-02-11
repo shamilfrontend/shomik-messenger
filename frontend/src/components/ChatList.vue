@@ -32,12 +32,23 @@ const chatContextMenuY = ref(0);
 const chatContextChat = ref<Chat | null>(null);
 
 const chatContextMenuActions = computed((): ContextMenuAction[] => {
-  if (!chatContextChat.value || chatContextChat.value.type !== 'private') return [];
-  return [{ id: 'delete', label: 'Удалить чат', icon: 'trash' }];
+  if (!chatContextChat.value) return [];
+  const chat = chatContextChat.value;
+  const isPinned = chatStore.isChatPinned(chat._id);
+  const actions: ContextMenuAction[] = [
+    {
+      id: 'pin',
+      label: isPinned ? 'Открепить чат' : 'Закрепить чат',
+      icon: isPinned ? 'unpin' : 'pin',
+    },
+  ];
+  if (chat.type === 'private') {
+    actions.push({ id: 'delete', label: 'Удалить чат', icon: 'trash' });
+  }
+  return actions;
 });
 
 const onChatContextMenu = (chat: Chat, e: MouseEvent): void => {
-  if (chat.type !== 'private') return;
   chatContextChat.value = chat;
   chatContextMenuX.value = e.clientX;
   chatContextMenuY.value = e.clientY;
@@ -47,17 +58,31 @@ const onChatContextMenu = (chat: Chat, e: MouseEvent): void => {
 const onChatContextMenuSelect = async (action: ContextMenuAction): Promise<void> => {
   const chat = chatContextChat.value;
   chatContextChat.value = null;
-  if (!chat || action.id !== 'delete') return;
-  const confirmed = await confirm('Удалить этот чат? История сообщений будет удалена.');
-  if (!confirmed) return;
-  try {
-    await chatStore.deleteChat(chat._id);
-    notifySuccess('Чат удалён');
-    if (route.params.id === chat._id) {
-      router.push('/');
+  if (!chat) return;
+
+  if (action.id === 'pin') {
+    try {
+      await chatStore.togglePinChat(chat._id);
+      const isPinned = chatStore.isChatPinned(chat._id);
+      notifySuccess(isPinned ? 'Чат закреплён' : 'Чат откреплён');
+    } catch (err: any) {
+      notifyError(err.response?.data?.error || 'Не удалось изменить закрепление');
     }
-  } catch (err: any) {
-    notifyError(err.response?.data?.error || 'Не удалось удалить чат');
+    return;
+  }
+
+  if (action.id === 'delete') {
+    const confirmed = await confirm('Удалить этот чат? История сообщений будет удалена.');
+    if (!confirmed) return;
+    try {
+      await chatStore.deleteChat(chat._id);
+      notifySuccess('Чат удалён');
+      if (route.params.id === chat._id) {
+        router.push('/');
+      }
+    } catch (err: any) {
+      notifyError(err.response?.data?.error || 'Не удалось удалить чат');
+    }
   }
 };
 
@@ -85,6 +110,15 @@ const filteredChats = computed(() => {
       return name.includes(query);
     });
   }
+
+  // Сортируем: закрепленные чаты наверху
+  result.sort((a, b) => {
+    const aPinned = chatStore.isChatPinned(a._id);
+    const bPinned = chatStore.isChatPinned(b._id);
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    return 0;
+  });
 
   return result;
 });
@@ -269,7 +303,20 @@ const isProfilePage = computed(() => route.path === '/profile');
 
         <div class="chat-list__content">
           <div class="chat-list__header-row">
-            <span class="chat-list__name">{{ getChatName(chat) }}</span>
+            <span class="chat-list__name">
+              {{ getChatName(chat) }}
+              <svg
+                v-if="chatStore.isChatPinned(chat._id)"
+                class="chat-list__pin-icon"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                stroke="none"
+              >
+                <path d="M16 12V4h1V2H7v2h1v8l-4 4v2h16v-2l-4-4z"/>
+              </svg>
+            </span>
             <div class="chat-list__header-right">
               <span class="chat-list__time">{{ formatTime(chat.lastMessage?.createdAt) }}</span>
               <span v-if="getUnreadCount(chat._id) > 0" class="chat-list__unread-badge">
@@ -562,6 +609,15 @@ const isProfilePage = computed(() => route.path === '/profile');
     font-weight: 600;
     color: var(--text-primary);
     font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__pin-icon {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    opacity: 0.7;
   }
 
   &__time {

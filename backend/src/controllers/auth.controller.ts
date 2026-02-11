@@ -70,6 +70,7 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
         avatar: user.avatar,
         status: user.status,
         params: user.params || {},
+        pinnedChats: user.pinnedChats?.map((id) => id.toString()) || [],
       },
     });
   } catch (error: any) {
@@ -121,6 +122,7 @@ export const login = async (req: AuthRequest, res: Response): Promise<void> => {
         avatar: user.avatar,
         status: user.status,
         params: user.params || {},
+        pinnedChats: user.pinnedChats?.map((id) => id.toString()) || [],
       },
     });
   } catch (error: any) {
@@ -146,6 +148,7 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
       lastSeen: user.lastSeen,
       contacts: user.contacts,
       params: user.params || {},
+      pinnedChats: user.pinnedChats?.map((id) => id.toString()) || [],
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

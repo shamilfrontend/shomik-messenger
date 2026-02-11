@@ -89,7 +89,11 @@ export const getChats = async (req: AuthRequest, res: Response): Promise<void> =
     const groupChatIds = chatsWithId.filter((c) => c.type === 'group').map((c) => c._id.toString());
     const activeGroupCalls = wsService.getActiveGroupCallsForChats(groupChatIds);
 
-    res.json({ chats: chatsWithId, activeGroupCalls });
+    // Получаем закрепленные чаты пользователя
+    const currentUser = await User.findById(req.userId).select('pinnedChats');
+    const pinnedChats = currentUser?.pinnedChats?.map((id) => id.toString()) || [];
+
+    res.json({ chats: chatsWithId, activeGroupCalls, pinnedChats });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -1243,6 +1247,48 @@ export const editMessage = async (req: AuthRequest, res: Response): Promise<void
     }
 
     res.json(messageObj);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const togglePinChat = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id: chatId } = req.params;
+
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      res.status(404).json({ error: 'Чат не найден' });
+      return;
+    }
+
+    const isParticipant = chat.participants.some((p: any) => p.toString() === req.userId);
+    if (!isParticipant) {
+      res.status(403).json({ error: 'Нет доступа к этому чату' });
+      return;
+    }
+
+    const userDoc = await User.findById(req.userId);
+    if (!userDoc) {
+      res.status(404).json({ error: 'Пользователь не найден' });
+      return;
+    }
+
+    const chatObjectId = new mongoose.Types.ObjectId(chatId);
+    const isPinned = userDoc.pinnedChats.some((id) => id.toString() === chatId);
+
+    if (isPinned) {
+      userDoc.pinnedChats = userDoc.pinnedChats.filter((id) => id.toString() !== chatId);
+    } else {
+      userDoc.pinnedChats.push(chatObjectId);
+    }
+
+    await userDoc.save();
+
+    res.json({
+      pinned: !isPinned,
+      pinnedChats: userDoc.pinnedChats.map((id) => id.toString()),
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

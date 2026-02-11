@@ -8,6 +8,7 @@ export interface IUser extends Document {
   status: 'online' | 'offline' | 'away';
   lastSeen: Date;
   contacts: mongoose.Types.ObjectId[];
+  pinnedChats: mongoose.Types.ObjectId[];
   params?: {
     messageTextSize?: number;
     theme?: string;
@@ -54,6 +55,10 @@ const UserSchema = new Schema<IUser>(
     contacts: [{
       type: Schema.Types.ObjectId,
       ref: 'User',
+    }],
+    pinnedChats: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Chat',
     }],
     params: {
       messageTextSize: {
