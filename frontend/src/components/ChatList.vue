@@ -1166,6 +1166,8 @@ defineExpose({
   &__items {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
+    max-width: 100%;
 
     @media (max-width: 768px) {
       padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
@@ -1265,6 +1267,9 @@ defineExpose({
     display: flex;
     justify-content: space-between;
     align-items: center;
+    width: 100%;
+    min-width: 0;
+    gap: 0.5rem;
   }
 
   &__header-right {
@@ -1280,6 +1285,11 @@ defineExpose({
     display: flex;
     align-items: center;
     gap: 4px;
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__pin-icon {
@@ -1289,6 +1299,8 @@ defineExpose({
   }
 
   &__time {
+    flex-shrink: 0;
+    white-space: nowrap;
     color: var(--text-secondary);
     font-size: 0.75rem;
   }
@@ -1571,6 +1583,8 @@ defineExpose({
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 100%;
+    min-width: 0;
   }
 
   &__task-meta {
