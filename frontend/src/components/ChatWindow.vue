@@ -389,6 +389,8 @@ const typingUsers = computed(() => {
   return chatStore.typingUsers.get(currentChat.value._id) || new Set();
 });
 
+const isGroupChat = computed(() => currentChat.value?.type === 'group');
+
 /** Число колонок сетки группового видеозвонка по количеству участников (≈ квадратная сетка) */
 const groupVideoGridStyle = computed(() => {
   const n = Math.max(1, Object.keys(callStore.remoteStreams).length);
@@ -552,7 +554,7 @@ const getChatName = (): string => {
     return newChatUser.value.username || 'Пользователь';
   }
   if (!currentChat.value) return '';
-  if (currentChat.value.type === 'group') {
+  if (isGroupChat.value) {
     return currentChat.value.groupName || 'Группа';
   }
   const otherParticipant = currentChat.value.participants.find((p) => (typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id));
@@ -565,7 +567,7 @@ const getAvatar = (): string | undefined => {
     return getImageUrl(newChatUser.value.avatar);
   }
   if (!currentChat.value) return;
-  if (currentChat.value.type === 'group') {
+  if (isGroupChat.value) {
     return getImageUrl(currentChat.value.groupAvatar);
   }
   const otherParticipant = currentChat.value.participants.find((p) => (typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id));
@@ -577,7 +579,7 @@ const getOtherParticipant = (): User | null => {
   if (isNewChat.value && newChatUser.value) {
     return newChatUser.value;
   }
-  if (!currentChat.value || currentChat.value.type === 'group') {
+  if (!currentChat.value || isGroupChat.value) {
     return null;
   }
   const otherParticipant = currentChat.value.participants.find((p) => (typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id));
@@ -592,7 +594,7 @@ const getStatus = (): string => {
   if (isNewChat.value && newChatUser.value) {
     return isUserOnline(newChatUser.value) ? 'в сети' : 'не в сети';
   }
-  if (!currentChat.value || currentChat.value.type === 'group') return '';
+  if (!currentChat.value || isGroupChat.value) return '';
   const otherParticipant = currentChat.value.participants.find((p) => (typeof p === 'string' ? p !== chatStore.user?.id : p.id !== chatStore.user?.id));
   if (typeof otherParticipant === 'string') return '';
   return isUserOnline(otherParticipant) ? 'в сети' : 'не в сети';
@@ -634,7 +636,7 @@ const canDeleteMessage = (message: Message): boolean => {
   }
 
   // Админ группы может удалять любые сообщения в группе
-  if (currentChat.value?.type === 'group' && isGroupAdmin.value) {
+  if (isGroupChat.value && isGroupAdmin.value) {
     return true;
   }
 
@@ -742,24 +744,6 @@ const getMessageAvatar = (message: Message): string | undefined => {
   return getImageUrl(message.senderId.avatar);
 };
 
-const shouldShowAvatar = (message: Message): boolean => {
-  // В групповых чатах показываем аватар для всех сообщений
-  if (currentChat.value?.type === 'group') {
-    return true;
-  }
-  // В приватных чатах показываем аватар только для сообщений не от текущего пользователя
-  return !isOwnMessage(message);
-};
-
-const shouldShowSender = (message: Message): boolean => {
-  // В групповых чатах показываем имя отправителя для всех сообщений
-  if (currentChat.value?.type === 'group') {
-    return true;
-  }
-  // В приватных чатах имя отправителя не показываем
-  return false;
-};
-
 const openUserInfo = (message: Message): void => {
   // Не открываем модальное окно для своих сообщений
   if (isOwnMessage(message)) {
@@ -813,7 +797,7 @@ const handleHeaderAvatarClick = (): void => {
 };
 
 const handleHeaderTitleClick = (): void => {
-  if (currentChat.value?.type === 'group') {
+  if (isGroupChat.value) {
     showGroupSettings.value = true;
   }
 };
@@ -1428,10 +1412,10 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				</div>
 				<div
 					class="chat-window__header-text"
-					:class="{ 'chat-window__header-text--clickable': currentChat && currentChat.type === 'group' }"
+					:class="{ 'chat-window__header-text--clickable': currentChat && isGroupChat }"
 					role="button"
 					tabindex="0"
-					:aria-label="currentChat && currentChat.type === 'group' ? 'Настройки группы' : undefined"
+					:aria-label="currentChat && isGroupChat ? 'Настройки группы' : undefined"
 					@click="handleHeaderTitleClick"
 					@keydown.enter.prevent="handleHeaderTitleClick"
 					@keydown.space.prevent="handleHeaderTitleClick"
@@ -1469,7 +1453,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 		</Tooltip>
 		<Tooltip :text="callButtonTitle('Начать групповой звонок')" position="bottom">
 			<button
-				v-if="currentChat && currentChat.type === 'group' && !callStore.activeCall && (!callStore.groupCallAvailable || callStore.groupCallAvailable.chatId !== currentChat._id)"
+				v-if="currentChat && isGroupChat && !callStore.activeCall && (!callStore.groupCallAvailable || callStore.groupCallAvailable.chatId !== currentChat._id)"
 				@click="handleStartGroupCall"
 				:disabled="callsDisabledInProd || callStore.isConnecting"
 				class="chat-window__call-button"
@@ -1482,7 +1466,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 		</Tooltip>
 		<Tooltip :text="callButtonTitle('Начать групповой видеозвонок')" position="bottom">
 			<button
-				v-if="currentChat && currentChat.type === 'group' && !callStore.activeCall && (!callStore.groupCallAvailable || callStore.groupCallAvailable.chatId !== currentChat._id)"
+				v-if="currentChat && isGroupChat && !callStore.activeCall && (!callStore.groupCallAvailable || callStore.groupCallAvailable.chatId !== currentChat._id)"
 				@click="handleStartGroupVideoCall"
 				:disabled="callsDisabledInProd || callStore.isConnecting"
 				class="chat-window__call-button"
@@ -1727,7 +1711,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 						}]"
 					>
 						<div
-							v-if="shouldShowAvatar(message)"
+							v-if="isGroupChat"
 							class="chat-window__message-avatar"
 							@click="openUserInfo(message)"
 						>
@@ -1746,7 +1730,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 						</div>
 						<div class="chat-window__message-content" :data-message-id="message._id">
 							<div
-								v-if="shouldShowSender(message)"
+								v-if="isGroupChat"
 								class="chat-window__message-sender"
 								@click="openUserInfo(message)"
 							>
@@ -1919,7 +1903,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 		/>
 
 		<GroupSettingsModal
-			v-if="currentChat && currentChat.type === 'group'"
+			v-if="currentChat && isGroupChat"
 			:is-open="showGroupSettings"
 			:chat="currentChat"
 			@close="showGroupSettings = false"
