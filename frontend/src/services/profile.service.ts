@@ -8,6 +8,7 @@ export interface UpdateProfileData {
     messageTextSize?: number;
     theme?: string;
     tasks?: boolean;
+    mutedChats?: string[];
   };
 }
 

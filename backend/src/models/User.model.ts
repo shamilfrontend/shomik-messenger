@@ -14,6 +14,8 @@ export interface IUser extends Document {
     theme?: string;
     /** Включён ли раздел «Задачи» в интерфейсе. По умолчанию false. */
     tasks?: boolean;
+    /** Идентификаторы чатов с отключёнными уведомлениями. */
+    mutedChats?: string[];
   };
   createdAt: Date;
   updatedAt: Date;
@@ -77,6 +79,10 @@ const UserSchema = new Schema<IUser>(
       tasks: {
         type: Boolean,
         default: false,
+      },
+      mutedChats: {
+        type: [String],
+        default: undefined,
       },
     },
   },

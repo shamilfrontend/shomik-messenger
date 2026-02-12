@@ -5,6 +5,7 @@ import { useChatStore } from '../stores/chat.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useConfirm } from '../composables/useConfirm';
 import { useNotifications } from '../composables/useNotifications';
+import { useSettings } from '../composables/useSettings';
 import ContextMenu from './ContextMenu.vue';
 import type { ContextMenuAction } from './ContextMenu.vue';
 import { Chat, Message } from '../types';
@@ -45,6 +46,7 @@ const chatStore = useChatStore();
 const authStore = useAuthStore();
 const { confirm } = useConfirm();
 const { success: notifySuccess, error: notifyError } = useNotifications();
+const { isChatMuted, toggleChatMuted } = useSettings();
 const router = useRouter();
 const route = useRoute();
 const searchQuery = ref('');
@@ -69,11 +71,17 @@ const chatContextMenuActions = computed((): ContextMenuAction[] => {
   if (!chatContextChat.value) return [];
   const chat = chatContextChat.value;
   const isPinned = chatStore.isChatPinned(chat._id);
+  const muted = isChatMuted(chat._id);
   const actions: ContextMenuAction[] = [
     {
       id: 'pin',
       label: isPinned ? 'Открепить чат' : 'Закрепить чат',
       icon: isPinned ? 'unpin' : 'pin',
+    },
+    {
+      id: 'mute',
+      label: muted ? 'Включить уведомления' : 'Отключить уведомления',
+      icon: 'mute',
     },
   ];
   if (chat.type === 'private') {
@@ -101,6 +109,16 @@ const onChatContextMenuSelect = async (action: ContextMenuAction): Promise<void>
       notifySuccess(isPinned ? 'Чат закреплён' : 'Чат откреплён');
     } catch (err: any) {
       notifyError(err.response?.data?.error || 'Не удалось изменить закрепление');
+    }
+    return;
+  }
+
+  if (action.id === 'mute') {
+    try {
+      const nowMuted = await toggleChatMuted(chat._id);
+      notifySuccess(nowMuted ? 'Уведомления отключены' : 'Уведомления включены');
+    } catch (err: any) {
+      notifyError(err.response?.data?.error || 'Не удалось изменить настройки уведомлений');
     }
     return;
   }
@@ -261,7 +279,7 @@ const selectChat = (chat: Chat): void => {
     emit('scroll-to-bottom-request');
     return;
   }
-  router.push(`/chat/${chat._id}`);
+  router.push({ path: `/chat/${chat._id}`, query: { ...route.query, type: chat.type } });
 };
 
 const goToChats = (): void => {

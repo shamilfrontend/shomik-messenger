@@ -8,7 +8,7 @@ export interface ContextMenuAction {
   label: string;
   disabled?: boolean;
   /** Иконка — компонент (VNode / h) или имя для встроенных иконок */
-  icon?: 'reply' | 'copy' | 'edit' | 'delete' | 'trash' | 'select' | 'pin' | 'unpin';
+  icon?: 'reply' | 'copy' | 'edit' | 'delete' | 'trash' | 'select' | 'pin' | 'unpin' | 'mute';
 }
 
 const props = withDefaults(
@@ -137,6 +137,13 @@ watch(
             <!-- pin / unpin (pushpin) -->
             <svg v-else-if="action.icon === 'pin' || action.icon === 'unpin'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 12V4h1V2H7v2h1v8l-4 4v2h16v-2l-4-4z"/>
+            </svg>
+            <!-- mute (bell off) -->
+            <svg v-else-if="action.icon === 'mute'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+              <path d="M18.63 13A17.89 17.89 0 0 1 18 8"></path>
+              <path d="M6 9a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v5"></path>
+              <path d="M2 2l20 20"></path>
             </svg>
           </span>
           <span class="context-menu__label">{{ action.label }}</span>

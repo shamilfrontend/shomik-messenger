@@ -138,6 +138,9 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       if (params.tasks !== undefined) {
         user.params.tasks = params.tasks === true;
       }
+      if (params.mutedChats !== undefined && Array.isArray(params.mutedChats)) {
+        user.params.mutedChats = params.mutedChats.filter((id: unknown) => typeof id === 'string');
+      }
     }
 
     await user.save();

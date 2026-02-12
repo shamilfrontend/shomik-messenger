@@ -22,9 +22,16 @@ const getInitialTasks = (): boolean => {
   return authStore.user?.params?.tasks ?? DEFAULT_TASKS;
 };
 
+const getInitialMutedChats = (): string[] => {
+  const authStore = useAuthStore();
+  const list = authStore.user?.params?.mutedChats;
+  return Array.isArray(list) ? [...list] : [];
+};
+
 const messageTextSize = ref<number>(getInitialTextSize());
 const theme = ref<string>(getInitialTheme());
 const tasks = ref<boolean>(getInitialTasks());
+const mutedChats = ref<string[]>(getInitialMutedChats());
 
 // Применяем размер текста к CSS переменной
 const applyTextSize = (size: number): void => {
@@ -90,6 +97,9 @@ watch(() => authStore.user, (user) => {
     if (user.params.tasks !== undefined) {
       tasks.value = user.params.tasks;
     }
+    if (user.params.mutedChats !== undefined && Array.isArray(user.params.mutedChats)) {
+      mutedChats.value = [...user.params.mutedChats];
+    }
   }
 }, { immediate: true });
 
@@ -114,6 +124,7 @@ export const useSettings = () => {
             messageTextSize: size,
             theme: theme.value,
             tasks: tasks.value,
+            mutedChats: mutedChats.value,
           },
         });
         await authStore.loadUser();
@@ -133,6 +144,7 @@ export const useSettings = () => {
             messageTextSize: messageTextSize.value,
             theme: themeValue,
             tasks: tasks.value,
+            mutedChats: mutedChats.value,
           },
         });
         await authStore.loadUser();
@@ -152,6 +164,7 @@ export const useSettings = () => {
             messageTextSize: messageTextSize.value,
             theme: theme.value,
             tasks: value,
+            mutedChats: mutedChats.value,
           },
         });
         await authStore.loadUser();
@@ -161,12 +174,45 @@ export const useSettings = () => {
     }
   };
 
+  const setMutedChats = async (chatIds: string[]): Promise<void> => {
+    mutedChats.value = chatIds;
+    const authStore = useAuthStore();
+    if (authStore.user) {
+      try {
+        await profileService.updateProfile({
+          params: {
+            messageTextSize: messageTextSize.value,
+            theme: theme.value,
+            tasks: tasks.value,
+            mutedChats: chatIds,
+          },
+        });
+        await authStore.loadUser();
+      } catch (error) {
+        console.error('Ошибка сохранения настроек:', error);
+      }
+    }
+  };
+
+  const toggleChatMuted = async (chatId: string): Promise<boolean> => {
+    const isMuted = mutedChats.value.includes(chatId);
+    const next = isMuted ? mutedChats.value.filter((id) => id !== chatId) : [...mutedChats.value, chatId];
+    await setMutedChats(next);
+    return !isMuted;
+  };
+
+  const isChatMuted = (chatId: string): boolean => mutedChats.value.includes(chatId);
+
   return {
     messageTextSize,
     theme,
     tasks,
+    mutedChats,
     setMessageTextSize,
     setTheme,
     setTasks,
+    setMutedChats,
+    toggleChatMuted,
+    isChatMuted,
   };
 };

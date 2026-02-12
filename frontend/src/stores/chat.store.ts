@@ -264,8 +264,9 @@ export const useChatStore = defineStore('chat', () => {
       return; // Сообщение уже существует, не добавляем дубликат
     }
 
-    // Воспроизводим звук только для обычных сообщений не от текущего пользователя
-    if (!isFromCurrentUser && !isSystemMessage) {
+    // Воспроизводим звук только для обычных сообщений не от текущего пользователя и если чат не в «без звука»
+    const isChatMuted = user.value?.params?.mutedChats?.includes(message.chatId) === true;
+    if (!isFromCurrentUser && !isSystemMessage && !isChatMuted) {
       const chat = chats.value.find((c) => c._id === message.chatId);
       const isGroup = chat?.type === 'group';
       try {
