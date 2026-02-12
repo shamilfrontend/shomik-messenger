@@ -1826,7 +1826,6 @@ const reactionPopoverUsers = computed(() => {
 						<div class="chat-window__message-content" :data-message-id="message._id">
 							<div class="chat-window__message-header">
 								<div
-									v-if="isGroupChat"
 									class="chat-window__message-sender"
 									@click="openUserInfo(message)"
 								>
