@@ -4,6 +4,7 @@ import { profileService } from '../services/profile.service';
 
 const DEFAULT_MESSAGE_TEXT_SIZE = 14;
 const DEFAULT_THEME = 'system';
+const DEFAULT_TASKS = false;
 
 // Инициализируем значение из пользователя или используем значения по умолчанию
 const getInitialTextSize = (): number => {
@@ -16,8 +17,14 @@ const getInitialTheme = (): string => {
   return authStore.user?.params?.theme || DEFAULT_THEME;
 };
 
+const getInitialTasks = (): boolean => {
+  const authStore = useAuthStore();
+  return authStore.user?.params?.tasks ?? DEFAULT_TASKS;
+};
+
 const messageTextSize = ref<number>(getInitialTextSize());
 const theme = ref<string>(getInitialTheme());
+const tasks = ref<boolean>(getInitialTasks());
 
 // Применяем размер текста к CSS переменной
 const applyTextSize = (size: number): void => {
@@ -80,6 +87,9 @@ watch(() => authStore.user, (user) => {
       theme.value = user.params.theme;
       applyTheme(theme.value);
     }
+    if (user.params.tasks !== undefined) {
+      tasks.value = user.params.tasks;
+    }
   }
 }, { immediate: true });
 
@@ -103,6 +113,7 @@ export const useSettings = () => {
           params: {
             messageTextSize: size,
             theme: theme.value,
+            tasks: tasks.value,
           },
         });
         await authStore.loadUser();
@@ -121,6 +132,26 @@ export const useSettings = () => {
           params: {
             messageTextSize: messageTextSize.value,
             theme: themeValue,
+            tasks: tasks.value,
+          },
+        });
+        await authStore.loadUser();
+      } catch (error) {
+        console.error('Ошибка сохранения настроек:', error);
+      }
+    }
+  };
+
+  const setTasks = async (value: boolean): Promise<void> => {
+    tasks.value = value;
+    const authStore = useAuthStore();
+    if (authStore.user) {
+      try {
+        await profileService.updateProfile({
+          params: {
+            messageTextSize: messageTextSize.value,
+            theme: theme.value,
+            tasks: value,
           },
         });
         await authStore.loadUser();
@@ -133,7 +164,9 @@ export const useSettings = () => {
   return {
     messageTextSize,
     theme,
+    tasks,
     setMessageTextSize,
     setTheme,
+    setTasks,
   };
 };

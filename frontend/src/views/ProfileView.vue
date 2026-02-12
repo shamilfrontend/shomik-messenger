@@ -2,8 +2,9 @@
 import ProfileSettings from '../components/ProfileSettings.vue';
 import ProfileDesign from '../components/ProfileDesign.vue';
 import ProfileAudioVideo from '../components/ProfileAudioVideo.vue';
+import ProfileAdvancedFeatures from '../components/ProfileAdvancedFeatures.vue';
 
-const props = defineProps<{
+defineProps<{
   section?: string | null;
 }>();
 </script>
@@ -26,6 +27,9 @@ const props = defineProps<{
       <div v-else-if="section === 'sessions'" class="profile-view__section">
         <p class="profile-view__placeholder">Раздел в разработке</p>
       </div>
+      <div v-else-if="section === 'advanced-features'" class="profile-view__section">
+        <ProfileAdvancedFeatures />
+      </div>
     </div>
   </div>
 </template>
@@ -37,7 +41,6 @@ const props = defineProps<{
   flex-direction: column;
   height: 100vh;
   background: var(--bg-primary);
-
 
   &__content {
     flex: 1;

@@ -12,11 +12,13 @@ import ProfileView from './ProfileView.vue';
 import CallsView from './CallsView.vue';
 import TasksView from './TasksView.vue';
 import { useChatStore } from '../stores/chat.store';
+import { useAuthStore } from '../stores/auth.store';
 import { useWebSocket } from '../composables/useWebSocket';
 import api from '../services/api';
 import { User } from '../types';
 
 const chatStore = useChatStore();
+const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
 const chatWindowRef = ref<ComponentPublicInstance<{ scrollToBottom:() => void }> | null>(null);
@@ -28,6 +30,7 @@ const showChatWindow = computed(() => !!route.params.id || route.path === '/chat
 const showProfile = computed(() => route.path.startsWith('/profile'));
 const showCalls = computed(() => route.path.startsWith('/calls'));
 const showTasks = computed(() => route.path.startsWith('/tasks'));
+const showTasksSection = computed(() => authStore.user?.params?.tasks === true);
 const profileSection = computed(() => {
   const path = route.path;
   if (path === '/profile/me') return 'me';
@@ -35,6 +38,7 @@ const profileSection = computed(() => {
   if (path === '/profile/audio-and-video') return 'audio-and-video';
   if (path === '/profile/language') return 'language';
   if (path === '/profile/sessions') return 'sessions';
+  if (path === '/profile/advanced-features') return 'advanced-features';
   return null;
 });
 const callId = computed(() => route.params.callId as string | undefined);
@@ -319,13 +323,20 @@ const handleGroupCreated = async (chatId: string): Promise<void> => {
       :class="{ 'chat-view__calls--full': showCalls && isMobile }"
     />
     <TasksView
-      v-if="showTasks && !showChatWindow && !showProfile && !showCalls"
+      v-if="showTasks && showTasksSection && !showChatWindow && !showProfile && !showCalls"
       :selected-task="selectedTask"
       :task-id="taskId"
       :is-new-task="isNewTask"
       :is-tasks-page="route.path === '/tasks'"
       :class="{ 'chat-view__tasks--full': showTasks && isMobile }"
     />
+    <div
+      v-else-if="showTasks && !showTasksSection && !showChatWindow && !showProfile && !showCalls"
+      class="chat-view__tasks-disabled"
+    >
+      <p>Раздел «Задачи» отключён.</p>
+      <router-link to="/profile/advanced-features">Включить в настройках</router-link>
+    </div>
     <NewChat
       :is-open="showNewChat"
       @select-user="handleSelectUser"
@@ -420,6 +431,28 @@ const handleGroupCreated = async (chatId: string): Promise<void> => {
         top: 0;
         z-index: 10;
       }
+    }
+  }
+
+  &__tasks-disabled {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+
+    a {
+      color: var(--accent-color);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
     }
   }
 }

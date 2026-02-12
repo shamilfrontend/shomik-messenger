@@ -10,6 +10,8 @@ export interface User {
   params?: {
     messageTextSize?: number;
     theme?: string;
+    /** Включён ли раздел «Задачи» в нижней навигации. По умолчанию false. */
+    tasks?: boolean;
   };
 }
 

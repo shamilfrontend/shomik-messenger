@@ -7,6 +7,7 @@ export interface UpdateProfileData {
   params?: {
     messageTextSize?: number;
     theme?: string;
+    tasks?: boolean;
   };
 }
 

@@ -67,6 +67,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/profile/advanced-features',
+      name: 'ProfileAdvancedFeatures',
+      component: () => import('../views/ChatView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/calls',
       name: 'Calls',
       component: () => import('../views/ChatView.vue'),

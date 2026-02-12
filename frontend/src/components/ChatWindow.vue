@@ -313,8 +313,14 @@ const handleJoinGroupCall = async (): Promise<void> => {
   }
 };
 
+const handleReactionPopoverUpdatePosition = (): void => {
+  if (reactionPopover.value) updateReactionPopoverPosition();
+};
+
 onMounted(() => {
   window.addEventListener('resize', handleResize);
+  window.addEventListener('resize', handleReactionPopoverUpdatePosition);
+  window.addEventListener('scroll', handleReactionPopoverUpdatePosition, true);
   document.addEventListener('click', handleClickOutside);
 
   // Отслеживаем изменение высоты viewport на мобильных устройствах
@@ -358,6 +364,10 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
+  window.removeEventListener('resize', handleReactionPopoverUpdatePosition);
+  window.removeEventListener('scroll', handleReactionPopoverUpdatePosition, true);
+  if (reactionPopoverShowTimeout) clearTimeout(reactionPopoverShowTimeout);
+  if (reactionPopoverHideTimeout) clearTimeout(reactionPopoverHideTimeout);
   document.removeEventListener('click', handleClickOutside);
 
   if (window.visualViewport) {
@@ -1373,6 +1383,90 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     .filter((reaction) => reaction.count > 0)
     .sort((a, b) => b.count - a.count);
 };
+
+/** User IDs, поставившие реакцию emoji на сообщение */
+const getReactionUserIds = (message: Message, emoji: string): string[] => {
+  return message.reactions?.[emoji] ?? [];
+};
+
+/** Участники, поставившие реакцию (id + отображаемое имя из чата) */
+const getReactionUsers = (message: Message, emoji: string): Array<{ id: string; username: string }> => {
+  const chat = currentChat.value;
+  if (!chat) return [];
+  const ids = getReactionUserIds(message, emoji);
+  return ids.map((userId) => {
+    const p = chat.participants.find((participant) => (typeof participant === 'string' ? participant : participant.id) === userId);
+    const username = p && typeof p !== 'string' ? p.username : (userId.slice(0, 8) + '…');
+    return { id: userId, username };
+  });
+};
+
+const reactionPopover = ref<{ messageId: string; emoji: string } | null>(null);
+const reactionPopoverTrigger = ref<HTMLElement | null>(null);
+const reactionPopoverEl = ref<HTMLElement | null>(null);
+const REACTION_POPOVER_SHOW_MS = 400;
+const REACTION_POPOVER_HIDE_MS = 150;
+let reactionPopoverShowTimeout: ReturnType<typeof setTimeout> | null = null;
+let reactionPopoverHideTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const onReactionPopoverTriggerEnter = (message: Message, emoji: string, e: MouseEvent): void => {
+  const trigger = e.currentTarget as HTMLElement | null;
+  if (trigger) showReactionPopover(message, emoji, trigger);
+};
+
+const showReactionPopover = (message: Message, emoji: string, trigger: HTMLElement): void => {
+  if (reactionPopoverHideTimeout) {
+    clearTimeout(reactionPopoverHideTimeout);
+    reactionPopoverHideTimeout = null;
+  }
+  reactionPopoverShowTimeout = setTimeout(() => {
+    reactionPopoverShowTimeout = null;
+    reactionPopoverTrigger.value = trigger;
+    reactionPopover.value = { messageId: message._id, emoji };
+    nextTick(() => updateReactionPopoverPosition());
+  }, REACTION_POPOVER_SHOW_MS);
+};
+
+const hideReactionPopover = (): void => {
+  if (reactionPopoverShowTimeout) {
+    clearTimeout(reactionPopoverShowTimeout);
+    reactionPopoverShowTimeout = null;
+  }
+  reactionPopoverHideTimeout = setTimeout(() => {
+    reactionPopoverHideTimeout = null;
+    reactionPopover.value = null;
+    reactionPopoverTrigger.value = null;
+  }, REACTION_POPOVER_HIDE_MS);
+};
+
+const cancelHideReactionPopover = (): void => {
+  if (reactionPopoverHideTimeout) {
+    clearTimeout(reactionPopoverHideTimeout);
+    reactionPopoverHideTimeout = null;
+  }
+};
+
+const updateReactionPopoverPosition = (): void => {
+  if (!reactionPopoverEl.value || !reactionPopoverTrigger.value) return;
+  const rect = reactionPopoverTrigger.value.getBoundingClientRect();
+  const pop = reactionPopoverEl.value;
+  const popRect = pop.getBoundingClientRect();
+  const padding = 8;
+  let top = rect.top - popRect.height - 8;
+  let left = rect.left + rect.width / 2 - popRect.width / 2;
+  if (left < padding) left = padding;
+  if (left + popRect.width > window.innerWidth - padding) left = window.innerWidth - popRect.width - padding;
+  if (top < padding) top = padding;
+  if (top + popRect.height > window.innerHeight - padding) top = window.innerHeight - popRect.height - padding;
+  pop.style.top = `${top}px`;
+  pop.style.left = `${left}px`;
+};
+
+const reactionPopoverUsers = computed(() => {
+  if (!reactionPopover.value) return [];
+  const message = messages.value.find((m) => m._id === reactionPopover.value!.messageId);
+  return message ? getReactionUsers(message, reactionPopover.value!.emoji) : [];
+});
 </script>
 
 <template>
@@ -1806,18 +1900,24 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 								</div>
 								<!-- Реакции на сообщение -->
 								<div v-if="getReactionsArray(message).length > 0" class="chat-window__reactions-list">
-									<button
+									<div
 										v-for="reaction in getReactionsArray(message)"
 										:key="reaction.emoji"
-										:class="['chat-window__reaction', { 'chat-window__reaction--active': reaction.hasUser }]"
-										@click="!isOwnMessage(message) && handleReactionClick(message, reaction.emoji)"
-										:title="`${reaction.count} ${reaction.count === 1 ? 'реакция' : 'реакций'}`"
-										:disabled="isOwnMessage(message)"
-										:style="isOwnMessage(message) ? { cursor: 'default', opacity: 1 } : {}"
+										class="chat-window__reaction-popover-trigger"
+										@mouseenter="(e) => onReactionPopoverTriggerEnter(message, reaction.emoji, e)"
+										@mouseleave="hideReactionPopover()"
 									>
-										<span class="chat-window__reaction-emoji">{{ reaction.emoji }}</span>
-										<span class="chat-window__reaction-count">{{ reaction.count }}</span>
-									</button>
+										<button
+											:class="['chat-window__reaction', { 'chat-window__reaction--active': reaction.hasUser }]"
+											@click="!isOwnMessage(message) && handleReactionClick(message, reaction.emoji)"
+											:title="`${reaction.count} ${reaction.count === 1 ? 'реакция' : 'реакций'}`"
+											:disabled="isOwnMessage(message)"
+											:style="isOwnMessage(message) ? { cursor: 'default', opacity: 1 } : {}"
+										>
+											<span class="chat-window__reaction-emoji">{{ reaction.emoji }}</span>
+											<span class="chat-window__reaction-count">{{ reaction.count }}</span>
+										</button>
+									</div>
 								</div>
 							</div>
 						</div>
@@ -1860,6 +1960,28 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				<polyline points="6 9 12 15 18 9" />
 			</svg>
 		</button>
+
+		<Teleport to="body">
+			<div
+				v-if="reactionPopover && reactionPopoverUsers.length > 0"
+				ref="reactionPopoverEl"
+				class="chat-window__reaction-popover"
+				role="tooltip"
+				@mouseenter="cancelHideReactionPopover"
+				@mouseleave="hideReactionPopover"
+			>
+				<ul class="chat-window__reaction-popover-list">
+					<li
+						v-for="user in reactionPopoverUsers"
+						:key="user.id"
+						class="chat-window__reaction-popover-item"
+					>
+						{{ user.username }}
+					</li>
+				</ul>
+				<span class="chat-window__reaction-popover-arrow" aria-hidden="true" />
+			</div>
+		</Teleport>
 
 		<!-- Панель массовых действий при выборе сообщений -->
 		<div v-if="currentChat && selectionMode" class="chat-window__selection-bar">
@@ -3141,6 +3263,52 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     font-size: 0.75rem;
     font-weight: 500;
     color: var(--accent-color);
+  }
+
+  &__reaction-popover-trigger {
+    display: inline-block;
+  }
+
+  &__reaction-popover {
+    position: fixed;
+    z-index: 10000;
+    padding: 0.5rem 0;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.4;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    min-width: 120px;
+    max-width: 220px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  &__reaction-popover-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  &__reaction-popover-item {
+    padding: 0.35rem 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__reaction-popover-arrow {
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 6px 6px 0 6px;
+    border-color: var(--bg-secondary) transparent transparent transparent;
   }
 
   &__reaction-menu {

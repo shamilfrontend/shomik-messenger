@@ -135,6 +135,9 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       if (params.theme !== undefined) {
         user.params.theme = params.theme;
       }
+      if (params.tasks !== undefined) {
+        user.params.tasks = params.tasks === true;
+      }
     }
 
     await user.save();

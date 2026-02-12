@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useChatStore } from '../stores/chat.store';
 import { useAuthStore } from '../stores/auth.store';
@@ -49,6 +49,16 @@ const router = useRouter();
 const route = useRoute();
 const searchQuery = ref('');
 const activeTab = ref<'private' | 'group'>('private');
+
+watch(
+  () => route.query.type,
+  (type) => {
+    if (type === 'private' || type === 'group') {
+      activeTab.value = type;
+    }
+  },
+  { immediate: true },
+);
 
 const chatContextMenuVisible = ref(false);
 const chatContextMenuX = ref(0);
@@ -236,6 +246,16 @@ const unreadGroupChatsCount = computed((): number => chats.value.filter((chat) =
   return chatStore.getUnreadCount(chat._id) > 0;
 }).length);
 
+/** Сумма непрочитанных сообщений в личных чатах */
+const unreadPrivateMessagesCount = computed((): number => chats.value
+  .filter((c) => c.type === 'private')
+  .reduce((sum, c) => sum + chatStore.getUnreadCount(c._id), 0));
+
+/** Сумма непрочитанных сообщений в групповых чатах */
+const unreadGroupMessagesCount = computed((): number => chats.value
+  .filter((c) => c.type === 'group')
+  .reduce((sum, c) => sum + chatStore.getUnreadCount(c._id), 0));
+
 const selectChat = (chat: Chat): void => {
   if (chatStore.currentChat?._id === chat._id) {
     emit('scroll-to-bottom-request');
@@ -246,12 +266,18 @@ const selectChat = (chat: Chat): void => {
 
 const goToChats = (): void => {
   activeTab.value = 'private';
-  router.push('/');
+  router.push({ path: '/', query: { ...route.query, type: 'private' } });
 };
 
 const goToGroups = (): void => {
   activeTab.value = 'group';
-  router.push('/');
+  router.push({ path: '/', query: { ...route.query, type: 'group' } });
+};
+
+const switchTab = (type: 'private' | 'group'): void => {
+  activeTab.value = type;
+  const path = route.path === '/' || route.path === '/chat' ? route.path : '/';
+  router.push({ path, query: { ...route.query, type } });
 };
 
 const goToCalls = (): void => {
@@ -269,6 +295,7 @@ const goToProfile = (): void => {
 const isCallsPage = computed(() => route.path.startsWith('/calls'));
 const isProfilePage = computed(() => route.path.startsWith('/profile'));
 const isTasksPage = computed(() => route.path.startsWith('/tasks'));
+const showTasksSection = computed(() => authStore.user?.params?.tasks === true);
 const isChatsPage = computed(() => {
   const path = route.path;
   return path === '/' || path === '/chat' || path.startsWith('/chat/');
@@ -281,6 +308,7 @@ const currentProfileSection = computed(() => {
   if (path === '/profile/audio-and-video') return 'audio-and-video';
   if (path === '/profile/language') return 'language';
   if (path === '/profile/sessions') return 'sessions';
+  if (path === '/profile/advanced-features') return 'advanced-features';
   return null;
 });
 
@@ -321,6 +349,12 @@ const profileSections = ref<ProfileSection[]>([
     label: 'Активные сессии',
     path: '/profile/sessions',
     icon: 'monitor',
+  },
+  {
+    id: 'advanced-features',
+    label: 'Расширенные возможности',
+    path: '/profile/advanced-features',
+    icon: 'sliders',
   },
 ]);
 
@@ -822,7 +856,7 @@ defineExpose({
           </svg>
         </button>
         <button
-          v-if="isTasksPage && !isProfilePage"
+          v-if="isTasksPage && !isProfilePage && showTasksSection"
           @click="router.push('/tasks/new')"
           class="chat-list__new-button"
           title="Создать задачу"
@@ -838,16 +872,18 @@ defineExpose({
     <!-- Табы для переключения между чатами и группами -->
     <div v-if="!isProfilePage && !isCallsPage && !isTasksPage" class="chat-list__tabs">
       <button
-        @click="activeTab = 'private'"
+        @click="switchTab('private')"
         :class="['chat-list__tab', { 'chat-list__tab--active': activeTab === 'private' }]"
       >
         Чаты
+        <span v-if="unreadPrivateMessagesCount > 0" class="chat-list__tab-badge">{{ unreadPrivateMessagesCount }}</span>
       </button>
       <button
-        @click="activeTab = 'group'"
+        @click="switchTab('group')"
         :class="['chat-list__tab', { 'chat-list__tab--active': activeTab === 'group' }]"
       >
         Группы
+        <span v-if="unreadGroupMessagesCount > 0" class="chat-list__tab-badge">{{ unreadGroupMessagesCount }}</span>
       </button>
     </div>
 
@@ -949,8 +985,15 @@ defineExpose({
         </div>
       </template>
 
-      <!-- Список задач -->
-      <template v-else-if="isTasksPage">
+      <!-- Раздел Задачи отключён -->
+      <template v-else-if="isTasksPage && !showTasksSection">
+        <div class="chat-list__tasks-disabled">
+          <p class="chat-list__tasks-disabled-text">Раздел «Задачи» отключён.</p>
+          <router-link to="/profile/advanced-features" class="chat-list__tasks-disabled-link">Включить в настройках</router-link>
+        </div>
+      </template>
+      <!-- Список задач (только если раздел включён) -->
+      <template v-else-if="isTasksPage && showTasksSection">
         <div
           v-for="task in filteredTasks"
           :key="task.id"
@@ -1054,6 +1097,18 @@ defineExpose({
                 <line x1="8" y1="21" x2="16" y2="21"></line>
                 <line x1="12" y1="17" x2="12" y2="21"></line>
               </svg>
+              <!-- Иконка ползунков (расширенные настройки) -->
+              <svg v-else-if="section.icon === 'sliders'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="4" y1="21" x2="4" y2="14"></line>
+                <line x1="4" y1="10" x2="4" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12" y2="3"></line>
+                <line x1="20" y1="21" x2="20" y2="16"></line>
+                <line x1="20" y1="12" x2="20" y2="3"></line>
+                <line x1="1" y1="14" x2="7" y2="14"></line>
+                <line x1="9" y1="8" x2="15" y2="8"></line>
+                <line x1="17" y1="16" x2="23" y2="16"></line>
+              </svg>
             </div>
           </div>
 
@@ -1149,6 +1204,7 @@ defineExpose({
         <span class="chat-list__nav-label">Звонки</span>
       </button>
       <button
+        v-if="showTasksSection"
         @click="goToTasks"
         :class="['chat-list__nav-item', { 'chat-list__nav-item--active': route.path.startsWith('/tasks') }]"
         title="Задачи"
@@ -1338,7 +1394,23 @@ defineExpose({
         background: var(--accent-color);
         opacity: 0.9;
       }
+
+      .chat-list__tab-badge {
+        background: rgba(255, 255, 255, 0.3);
+        color: white;
+      }
     }
+  }
+
+  &__tab-badge {
+    margin-left: 0.35rem;
+    padding: 0.125rem 0.4rem;
+    background: var(--accent-color);
+    color: white;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.2;
   }
 
   &__items {
@@ -1372,6 +1444,27 @@ defineExpose({
     &--active {
       background: var(--bg-primary);
     }
+  }
+
+  &__tasks-disabled {
+    padding: 1.5rem 1rem;
+    text-align: center;
+  }
+
+  &__tasks-disabled-text {
+    margin: 0 0 0.75rem;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+  }
+
+  &__tasks-disabled-link {
+    color: var(--accent-color);
+    font-size: 0.95rem;
+    text-decoration: none;
+  }
+
+  &__tasks-disabled-link:hover {
+    text-decoration: underline;
   }
 
   &__avatar {

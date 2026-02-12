@@ -12,6 +12,8 @@ export interface IUser extends Document {
   params?: {
     messageTextSize?: number;
     theme?: string;
+    /** Включён ли раздел «Задачи» в интерфейсе. По умолчанию false. */
+    tasks?: boolean;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -71,6 +73,10 @@ const UserSchema = new Schema<IUser>(
         type: String,
         enum: ['system', 'light', 'dark'],
         default: 'system',
+      },
+      tasks: {
+        type: Boolean,
+        default: false,
       },
     },
   },
