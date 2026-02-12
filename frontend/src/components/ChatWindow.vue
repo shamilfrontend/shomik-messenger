@@ -1670,6 +1670,7 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 				<div class="chat-window__messages-loader-spinner" aria-hidden="true" />
 				<span class="chat-window__messages-loader-text">Загрузка сообщений...</span>
 			</div>
+
 			<template v-for="message in messages" :key="message._id">
 				<!-- Системное сообщение -->
 				<div
@@ -1729,12 +1730,17 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 							/>
 						</div>
 						<div class="chat-window__message-content" :data-message-id="message._id">
-							<div
-								v-if="isGroupChat"
-								class="chat-window__message-sender"
-								@click="openUserInfo(message)"
-							>
-								{{ getMessageSender(message) }}
+							<div class="chat-window__message-header">
+								<div
+									v-if="isGroupChat"
+									class="chat-window__message-sender"
+									@click="openUserInfo(message)"
+								>
+									{{ getMessageSender(message) }}
+								</div>
+								<div class="chat-window__message-time">
+									{{ formatMessageTime(message.createdAt) }}
+								</div>
 							</div>
 							<div class="chat-window__message-bubble">
 								<!-- Ответ на сообщение -->
@@ -1783,12 +1789,9 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 										Открыть полностью
 									</button>
 								</div>
-								<div class="chat-window__message-footer">
-									<div class="chat-window__message-time">
-										{{ formatMessageTime(message.createdAt) }}
-									</div>
+								<div v-if="isOwnMessage(message)" class="chat-window__message-footer">
 									<div class="chat-window__message-footer-right">
-										<div v-if="isOwnMessage(message)" class="chat-window__message-status" :class="`chat-window__message-status--${getReadStatus(message)}`">
+										<div class="chat-window__message-status" :class="`chat-window__message-status--${getReadStatus(message)}`">
 											<!-- Одна галочка (отправлено) -->
 											<svg v-if="getReadStatus(message) === 'sent'" width="16" height="16" viewBox="0 0 16 16" style="fill: none">
 												<path d="M3 8L6 11L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1816,23 +1819,27 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
 										<span class="chat-window__reaction-count">{{ reaction.count }}</span>
 									</button>
 								</div>
-								<!-- Меню выбора реакции (только для чужих сообщений) -->
-								<!-- На десктопе показывается через CSS :hover, на мобильных через v-if -->
-								<div
-									v-if="!isOwnMessage(message)"
-									:class="['chat-window__reaction-menu', { 'chat-window__reaction-menu--visible': showReactionMenu === message._id, 'chat-window__reaction-menu--above': showReactionMenu === message._id && reactionMenuPosition === 'above' }]"
-								>
-									<button
-										v-for="emoji in availableReactions"
-										:key="emoji"
-										class="chat-window__reaction-menu-item"
-										@click="handleReactionClick(message, emoji)"
-									>
-										{{ emoji }}
-									</button>
-								</div>
 							</div>
 						</div>
+					</div>
+
+					<!-- Меню выбора реакции (только для чужих сообщений) -->
+					<!-- На десктопе показывается через CSS :hover, на мобильных через v-if -->
+					<div
+						v-if="!isOwnMessage(message)"
+						:class="['chat-window__reaction-menu', {
+							'chat-window__reaction-menu--visible': showReactionMenu === message._id,
+							'chat-window__reaction-menu--above': showReactionMenu === message._id && reactionMenuPosition === 'above'
+						}]"
+					>
+						<button
+							v-for="emoji in availableReactions"
+							:key="emoji"
+							class="chat-window__reaction-menu-item"
+							@click="handleReactionClick(message, emoji)"
+						>
+							{{ emoji }}
+						</button>
 					</div>
 				</div>
 			</template>
@@ -2620,12 +2627,18 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
   }
 
   &__message-wrapper {
+		position: relative;
     width: 100%;
     display: flex;
     padding: 0.25rem 1rem;
     cursor: pointer;
     justify-content: flex-start;
     transition: background 0.2s;
+    border-radius: 8px;
+
+    &:hover {
+      background: var(--bg-secondary);
+    }
 
     @media (max-width: 768px) {
       padding: 0.25rem 0.75rem;
@@ -2764,9 +2777,8 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
         justify-content: flex-end;
       }
 
-      .chat-window__message-time {
-        text-align: right;
-        color: rgba(255, 255, 255, 0.7);
+      .chat-window__message-header {
+        justify-content: flex-end;
       }
 
       .chat-window__message-status {
@@ -2872,18 +2884,35 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     position: relative; // Для позиционирования меню реакций
   }
 
-  &__message-sender {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
+  &__message-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
     padding-left: 0.5rem;
+    padding-right: 0.25rem;
+  }
+
+  &__message-sender {
+    color: var(--text-primary);
+    font-size: 1rem;
     cursor: pointer;
     transition: color 0.2s;
+    flex-shrink: 0;
 
     &:hover {
       color: var(--accent-color);
       text-decoration: underline;
     }
   }
+
+	&__message-time {
+		font-size: 0.75rem;
+		opacity: 0.8;
+		text-align: right;
+		flex-shrink: 0;
+	}
 
   &__message-reply {
     display: flex;
@@ -3067,108 +3096,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     }
   }
 
-  &__reply-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    background: transparent;
-    border: none;
-    color: #fff;
-    cursor: pointer;
-    transition: all 0.2s;
-    flex-shrink: 0;
-    position: relative;
-    z-index: 15; // Выше меню реакций (z-index: 10)
-
-    .chat-window__message-wrapper:hover & {
-      opacity: 1;
-    }
-
-    @media (max-width: 768px) {
-      opacity: 1;
-    }
-
-    &:hover {
-      color: var(--accent-color);
-    }
-
-    svg {
-      width: 100%;
-      height: 100%;
-    }
-  }
-
-  &__edit-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    background: transparent;
-    border: none;
-    color: #fff;
-    cursor: pointer;
-    transition: all 0.2s;
-    flex-shrink: 0;
-    position: relative;
-    z-index: 15;
-
-    .chat-window__message-wrapper:hover & {
-      opacity: 1;
-    }
-
-    @media (max-width: 768px) {
-      opacity: 1;
-    }
-
-    &:hover {
-      color: var(--accent-color);
-    }
-
-    svg {
-      width: 100%;
-      height: 100%;
-    }
-  }
-
-  &__delete-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    background: transparent;
-    border: none;
-    color: #fff;
-    cursor: pointer;
-    transition: all 0.2s;
-    flex-shrink: 0;
-    position: relative;
-    z-index: 15; // Выше меню реакций (z-index: 10)
-
-    .chat-window__message-wrapper:hover & {
-      opacity: 1;
-    }
-
-    @media (max-width: 768px) {
-      opacity: 1;
-    }
-
-    &:hover {
-      color: #ef4444; // Красный цвет при наведении
-    }
-
-    svg {
-      width: 100%;
-      height: 100%;
-    }
-  }
-
   &__reactions-list {
     display: flex;
     align-items: center;
@@ -3216,12 +3143,9 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     color: var(--accent-color);
   }
 
-  // Стили для кнопки добавления реакции удалены, так как кнопка больше не используется
-  // Меню реакций теперь показывается при наведении/клике на сообщение
-
   &__reaction-menu {
     position: absolute;
-    bottom: calc(100% + 0.5rem);
+    bottom: 95%;
     right: 0;
     left: auto;
     display: flex;
@@ -3237,10 +3161,9 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
     z-index: 12;
     flex-wrap: nowrap;
     max-width: calc(100% - 80px);
-    opacity: 0;
-    visibility: hidden;
     transform: translateY(5px);
     transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+    opacity: 0;
 
     @media (hover: hover) and (pointer: fine) {
       .chat-window__message-wrapper:hover & {
@@ -3321,13 +3244,6 @@ const getReactionsArray = (message: Message): Array<{ emoji: string; count: numb
         transform: scale(0.95);
       }
     }
-  }
-
-  &__message-time {
-    font-size: 0.7rem;
-    opacity: 0.7;
-    text-align: left;
-    flex-shrink: 0;
   }
 
   &__message-status {
