@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useChatStore } from '../stores/chat.store';
 import { useAuthStore } from '../stores/auth.store';
@@ -7,6 +7,9 @@ import { useConfirm } from '../composables/useConfirm';
 import { useNotifications } from '../composables/useNotifications';
 import { useSettings } from '../composables/useSettings';
 import ContextMenu from './ContextMenu.vue';
+import CallsView from '../views/CallsView.vue';
+import ProfileView from '../views/ProfileView.vue';
+import TasksView from '../views/TasksView.vue';
 import type { ContextMenuAction } from './ContextMenu.vue';
 import { Chat, Message } from '../types';
 import { getImageUrl } from '../utils/image';
@@ -51,6 +54,13 @@ const router = useRouter();
 const route = useRoute();
 const searchQuery = ref('');
 const activeTab = ref<'private' | 'group'>('private');
+const isMobile = ref(window.innerWidth <= 768);
+const selectedCallModal = ref<CallHistory | null>(null);
+const showCallModal = ref(false);
+const showProfileModal = ref(false);
+const currentProfileSectionModal = ref<string | null>(null);
+const selectedTaskModal = ref<Task | null>(null);
+const showTaskModal = ref(false);
 
 watch(
   () => route.query.type,
@@ -307,7 +317,12 @@ const goToTasks = (): void => {
 };
 
 const goToProfile = (): void => {
-  router.push('/profile/me');
+  // На мобильных переходим на страницу со списком подпунктов профиля
+  if (isMobile.value) {
+    router.push('/profile');
+  } else {
+    router.push('/profile/me');
+  }
 };
 
 const isCallsPage = computed(() => route.path.startsWith('/calls'));
@@ -377,7 +392,19 @@ const profileSections = ref<ProfileSection[]>([
 ]);
 
 const selectProfileSection = (section: ProfileSection): void => {
-  router.push(section.path);
+  if (isMobile.value) {
+    // На мобильных открываем модальное окно для всех подпунктов, кроме "Мой профиль" (me)
+    // "Мой профиль" показывает список подпунктов, поэтому модальное окно не нужно
+    if (section.id !== 'me') {
+      currentProfileSectionModal.value = section.id;
+      showProfileModal.value = true;
+    } else {
+      // Для "Мой профиль" просто переходим на роут (показывает список подпунктов)
+      router.push(section.path);
+    }
+  } else {
+    router.push(section.path);
+  }
 };
 
 // Моковые данные для истории звонков
@@ -610,8 +637,113 @@ const formatCallDuration = (seconds?: number): string => {
 };
 
 const selectCall = (call: CallHistory): void => {
-  router.push(`/calls/${call.id}`);
+  if (isMobile.value) {
+    selectedCallModal.value = call;
+    showCallModal.value = true;
+  } else {
+    router.push(`/calls/${call.id}`);
+  }
 };
+
+const isNewCallPage = computed(() => route.path === '/calls/new');
+const isNewTaskPage = computed(() => route.path === '/tasks/new');
+
+const closeCallModal = (): void => {
+  showCallModal.value = false;
+  selectedCallModal.value = null;
+  // Если мы были на странице создания звонка, возвращаемся на /calls
+  if (isNewCallPage.value && isMobile.value) {
+    router.push('/calls');
+  }
+};
+
+const handleResize = (): void => {
+  isMobile.value = window.innerWidth <= 768;
+};
+
+const getProfileSectionFromPath = (path: string): string | null => {
+  if (path === '/profile/me') return 'me';
+  if (path === '/profile/design') return 'design';
+  if (path === '/profile/audio-and-video') return 'audio-and-video';
+  if (path === '/profile/language') return 'language';
+  if (path === '/profile/sessions') return 'sessions';
+  if (path === '/profile/advanced-features') return 'advanced-features';
+  return null;
+};
+
+// Отслеживаем переход на /calls/new, /tasks/new и подпункты профиля на мобильных устройствах
+watch(
+  () => [route.path, isMobile.value],
+  ([path, mobile]) => {
+    if (mobile && path === '/calls/new') {
+      selectedCallModal.value = null; // null означает создание нового звонка
+      showCallModal.value = true;
+    } else if (mobile && path.startsWith('/calls') && path !== '/calls/new') {
+      // Если перешли на другую страницу звонков, закрываем модальное окно
+      showCallModal.value = false;
+    }
+    
+    // Отслеживаем переход на /tasks/new на мобильных устройствах
+    if (mobile && path === '/tasks/new') {
+      selectedTaskModal.value = null; // null означает создание новой задачи
+      showTaskModal.value = true;
+    } else if (mobile && path.startsWith('/tasks') && path !== '/tasks/new') {
+      // Если перешли на другую страницу задач, закрываем модальное окно
+      showTaskModal.value = false;
+    }
+    
+    // Отслеживаем переход на подпункты профиля на мобильных устройствах
+    // Открываем модальное окно только для конкретных подразделов (не для /profile/me, который показывает список)
+    if (mobile && path.startsWith('/profile/') && path !== '/profile' && path !== '/profile/me') {
+      const section = getProfileSectionFromPath(path);
+      if (section) {
+        currentProfileSectionModal.value = section;
+        showProfileModal.value = true;
+      }
+    } else if (mobile && (path === '/profile/me' || !path.startsWith('/profile') || path === '/profile')) {
+      // Если перешли на /profile/me (список подпунктов) или на другую страницу, закрываем модальное окно
+      showProfileModal.value = false;
+    }
+  },
+  { immediate: true }
+);
+
+const closeProfileModal = (): void => {
+  showProfileModal.value = false;
+  currentProfileSectionModal.value = null;
+  // Если мы были на подпункте профиля, возвращаемся на страницу профиля со списком подпунктов
+  if (isProfilePage.value && isMobile.value && route.path.startsWith('/profile/')) {
+    router.push('/profile/me');
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize);
+  handleResize();
+  // Проверяем начальное состояние роута
+  if (isMobile.value && route.path === '/calls/new') {
+    selectedCallModal.value = null;
+    showCallModal.value = true;
+  }
+  // Проверяем начальное состояние роута подпунктов профиля
+  // Открываем модальное окно только для подпунктов, но не для /profile/me (список подпунктов)
+  if (isMobile.value && route.path.startsWith('/profile/') && route.path !== '/profile' && route.path !== '/profile/me') {
+    const section = getProfileSectionFromPath(route.path);
+    if (section) {
+      currentProfileSectionModal.value = section;
+      showProfileModal.value = true;
+    }
+  }
+  // Проверяем начальное состояние роута задач
+  if (isMobile.value && route.path === '/tasks/new') {
+    selectedTaskModal.value = null;
+    showTaskModal.value = true;
+  }
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+});
 
 const getCallById = (callId: string): CallHistory | undefined => {
   return callsHistory.value.find(call => call.id === callId);
@@ -792,7 +924,21 @@ const filteredTasks = computed(() => {
 });
 
 const selectTask = (task: Task): void => {
-  router.push(`/tasks/${task.id}`);
+  if (isMobile.value) {
+    selectedTaskModal.value = task;
+    showTaskModal.value = true;
+  } else {
+    router.push(`/tasks/${task.id}`);
+  }
+};
+
+const closeTaskModal = (): void => {
+  showTaskModal.value = false;
+  selectedTaskModal.value = null;
+  // Если мы были на странице создания задачи, возвращаемся на /tasks
+  if (isNewTaskPage.value && isMobile.value) {
+    router.push('/tasks');
+  }
 };
 
 const getTaskById = (taskId: string): Task | undefined => {
@@ -865,7 +1011,7 @@ defineExpose({
         </button>
         <button
           v-if="isCallsPage && !isProfilePage"
-          @click="router.push('/calls/new')"
+          @click="isMobile ? (selectedCallModal = null, showCallModal = true) : router.push('/calls/new')"
           class="chat-list__new-button"
           title="Создать звонок"
         >
@@ -875,7 +1021,7 @@ defineExpose({
         </button>
         <button
           v-if="isTasksPage && !isProfilePage && showTasksSection"
-          @click="router.push('/tasks/new')"
+          @click="isMobile ? (selectedTaskModal = null, showTaskModal = true) : router.push('/tasks/new')"
           class="chat-list__new-button"
           title="Создать задачу"
         >
@@ -1262,6 +1408,89 @@ defineExpose({
       :actions="chatContextMenuActions"
       @select="onChatContextMenuSelect"
     />
+
+    <!-- Модальное окно детального вида звонка для мобильных устройств -->
+    <Teleport to="body">
+      <div
+        v-if="(showCallModal || (isMobile && isNewCallPage)) && isMobile"
+        class="chat-list__call-modal"
+        @click.self="closeCallModal"
+      >
+        <div class="chat-list__call-modal-content">
+          <button
+            class="chat-list__call-modal-close"
+            @click="closeCallModal"
+            type="button"
+            aria-label="Закрыть"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          <CallsView
+            :selected-call="selectedCallModal"
+            :is-calls-page="false"
+            :is-new-call="selectedCallModal === null"
+          />
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Модальное окно подпунктов профиля для мобильных устройств -->
+    <Teleport to="body">
+      <div
+        v-if="showProfileModal && isMobile && currentProfileSectionModal"
+        class="chat-list__profile-modal"
+        @click.self="closeProfileModal"
+      >
+        <div class="chat-list__profile-modal-content">
+          <button
+            class="chat-list__profile-modal-close"
+            @click="closeProfileModal"
+            type="button"
+            aria-label="Закрыть"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          <ProfileView
+            :section="currentProfileSectionModal"
+          />
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Модальное окно детального вида задачи для мобильных устройств -->
+    <Teleport to="body">
+      <div
+        v-if="(showTaskModal || (isMobile && isNewTaskPage)) && isMobile"
+        class="chat-list__task-modal"
+        @click.self="closeTaskModal"
+      >
+        <div class="chat-list__task-modal-content">
+          <button
+            class="chat-list__task-modal-close"
+            @click="closeTaskModal"
+            type="button"
+            aria-label="Закрыть"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          <TasksView
+            :selected-task="selectedTaskModal"
+            :task-id="selectedTaskModal?.id"
+            :is-new-task="selectedTaskModal === null"
+            :is-tasks-page="false"
+          />
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -1273,6 +1502,7 @@ defineExpose({
   flex-direction: column;
   background: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
+  z-index: 11;
 
   @media (max-width: 768px) {
     width: 100%;
@@ -1282,7 +1512,7 @@ defineExpose({
     position: absolute;
     left: 0;
     top: 0;
-    z-index: 5;
+    z-index: 11;
   }
 
   &__header {
@@ -1647,6 +1877,7 @@ defineExpose({
       bottom: 0;
       padding: 0.75rem 0;
       padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+      z-index: 20;
     }
   }
 
@@ -1923,6 +2154,189 @@ defineExpose({
 
   &__item--completed {
     opacity: 0.7;
+  }
+
+  &__call-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    overflow: hidden;
+
+    @media (min-width: 769px) {
+      display: none;
+    }
+  }
+
+  &__call-modal-content {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  &__call-modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1001;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: all 0.2s;
+
+    &:hover {
+      background: var(--bg-primary);
+      transform: scale(1.1);
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+
+    svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  &__profile-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    overflow: hidden;
+
+    @media (min-width: 769px) {
+      display: none;
+    }
+  }
+
+  &__profile-modal-content {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  &__profile-modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1001;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: all 0.2s;
+
+    &:hover {
+      background: var(--bg-primary);
+      transform: scale(1.1);
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+
+    svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  &__task-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    overflow: hidden;
+
+    @media (min-width: 769px) {
+      display: none;
+    }
+  }
+
+  &__task-modal-content {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  &__task-modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1001;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: all 0.2s;
+
+    &:hover {
+      background: var(--bg-primary);
+      transform: scale(1.1);
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+
+    svg {
+      width: 20px;
+      height: 20px;
+    }
   }
 }
 </style>

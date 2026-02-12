@@ -336,7 +336,7 @@ const changePassword = async (): Promise<void> => {
     overflow-y: auto;
 
     @media (max-width: 768px) {
-      padding: 0.75rem;
+      padding: 0;
     }
   }
 
@@ -384,7 +384,7 @@ const changePassword = async (): Promise<void> => {
     gap: 1.5rem;
 
     @media (max-width: 768px) {
-      padding: 1rem;
+      padding: 0.5rem;
       gap: 1rem;
     }
   }

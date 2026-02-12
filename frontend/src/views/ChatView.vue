@@ -27,7 +27,7 @@ const showNewChat = ref(false);
 const showNewGroup = ref(false);
 const isMobile = ref(window.innerWidth <= 768);
 const showChatWindow = computed(() => !!route.params.id || route.path === '/chat/new' || !!route.query.userId);
-const showProfile = computed(() => route.path.startsWith('/profile'));
+const showProfile = computed(() => route.path.startsWith('/profile') && route.path !== '/profile');
 const showCalls = computed(() => route.path.startsWith('/calls'));
 const showTasks = computed(() => route.path.startsWith('/tasks'));
 const showTasksSection = computed(() => authStore.user?.params?.tasks === true);
@@ -298,7 +298,7 @@ const handleGroupCreated = async (chatId: string): Promise<void> => {
   <div class="chat-view">
     <ChatList
       ref="chatListRef"
-      :class="{ 'chat-view__list--hidden': (showChatWindow || showProfile || showCalls || showTasks) && isMobile }"
+      :class="{ 'chat-view__list--hidden': showChatWindow && isMobile }"
       @new-chat="showNewChat = true"
       @new-group="showNewGroup = true"
       @scroll-to-bottom-request="handleScrollToBottomRequest"
@@ -310,9 +310,9 @@ const handleGroupCreated = async (chatId: string): Promise<void> => {
       :class="{ 'chat-view__window--full': showChatWindow && isMobile }"
     />
     <ProfileView
-      v-if="showProfile && !showChatWindow && !showCalls && !showTasks"
+      v-if="showProfile && !showChatWindow && !showCalls && !showTasks && (route.path !== '/profile' || !isMobile)"
       :section="profileSection"
-      :class="{ 'chat-view__profile--full': showProfile && isMobile }"
+      :class="{ 'chat-view__profile--full': showProfile && isMobile && route.path !== '/profile' }"
     />
     <CallsView
       v-if="showCalls && !showChatWindow && !showProfile && !showTasks"
@@ -395,7 +395,7 @@ const handleGroupCreated = async (chatId: string): Promise<void> => {
         position: absolute;
         left: 0;
         top: 0;
-        z-index: 10;
+        z-index: 12;
       }
     }
   }

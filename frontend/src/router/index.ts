@@ -34,7 +34,9 @@ const router = createRouter({
     },
     {
       path: '/profile',
-      redirect: '/profile/me',
+      name: 'Profile',
+      component: () => import('../views/ChatView.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/profile/me',

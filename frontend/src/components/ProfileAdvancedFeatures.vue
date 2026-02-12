@@ -60,9 +60,9 @@ const toggleTasks = async (): Promise<void> => {
     padding: 1rem;
     overflow-y: auto;
 
-    @media (max-width: 768px) {
-      padding: 0.75rem;
-    }
+		@media (max-width: 768px) {
+			padding: 0;
+		}
   }
 
   &__content {
@@ -72,20 +72,17 @@ const toggleTasks = async (): Promise<void> => {
     gap: 1.5rem;
 
     @media (max-width: 768px) {
-      padding: 1rem;
+			padding: 4px 0 0;
       gap: 1rem;
     }
   }
 
   &__section {
     margin-bottom: 0;
-
-    @media (min-width: 769px) {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      padding: 1.25rem 1.5rem;
-    }
+		background: var(--bg-secondary);
+		border: 1px solid var(--border-color);
+		border-radius: 12px;
+		padding: 1.25rem 1.5rem;
 
     h3 {
       margin: 0 0 1rem 0;
@@ -98,6 +95,10 @@ const toggleTasks = async (): Promise<void> => {
         font-size: 1.15rem;
       }
     }
+
+		@media (max-width: 768px) {
+			margin-top: 24px;
+		}
   }
 
   &__form {

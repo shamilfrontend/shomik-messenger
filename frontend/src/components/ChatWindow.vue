@@ -2669,12 +2669,12 @@ const reactionPopoverUsers = computed(() => {
     padding: 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
 
     @media (max-width: 768px) {
       overflow-x: hidden;
       padding: calc(0.75rem + 73px + env(safe-area-inset-top, 0px)) 0.75rem calc(100px + env(safe-area-inset-bottom, 0px));
-      gap: 0.5rem;
+      //gap: 0.5rem;
       margin-top: 0;
       scroll-padding-top: calc(73px + env(safe-area-inset-top, 0px));
     }

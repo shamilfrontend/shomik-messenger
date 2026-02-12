@@ -585,7 +585,10 @@ const insertEmoji = (emoji: string): void => {
     @media (max-width: 768px) {
       min-height: 40px;
       max-height: 100px;
-      padding: 0.625rem 0.875rem 0.625rem 4rem;
+      padding-left: 6rem;
+      padding-right: 0.875rem;
+      padding-top: 0.625rem;
+      padding-bottom: 0.625rem;
       font-size: 0.875rem;
     }
 

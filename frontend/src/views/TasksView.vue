@@ -280,6 +280,7 @@ const getPriorityColor = (priority: string): string => {
 
     @media (max-width: 768px) {
       font-size: 1.5rem;
+      padding-right: 4rem;
     }
 
     &--completed {
