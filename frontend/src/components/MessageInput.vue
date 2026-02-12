@@ -7,6 +7,7 @@ import { useNotifications } from '../composables/useNotifications';
 import { compressImageToBase64 } from '../utils/imageCompress';
 import FileUpload from './FileUpload.vue';
 import EmojiPicker from './EmojiPicker.vue';
+import StickerPicker from './StickerPicker.vue';
 import Tooltip from './Tooltip.vue';
 import type { Message } from '../types';
 
@@ -31,6 +32,7 @@ const previewFile = ref<{ url: string; filename: string; type: string } | null>(
 const inputField = ref<HTMLTextAreaElement | null>(null);
 const imageInputRef = ref<HTMLInputElement | null>(null);
 const showEmojiPicker = ref(false);
+const showStickerPicker = ref(false);
 let typingTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // Expose метод для фокуса извне
@@ -225,6 +227,39 @@ const handleTyping = (): void => {
 
 const toggleEmojiPicker = (): void => {
   showEmojiPicker.value = !showEmojiPicker.value;
+  if (showEmojiPicker.value) {
+    showStickerPicker.value = false;
+  }
+};
+
+const toggleStickerPicker = (): void => {
+  showStickerPicker.value = !showStickerPicker.value;
+  if (showStickerPicker.value) {
+    showEmojiPicker.value = false;
+  }
+};
+
+const handleStickerSelect = async (stickerUrl: string): Promise<void> => {
+  try {
+    // Загружаем изображение стикера и конвертируем в base64
+    const response = await fetch(stickerUrl);
+    const blob = await response.blob();
+    
+    // Создаем File объект из blob для передачи в compressImageToBase64
+    const filename = stickerUrl.split('/').pop() || 'sticker.png';
+    const file = new File([blob], filename, { type: blob.type || 'image/png' });
+    
+    // Сжимаем изображение если нужно
+    const compressed = await compressImageToBase64(file);
+    previewFile.value = {
+      url: compressed,
+      filename,
+      type: 'image',
+    };
+    showStickerPicker.value = false;
+  } catch (error) {
+    notifyError('Не удалось загрузить стикер');
+  }
 };
 
 const insertEmoji = (emoji: string): void => {
@@ -321,6 +356,19 @@ const insertEmoji = (emoji: string): void => {
             <line x1="15" y1="9" x2="15.01" y2="9"></line>
           </svg>
         </button>
+        <button
+          v-if="!props.editMessage"
+          @click="toggleStickerPicker"
+          class="message-input__sticker-button"
+          type="button"
+          aria-label="Стикеры"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <path d="M9 9h6v6H9z"></path>
+            <path d="M9 3v6M15 3v6M9 15v6M15 15v6"></path>
+          </svg>
+        </button>
         <textarea
           ref="inputField"
           v-model="message"
@@ -334,6 +382,11 @@ const insertEmoji = (emoji: string): void => {
           :is-open="showEmojiPicker"
           @select="insertEmoji"
           @close="showEmojiPicker = false"
+        />
+        <StickerPicker
+          :is-open="showStickerPicker"
+          @select="handleStickerSelect"
+          @close="showStickerPicker = false"
         />
       </div>
 
@@ -481,11 +534,44 @@ const insertEmoji = (emoji: string): void => {
     }
   }
 
+  &__sticker-button {
+    position: absolute;
+    left: 4.5rem;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+    z-index: 1;
+
+    &:hover {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      transform: scale(1.1);
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+
+    @media (max-width: 768px) {
+      width: 28px;
+      height: 28px;
+      left: 4.25rem;
+    }
+  }
+
   &__field {
     flex: 1;
     min-height: 44px;
     max-height: 120px;
-    padding: 0.75rem 1rem 0.75rem 4.5rem;
+    padding: 0.75rem 1rem 0.75rem 6.5rem;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: 24px;

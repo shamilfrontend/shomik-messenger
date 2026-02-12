@@ -1108,6 +1108,44 @@ const isOnlyEmojis = (content: string): boolean => {
   }
 };
 
+/** Проверяет, является ли сообщение стикером (изображение из папки stickers) */
+const isSticker = (message: Message): boolean => {
+  if (message.type !== 'image' || !message.fileUrl) return false;
+  const url = typeof message.fileUrl === 'string' ? message.fileUrl : '';
+  // Проверяем путь к стикеру в URL (для загруженных стикеров)
+  if (url.includes('/stickers/')) return true;
+  // Если fileUrl это base64 (отправленные стикеры), проверяем content на числовое имя файла
+  if (url.startsWith('data:image')) {
+    const content = message.content || '';
+    const trimmedContent = content.trim();
+    // Проверяем, что content это имя файла стикера (числовое имя типа "1.png", "2.png" и т.д.)
+    return /^\d+\.png$/.test(trimmedContent) || trimmedContent === 'sticker.png';
+  }
+  return false;
+};
+
+/** Проверяет, содержит ли сообщение только стикер или только эмоджи */
+const isOnlyStickerOrEmoji = (message: Message): boolean => {
+  // Если это стикер
+  if (isSticker(message)) {
+    const content = message.content || '';
+    const url = typeof message.fileUrl === 'string' ? message.fileUrl : '';
+    const filename = url.includes('/') && !url.startsWith('data:') ? url.split('/').pop() : '';
+    // Если контент пустой, равен только имени файла стикера, или это числовое имя (1.png, 2.png и т.д.)
+    // Также проверяем, что нет дополнительного текста кроме имени файла
+    const trimmedContent = content.trim();
+    return !trimmedContent || 
+           trimmedContent === filename || 
+           trimmedContent === 'sticker.png' ||
+           /^\d+\.png$/.test(trimmedContent);
+  }
+  // Если это текстовое сообщение только с эмоджи
+  if (message.type === 'text') {
+    return isOnlyEmojis(message.content || '');
+  }
+  return false;
+};
+
 const enterSelectionMode = (initialMessage?: Message): void => {
   selectionMode.value = true;
   const next = new Set<string>();
@@ -1835,7 +1873,10 @@ const reactionPopoverUsers = computed(() => {
 									{{ formatMessageTime(message.createdAt) }}
 								</div>
 							</div>
-							<div class="chat-window__message-bubble">
+							<div 
+								class="chat-window__message-bubble"
+								:class="{ 'chat-window__message-bubble--transparent': isOnlyStickerOrEmoji(message) }"
+							>
 								<!-- Ответ на сообщение -->
 								<div v-if="message.replyTo" class="chat-window__message-reply">
 									<div class="chat-window__message-reply-line"></div>
@@ -2679,7 +2720,7 @@ const reactionPopoverUsers = computed(() => {
 
   &__pinned-bar {
 		position: absolute;
-		top: 79px;
+		top: 73px;
 		left: 6px;
 		right: 10px;
 		z-index: 20;
@@ -2767,6 +2808,7 @@ const reactionPopoverUsers = computed(() => {
 
     &_me {
       justify-content: flex-end;
+			text-align: right;
     }
 
     &--highlighted {
@@ -2892,6 +2934,10 @@ const reactionPopoverUsers = computed(() => {
         background: var(--accent-color);
         color: white;
         border-bottom-right-radius: 4px;
+
+        &--transparent {
+          background: transparent;
+        }
       }
 
       .chat-window__message-footer {
@@ -2933,6 +2979,11 @@ const reactionPopoverUsers = computed(() => {
         background: #ff3b30;
         color: white;
         border: 2px solid #ff3b30;
+
+        &--transparent {
+          background: transparent;
+          border: none;
+        }
       }
     }
   }
@@ -3087,6 +3138,12 @@ const reactionPopoverUsers = computed(() => {
     position: relative;
     word-wrap: break-word;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+
+    &--transparent {
+      background: transparent;
+      padding: 0;
+      box-shadow: none;
+    }
   }
 
   &__message-text-wrapper {
