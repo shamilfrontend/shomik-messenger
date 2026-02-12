@@ -322,6 +322,17 @@ const getCurrentCategoryEmojis = (): string[] => {
 
 const isIcqCategory = (): boolean => activeCategory.value === 'icq';
 
+const isIcqEmoji = (emoji: string): boolean => {
+  return emoji.startsWith('[icq:') && emoji.endsWith(']');
+};
+
+const getIcqEmojiFilename = (emoji: string): string => {
+  if (isIcqEmoji(emoji)) {
+    return emoji.slice(5, -1); // Убираем '[icq:' и ']'
+  }
+  return emoji;
+};
+
 const getIcqImageUrl = (filename: string): string => `/images/icq_smiles_hd/${filename}`;
 
 const addToRecent = (emoji: string): void => {
@@ -331,8 +342,9 @@ const addToRecent = (emoji: string): void => {
 };
 
 const selectEmoji = (emoji: string): void => {
-  // Для ICQ смайлов используем специальный формат
-  const emojiToSend = isIcqCategory() ? `[icq:${emoji}]` : emoji;
+  // Если эмодзи уже в формате ICQ (из последних использованных), используем его как есть
+  // Если это категория ICQ, добавляем формат
+  const emojiToSend = isIcqEmoji(emoji) ? emoji : (isIcqCategory() ? `[icq:${emoji}]` : emoji);
   addToRecent(emojiToSend);
   emit('select', emojiToSend);
 };
@@ -387,12 +399,12 @@ onUnmounted(() => {
             :key="emoji"
             @click="selectEmoji(emoji)"
             class="emoji-picker__emoji"
-            :class="{ 'emoji-picker__emoji--image': isIcqCategory() }"
+            :class="{ 'emoji-picker__emoji--image': isIcqCategory() || isIcqEmoji(emoji) }"
           >
             <img
-              v-if="isIcqCategory()"
-              :src="getIcqImageUrl(emoji)"
-              :alt="emoji"
+              v-if="isIcqCategory() || isIcqEmoji(emoji)"
+              :src="getIcqImageUrl(isIcqEmoji(emoji) ? getIcqEmojiFilename(emoji) : emoji)"
+              :alt="isIcqEmoji(emoji) ? getIcqEmojiFilename(emoji) : emoji"
               class="emoji-picker__icq-image"
             />
             <span v-else>{{ emoji }}</span>

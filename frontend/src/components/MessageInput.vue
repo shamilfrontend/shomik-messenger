@@ -365,8 +365,9 @@ const insertEmoji = (emoji: string): void => {
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <path d="M9 9h6v6H9z"></path>
-            <path d="M9 3v6M15 3v6M9 15v6M15 15v6"></path>
+            <circle cx="9" cy="9" r="1.5"></circle>
+            <circle cx="15" cy="9" r="1.5"></circle>
+            <path d="M9 14c0 1.5 1.5 3 3 3s3-1.5 3-3"></path>
           </svg>
         </button>
         <textarea

@@ -155,6 +155,13 @@ const handleClickOutside = (event: MouseEvent): void => {
   // На мобильных устройствах закрываем меню реакций при клике вне его
   if (isMobile.value) {
     if (!target.closest('.chat-window__reaction-menu') && !target.closest('.chat-window__message-wrapper')) {
+      // Очищаем inline styles при закрытии меню
+      const menuEl = messagesContainer.value?.querySelector('.chat-window__reaction-menu--visible') as HTMLElement | null;
+      if (menuEl) {
+        menuEl.style.top = '';
+        menuEl.style.bottom = '';
+        menuEl.style.left = '';
+      }
       showReactionMenu.value = null;
     }
   }
@@ -1354,6 +1361,13 @@ const handleMessageClick = (message: Message, event: MouseEvent): void => {
   if (isMobile.value && !isOwnMessage(message)) {
     event.stopPropagation();
     if (showReactionMenu.value === message._id) {
+      // Очищаем inline styles при закрытии меню
+      const menuEl = messagesContainer.value?.querySelector('.chat-window__reaction-menu--visible') as HTMLElement | null;
+      if (menuEl) {
+        menuEl.style.top = '';
+        menuEl.style.bottom = '';
+        menuEl.style.left = '';
+      }
       showReactionMenu.value = null;
     } else {
       showReactionMenu.value = message._id;
@@ -1369,27 +1383,57 @@ const updateReactionMenuPosition = (message: Message): void => {
   if (!messagesContainer.value || !isMobile.value) return;
   const contentEl = messagesContainer.value.querySelector(`[data-message-id="${message._id}"]`) as HTMLElement | null;
   const menuEl = messagesContainer.value.querySelector('.chat-window__reaction-menu--visible') as HTMLElement | null;
-  if (!contentEl) return;
+  if (!contentEl || !menuEl) return;
   const rect = contentEl.getBoundingClientRect();
   const vh = window.visualViewport?.height ?? window.innerHeight;
   const gap = 8; // 0.5rem
-  const menuHeight = menuEl ? menuEl.getBoundingClientRect().height : 90;
-  const spaceAbove = rect.top - gap - menuHeight;
+  const menuHeight = menuEl.getBoundingClientRect().height;
+  // Учитываем высоту header (примерно 73px на мобильных + safe area)
+  const headerHeight = 73 + (window.visualViewport ? 0 : parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-top') || '0', 10));
+  const spaceAbove = rect.top - gap - menuHeight - headerHeight;
   const spaceBelow = vh - rect.bottom - gap - menuHeight;
   const canShowAbove = spaceAbove >= VIEWPORT_EDGE_MARGIN;
   const canShowBelow = spaceBelow >= VIEWPORT_EDGE_MARGIN;
+  
+  // Устанавливаем позицию через inline styles для fixed positioning
   if (canShowAbove && !canShowBelow) {
     reactionMenuPosition.value = 'above';
+    menuEl.style.top = 'auto';
+    menuEl.style.bottom = `${vh - rect.top + gap}px`;
+    menuEl.style.left = `${rect.left}px`;
   } else if (!canShowAbove && canShowBelow) {
     reactionMenuPosition.value = 'below';
+    menuEl.style.top = `${rect.bottom + gap}px`;
+    menuEl.style.bottom = 'auto';
+    menuEl.style.left = `${rect.left}px`;
   } else {
-    reactionMenuPosition.value = spaceBelow >= spaceAbove ? 'below' : 'above';
+    if (spaceBelow >= spaceAbove) {
+      reactionMenuPosition.value = 'below';
+      menuEl.style.top = `${rect.bottom + gap}px`;
+      menuEl.style.bottom = 'auto';
+      menuEl.style.left = `${rect.left}px`;
+    } else {
+      reactionMenuPosition.value = 'above';
+      menuEl.style.top = 'auto';
+      menuEl.style.bottom = `${vh - rect.top + gap}px`;
+      menuEl.style.left = `${rect.left}px`;
+    }
   }
 };
 
 const handleReactionClick = async (message: Message, emoji: string): Promise<void> => {
   if (!currentChat.value || isOwnMessage(message)) {
     return;
+  }
+  
+  // Очищаем inline styles после выбора реакции
+  if (isMobile.value) {
+    const menuEl = messagesContainer.value?.querySelector('.chat-window__reaction-menu--visible') as HTMLElement | null;
+    if (menuEl) {
+      menuEl.style.top = '';
+      menuEl.style.bottom = '';
+      menuEl.style.left = '';
+    }
   }
 
   try {
@@ -3382,7 +3426,7 @@ const reactionPopoverUsers = computed(() => {
     border: 1px solid var(--border-color);
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 12;
+    z-index: 1001;
     flex-wrap: nowrap;
     max-width: calc(100% - 80px);
     transform: translateY(5px);
@@ -3400,7 +3444,8 @@ const reactionPopoverUsers = computed(() => {
     // На мобильных устройствах показываем только если явно открыто через клик
     // Позиция выше/ниже сообщения выбирается с отступом 50px от краёв viewport
     @media (max-width: 768px) {
-      z-index: 1001; // Выше шапки чата (1000) и футера с кнопками (15)
+      position: fixed; // Используем fixed positioning для корректного отображения поверх header
+      z-index: 1002; // Выше шапки чата (1000) и футера с кнопками (15)
       left: 0;
       right: auto;
       max-width: 200px;
@@ -3414,8 +3459,8 @@ const reactionPopoverUsers = computed(() => {
       transition: opacity 0.15s ease, visibility 0.15s ease, transform 0.15s ease;
       box-sizing: border-box;
 
-      // По умолчанию — снизу от сообщения
-      top: calc(100% + 0.5rem);
+      // По умолчанию — снизу от сообщения (позиция устанавливается через inline styles)
+      top: auto;
       bottom: auto;
       transform: translateY(-6px) scale(0.96);
 
@@ -3427,12 +3472,24 @@ const reactionPopoverUsers = computed(() => {
 
       // Вариант: сверху от сообщения (когда снизу не хватает места)
       &--above {
-        top: auto;
-        bottom: calc(100% + 0.5rem);
         transform: translateY(6px) scale(0.96);
 
         &.chat-window__reaction-menu--visible {
           transform: translateY(0) scale(1);
+        }
+      }
+    }
+
+    // На десктопе также учитываем header при позиционировании
+    @media (min-width: 769px) {
+      // Если меню находится слишком близко к верху (под header), показываем его снизу
+      .chat-window__message-wrapper:first-of-type & {
+        bottom: auto;
+        top: calc(100% + 0.5rem);
+        transform: translateY(-5px);
+        
+        .chat-window__message-wrapper:hover & {
+          transform: translateY(0);
         }
       }
     }
