@@ -62,6 +62,7 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    allowedHosts: true,
     proxy: {
       '/api': {
         target: 'http://155.212.218.104:5001',
