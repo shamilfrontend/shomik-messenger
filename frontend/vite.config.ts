@@ -65,17 +65,17 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://155.212.218.104:5001',
+        target: 'https://shomik-messenger.ru',
         changeOrigin: true,
         secure: false
       },
       '/uploads': {
-        target: 'http://155.212.218.104:5001',
+        target: 'https://shomik-messenger.ru',
         changeOrigin: true,
         secure: false
       },
       '/ws': {
-        target: 'ws://155.212.218.104:5001',
+        target: 'ws://shomik-messenger.ru',
         ws: true,
         changeOrigin: true
       }
