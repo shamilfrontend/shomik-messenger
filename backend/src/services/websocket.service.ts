@@ -31,6 +31,7 @@ class WebSocketService {
     const token = url.searchParams.get('token');
 
     if (!token) {
+      console.warn('WebSocket: подключение отклонено — токен не предоставлен');
       ws.close(1008, 'Токен не предоставлен');
       return;
     }
@@ -38,6 +39,7 @@ class WebSocketService {
     const authenticated = await authenticateWebSocket(ws as AuthenticatedWebSocket, token);
 
     if (!authenticated) {
+      console.warn('WebSocket: подключение отклонено — недействительный токен');
       ws.close(1008, 'Недействительный токен');
       return;
     }

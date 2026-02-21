@@ -38,8 +38,18 @@ class WebSocketService {
           reject(error);
         };
 
-        this.ws.onclose = () => {
-          console.log('WebSocket отключен');
+        this.ws.onclose = (event: CloseEvent) => {
+          console.log('WebSocket отключен', {
+            code: event.code,
+            reason: event.reason || '(нет)',
+            wasClean: event.wasClean,
+          });
+          if (event.code === 1006) {
+            console.warn('WebSocket: код 1006 — соединение закрыто без frame (возможны Nginx/сеть или бэкенд недоступен)');
+          }
+          if (event.code === 1008 && event.reason) {
+            console.warn('WebSocket: код 1008 — отказ сервера:', event.reason);
+          }
           this.attemptReconnect(token);
         };
       } catch (error) {
