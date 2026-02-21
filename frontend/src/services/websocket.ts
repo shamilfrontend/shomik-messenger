@@ -1,6 +1,6 @@
 import { WebSocketMessage } from '../types';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://shomik-messenger.ru';
+const WS_URL = import.meta.env.VITE_WS_URL || 'wss://shomik-messenger.ru';
 
 class WebSocketService {
   private ws: WebSocket | null = null;

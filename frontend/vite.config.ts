@@ -75,7 +75,7 @@ export default defineConfig({
         secure: false
       },
       '/ws': {
-        target: 'ws://shomik-messenger.ru',
+        target: 'wss://shomik-messenger.ru',
         ws: true,
         changeOrigin: true
       }
