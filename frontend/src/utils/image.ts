@@ -2,7 +2,7 @@
  * Утилита для работы с изображениями и URL файлов
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const API_URL = import.meta.env.VITE_API_URL || 'https://shomik-messenger.ru';
 
 /**
  * Преобразует относительный путь файла в полный URL

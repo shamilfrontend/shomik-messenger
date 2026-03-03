@@ -1,9 +1,18 @@
 import { WebSocketMessage } from '../types';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'wss://shomik-messenger.ru';
+function getWsBaseUrl(): string {
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}`;
+  }
+  return 'wss://shomik-messenger.ru';
+}
 
 class WebSocketService {
   private ws: WebSocket | null = null;
+
+  private intentionalDisconnect = false;
 
   private reconnectAttempts = 0;
 
@@ -14,9 +23,11 @@ class WebSocketService {
   private listeners: Map<string, Set<(data: any) => void>> = new Map();
 
   connect(token: string): Promise<void> {
+    this.intentionalDisconnect = false;
+
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(`${WS_URL}/ws?token=${token}`);
+        this.ws = new WebSocket(`${getWsBaseUrl()}/ws?token=${token}`);
 
         this.ws.onopen = () => {
           console.log('WebSocket подключен');
@@ -50,7 +61,9 @@ class WebSocketService {
           if (event.code === 1008 && event.reason) {
             console.warn('WebSocket: код 1008 — отказ сервера:', event.reason);
           }
-          this.attemptReconnect(token);
+          if (!this.intentionalDisconnect) {
+            this.attemptReconnect(token);
+          }
         };
       } catch (error) {
         reject(error);
@@ -98,6 +111,8 @@ class WebSocketService {
   }
 
   disconnect(): void {
+    this.intentionalDisconnect = true;
+
     if (this.ws) {
       this.ws.close();
       this.ws = null;
