@@ -89,14 +89,14 @@ const handleSubmit = async (event?: Event) => {
     width: 100%;
     max-width: 400px;
     padding: 2rem;
-    background: var(--bg-secondary);
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    background: var(--surface, var(--bg-secondary));
+    border-radius: var(--radius-md, 12px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
 
     @media (max-width: 768px) {
       padding: 1.5rem;
       margin: 1rem;
-      border-radius: 8px;
+      border-radius: var(--radius-sm, 8px);
     }
   }
 

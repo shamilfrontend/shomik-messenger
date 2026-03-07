@@ -426,7 +426,7 @@ const insertEmoji = (emoji: string): void => {
 .message-input {
   padding: 1rem;
   border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  background: var(--surface, var(--bg-secondary));
   flex-shrink: 0;
 
   &__file-hidden {
@@ -575,7 +575,7 @@ const insertEmoji = (emoji: string): void => {
     padding: 0.75rem 1rem 0.75rem 6.5rem;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: 24px;
+    border-radius: var(--radius-md, 12px);
     color: var(--text-primary);
     font-size: 0.95rem;
     font-family: inherit;
@@ -606,12 +606,12 @@ const insertEmoji = (emoji: string): void => {
     border: none;
     border-radius: 50%;
     color: #fff;
-		padding: 0;
+    padding: 0;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform 0.2s;
+    transition: all 0.2s ease;
     flex-shrink: 0;
 
     @media (max-width: 768px) {
@@ -620,7 +620,8 @@ const insertEmoji = (emoji: string): void => {
     }
 
     &:hover {
-      transform: scale(1.1);
+      background: var(--accent-hover);
+      transform: scale(1.05);
     }
 
     &:active {

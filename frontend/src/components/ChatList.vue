@@ -1500,7 +1500,7 @@ defineExpose({
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--bg-secondary);
+  background: var(--surface, var(--bg-secondary));
   border-right: 1px solid var(--border-color);
   z-index: 11;
 
@@ -1521,15 +1521,17 @@ defineExpose({
     align-items: center;
     padding: 1rem;
     border-bottom: 1px solid var(--border-color);
+    background: var(--surface, var(--bg-secondary));
 
     @media (max-width: 768px) {
-      padding: 0.75rem;
+      padding: 0.75rem 1rem;
     }
 
     h2 {
       margin: 0;
       color: var(--text-primary);
-      font-size: 1.25rem;
+      font-size: var(--font-heading-size, 1.25rem);
+      font-weight: var(--font-heading-weight, 600);
 
       @media (max-width: 768px) {
         font-size: 1.1rem;
@@ -1550,11 +1552,12 @@ defineExpose({
     border-radius: 50%;
     color: white;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 
     svg {
       width: 18px;
@@ -1563,13 +1566,13 @@ defineExpose({
     }
 
     &:hover {
-      transform: scale(1.1);
-      background: var(--accent-color);
-      opacity: 0.9;
+      transform: scale(1.05);
+      background: var(--accent-hover);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
     }
 
     &:active {
-      transform: scale(0.95);
+      transform: scale(0.98);
     }
   }
 
@@ -1585,7 +1588,7 @@ defineExpose({
       padding: 0.5rem 1rem;
       background: var(--bg-primary);
       border: 1px solid var(--border-color);
-      border-radius: 20px;
+      border-radius: var(--radius-md, 12px);
       color: var(--text-primary);
       font-size: 0.9rem;
 
@@ -1603,30 +1606,46 @@ defineExpose({
 
   &__tabs {
     display: flex;
-    gap: 0.5rem;
-    padding: 0.75rem;
+    gap: 0;
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--border-color);
+    background: var(--bg-primary);
 
     @media (max-width: 768px) {
-      padding: 0.5rem;
+      padding: 0.5rem 0.75rem;
     }
   }
 
   &__tab {
     flex: 1;
     padding: 0.5rem 1rem;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle, var(--border-color));
+    border-radius: 0;
     color: var(--text-secondary);
     font-size: 0.9rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
 
     @media (max-width: 768px) {
       padding: 0.625rem 0.875rem;
       font-size: 0.875rem;
+    }
+
+    &:first-child {
+      border-radius: var(--radius-sm, 8px) 0 0 var(--radius-sm, 8px);
+      border-right: none;
+    }
+
+    &:last-child {
+      border-radius: 0 var(--radius-sm, 8px) var(--radius-sm, 8px) 0;
+      border-left: none;
+    }
+
+    &:only-child {
+      border-radius: var(--radius-sm, 8px);
+      border: 1px solid var(--border-subtle, var(--border-color));
     }
 
     &:hover {
@@ -1637,14 +1656,15 @@ defineExpose({
     &--active {
       background: var(--accent-color);
       color: white;
+      border-color: var(--accent-color);
 
       &:hover {
-        background: var(--accent-color);
-        opacity: 0.9;
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
       }
 
       .chat-list__tab-badge {
-        background: rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.35);
         color: white;
       }
     }
@@ -1675,22 +1695,24 @@ defineExpose({
   &__item {
     display: flex;
     gap: 0.75rem;
-    padding: 0.75rem;
+    padding: 0.75rem 1rem;
     cursor: pointer;
-    transition: background 0.2s;
-    border-bottom: 1px solid var(--border-color);
+    transition: background 0.2s ease;
+    border-bottom: 1px solid var(--border-subtle, var(--border-color));
 
     @media (max-width: 768px) {
-      padding: 0.625rem;
+      padding: 0.625rem 0.75rem;
       gap: 0.5rem;
     }
 
     &:hover {
-      background: var(--bg-primary);
+      background: var(--bg-secondary);
     }
 
     &--active {
-      background: var(--bg-primary);
+      background: var(--bg-secondary);
+      border-left: 3px solid var(--accent-color);
+      padding-left: calc(1rem - 3px);
     }
   }
 
@@ -1865,7 +1887,7 @@ defineExpose({
     align-items: center;
     padding: 0.5rem 0;
     border-top: 1px solid var(--border-color);
-    background: var(--bg-secondary);
+    background: var(--surface, var(--bg-secondary));
     position: sticky;
     bottom: 0;
     z-index: 10;
@@ -1890,9 +1912,10 @@ defineExpose({
     padding: 0.5rem 1rem;
     background: transparent;
     border: none;
+    border-radius: var(--radius-sm, 8px);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
     position: relative;
     flex: 1;
     min-width: 0;
@@ -1914,11 +1937,13 @@ defineExpose({
 
     &:hover {
       color: var(--accent-color);
-      background: rgba(var(--accent-color-rgb, 82, 136, 193), 0.1);
+      background: var(--bg-secondary);
     }
 
     &--active {
       color: var(--accent-color);
+      background: var(--bg-secondary);
+      box-shadow: inset 0 -2px 0 0 var(--accent-color);
 
       svg {
         color: var(--accent-color);
@@ -1967,23 +1992,24 @@ defineExpose({
 
   &__nav-badge {
     position: absolute;
-    top: 0.25rem;
+    top: 0.125rem;
     right: 0.5rem;
-    background: #ff3b30;
+    background: var(--accent-color);
     color: white;
     border-radius: 10px;
-    padding: 0.125rem 0.375rem;
+    padding: 0.125rem 0.35rem;
     font-size: 0.65rem;
     font-weight: 600;
     min-width: 18px;
     text-align: center;
     line-height: 1.2;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 
     @media (max-width: 768px) {
-      top: 0.125rem;
-      right: 0.375rem;
+      top: 0;
+      right: 0.25rem;
       font-size: 0.6rem;
-      padding: 0.1rem 0.3rem;
+      padding: 0.1rem 0.28rem;
       min-width: 16px;
     }
   }

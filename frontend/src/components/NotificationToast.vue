@@ -37,9 +37,9 @@ const { notifications, removeNotification } = useNotifications();
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem;
-  background: var(--bg-secondary);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  background: var(--surface, var(--bg-secondary));
+  border-radius: var(--radius-sm, 8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   border-left: 4px solid;
 
   &--success {

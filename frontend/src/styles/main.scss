@@ -1,38 +1,66 @@
 :root {
   --message-text-size: 14px;
+  /* Типографика */
+  --font-heading-size: 1.25rem;
+  --font-heading-weight: 600;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 }
 
-/* Темная тема (Telegram Night) */
+/* MAX-style: тёмная тема (нейтральные тёмно-серые) */
 [data-theme="dark"] {
-  --bg-primary: #0e1621;
-  --bg-secondary: #17212b;
+  --bg-primary: #1c1c1e;
+  --bg-secondary: #2c2c2e;
+  --surface: #2c2c2e;
   --text-primary: #ffffff;
-  --text-secondary: #8e9297;
-  --border-color: #242f3d;
-  --accent-color: #5288c1;
-  --accent-hover: #5a92d1;
+  --text-secondary: #8e8e93;
+  --border-color: #38383a;
+  --border-subtle: #48484a;
+  --accent-color: #317ab9;
+  --accent-hover: #4a8fc7;
 }
 
-/* Светлая тема (Telegram Light) */
+/* MAX-style: светлая тема */
 [data-theme="light"] {
   --bg-primary: #ffffff;
-  --bg-secondary: #f0f0f0;
+  --bg-secondary: #f2f2f7;
+  --surface: #ffffff;
   --text-primary: #000000;
-  --text-secondary: #707579;
-  --border-color: #e4e4e4;
-  --accent-color: #3390ec;
-  --accent-hover: #2b7fd1;
+  --text-secondary: #6c6c70;
+  --border-color: #e5e5ea;
+  --border-subtle: #d1d1d6;
+  --accent-color: #317ab9;
+  --accent-hover: #2563a0;
 }
 
-/* Значения по умолчанию (темная тема) */
+/* Значения по умолчанию (тёмная тема, MAX-style) */
 :root:not([data-theme]) {
-  --bg-primary: #0e1621;
-  --bg-secondary: #17212b;
+  --bg-primary: #1c1c1e;
+  --bg-secondary: #2c2c2e;
+  --surface: #2c2c2e;
   --text-primary: #ffffff;
-  --text-secondary: #8e9297;
-  --border-color: #242f3d;
-  --accent-color: #5288c1;
-  --accent-hover: #5a92d1;
+  --text-secondary: #8e8e93;
+  --border-color: #38383a;
+  --border-subtle: #48484a;
+  --accent-color: #317ab9;
+  --accent-hover: #4a8fc7;
+}
+
+/* Пресеты оформления (именованные темы в стиле MAX) */
+[data-preset="simple"] {
+  --accent-color: #5c6bc0;
+  --accent-hover: #7986cb;
+}
+
+[data-preset="neon"] {
+  --accent-color: #00d4aa;
+  --accent-hover: #26e6bd;
+}
+
+[data-theme="light"][data-preset="neon"] {
+  --accent-color: #00b894;
+  --accent-hover: #00cec9;
 }
 
 * {

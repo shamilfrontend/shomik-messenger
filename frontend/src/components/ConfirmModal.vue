@@ -80,8 +80,8 @@ onUnmounted(() => {
 }
 
 .confirm-modal__container {
-  background: var(--bg-secondary);
-  border-radius: 12px;
+  background: var(--surface, var(--bg-secondary));
+  border-radius: var(--radius-md, 12px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   max-width: 400px;
   width: 100%;
@@ -123,7 +123,7 @@ onUnmounted(() => {
 
 .confirm-modal__button {
   padding: 0.625rem 1.25rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm, 8px);
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
@@ -147,7 +147,8 @@ onUnmounted(() => {
     color: white;
 
     &:hover {
-      opacity: 0.9;
+      background: var(--accent-hover);
+      opacity: 0.95;
     }
 
     &:active {

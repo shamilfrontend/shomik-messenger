@@ -2152,7 +2152,7 @@ const reactionPopoverUsers = computed(() => {
   &__header {
     padding: 1rem;
     border-bottom: 1px solid var(--border-color);
-    background: var(--bg-secondary);
+    background: var(--surface, var(--bg-secondary));
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -2301,7 +2301,8 @@ const reactionPopoverUsers = computed(() => {
     h3 {
       margin: 0;
       color: var(--text-primary);
-      font-size: 1rem;
+      font-size: var(--font-heading-size, 1rem);
+      font-weight: var(--font-heading-weight, 600);
       transition: color 0.2s;
     }
   }
@@ -2760,18 +2761,18 @@ const reactionPopoverUsers = computed(() => {
   }
 
   &__pinned-bar {
-		position: absolute;
-		top: 73px;
-		left: 6px;
-		right: 10px;
-		z-index: 20;
+    position: absolute;
+    top: 73px;
+    left: 6px;
+    right: 10px;
+    z-index: 20;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
     padding: 1rem 0.75rem;
-    background: var(--bg-primary);
-    border-radius: 0 0 8px 8px;
+    background: var(--surface, var(--bg-primary));
+    border-radius: 0 0 var(--radius-sm, 8px) var(--radius-sm, 8px);
     border-left: 3px solid var(--accent-color);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     flex-shrink: 0;
@@ -3173,12 +3174,12 @@ const reactionPopoverUsers = computed(() => {
 
   &__message-bubble {
     padding: 0.5rem 0.75rem;
-    background: var(--bg-secondary);
-		border-radius: 12px 12px 12px 4px;
-		color: var(--text-primary);
+    background: var(--surface, var(--bg-secondary));
+    border-radius: var(--radius-md, 12px) var(--radius-md, 12px) var(--radius-md, 12px) 4px;
+    color: var(--text-primary);
     position: relative;
     word-wrap: break-word;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 
     &--transparent {
       background: transparent;
@@ -3228,7 +3229,6 @@ const reactionPopoverUsers = computed(() => {
     text-decoration: underline;
     word-break: break-all;
     transition: opacity 0.2s;
-		outline: 1px solid red;
 
     &:hover {
       opacity: 0.8;

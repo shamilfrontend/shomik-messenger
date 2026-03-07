@@ -7,7 +7,7 @@ import { useNotifications } from '../composables/useNotifications';
 
 const { success: notifySuccess } = useNotifications();
 const {
-  messageTextSize, theme, setMessageTextSize, setTheme,
+  messageTextSize, theme, themePreset, setMessageTextSize, setTheme, setThemePreset,
 } = useSettings();
 
 // Временное значение для размера текста (до сохранения)
@@ -19,6 +19,13 @@ const themeOptions = [
   { value: 'system', label: 'Системная' },
   { value: 'light', label: 'Светлая' },
   { value: 'dark', label: 'Темная' },
+];
+
+// Пресеты оформления (именованные темы в стиле MAX)
+const presetOptions = [
+  { value: 'default', label: 'По умолчанию' },
+  { value: 'simple', label: 'Простая' },
+  { value: 'neon', label: 'Неон' },
 ];
 
 // Синхронизируем временное значение при изменении сохраненного значения
@@ -36,6 +43,11 @@ const saveAppearance = async (): Promise<void> => {
   await setMessageTextSize(tempMessageTextSize.value);
   await setTheme(tempTheme.value);
   notifySuccess('Настройки оформления сохранены');
+};
+
+const selectPreset = (preset: string): void => {
+  setThemePreset(preset);
+  notifySuccess('Стиль оформления применён');
 };
 </script>
 
@@ -113,6 +125,23 @@ const saveAppearance = async (): Promise<void> => {
             </div>
         </div>
 
+        <div class="profile-design__section">
+          <h3>Стиль оформления</h3>
+          <div class="profile-design__field">
+            <div class="profile-design__preset-options">
+              <button
+                v-for="preset in presetOptions"
+                :key="preset.value"
+                type="button"
+                @click="selectPreset(preset.value)"
+                :class="['profile-design__preset-option', { 'profile-design__preset-option--active': themePreset === preset.value }]"
+              >
+                {{ preset.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+
         <button
               type="button"
               @click="saveAppearance"
@@ -161,10 +190,10 @@ const saveAppearance = async (): Promise<void> => {
 
   &__section {
     margin-bottom: 0;
-		background: var(--bg-secondary);
-		border: 1px solid var(--border-color);
-		border-radius: 12px;
-		padding: 1.25rem 1.5rem;
+    background: var(--surface, var(--bg-secondary));
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md, 12px);
+    padding: 1.25rem 1.5rem;
 
     h3 {
       margin: 0 0 1rem 0;
@@ -311,6 +340,34 @@ const saveAppearance = async (): Promise<void> => {
   &__theme-option-label {
     flex: 1;
     font-weight: 500;
+  }
+
+  &__preset-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  &__preset-option {
+    padding: 0.5rem 1rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm, 8px);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+    }
+
+    &--active {
+      background: var(--accent-color);
+      border-color: var(--accent-color);
+      color: white;
+    }
   }
 
   &__save {

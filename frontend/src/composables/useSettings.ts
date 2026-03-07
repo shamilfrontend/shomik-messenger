@@ -4,6 +4,8 @@ import { profileService } from '../services/profile.service';
 
 const DEFAULT_MESSAGE_TEXT_SIZE = 14;
 const DEFAULT_THEME = 'system';
+const DEFAULT_THEME_PRESET = 'default';
+const THEME_PRESET_KEY = 'shomik-theme-preset';
 const DEFAULT_TASKS = false;
 
 // Инициализируем значение из пользователя или используем значения по умолчанию
@@ -28,8 +30,18 @@ const getInitialMutedChats = (): string[] => {
   return Array.isArray(list) ? [...list] : [];
 };
 
+const getInitialThemePreset = (): string => {
+  try {
+    const stored = localStorage.getItem(THEME_PRESET_KEY);
+    return stored === 'simple' || stored === 'neon' ? stored : DEFAULT_THEME_PRESET;
+  } catch {
+    return DEFAULT_THEME_PRESET;
+  }
+};
+
 const messageTextSize = ref<number>(getInitialTextSize());
 const theme = ref<string>(getInitialTheme());
+const themePreset = ref<string>(getInitialThemePreset());
 const tasks = ref<boolean>(getInitialTasks());
 const mutedChats = ref<string[]>(getInitialMutedChats());
 
@@ -78,9 +90,23 @@ const applyTheme = (themeValue: string): void => {
   document.documentElement.setAttribute('data-theme', actualTheme);
 };
 
+const applyThemePreset = (preset: string): void => {
+  if (preset === 'default') {
+    document.documentElement.removeAttribute('data-preset');
+  } else {
+    document.documentElement.setAttribute('data-preset', preset);
+  }
+  try {
+    localStorage.setItem(THEME_PRESET_KEY, preset);
+  } catch {
+    // ignore
+  }
+};
+
 // Инициализируем настройки при загрузке
 applyTextSize(messageTextSize.value);
 applyTheme(theme.value);
+applyThemePreset(themePreset.value);
 
 // Отслеживаем изменения пользователя и обновляем настройки
 const authStore = useAuthStore();
@@ -111,6 +137,10 @@ watch(messageTextSize, (newSize) => {
 // Отслеживаем изменения темы и применяем их
 watch(theme, (newTheme) => {
   applyTheme(newTheme);
+});
+
+watch(themePreset, (newPreset) => {
+  applyThemePreset(newPreset);
 });
 
 export const useSettings = () => {
@@ -203,13 +233,20 @@ export const useSettings = () => {
 
   const isChatMuted = (chatId: string): boolean => mutedChats.value.includes(chatId);
 
+  const setThemePreset = (preset: string): void => {
+    themePreset.value = preset === 'simple' || preset === 'neon' ? preset : DEFAULT_THEME_PRESET;
+    applyThemePreset(themePreset.value);
+  };
+
   return {
     messageTextSize,
     theme,
+    themePreset,
     tasks,
     mutedChats,
     setMessageTextSize,
     setTheme,
+    setThemePreset,
     setTasks,
     setMutedChats,
     toggleChatMuted,
