@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 
 interface CallHistory {
@@ -21,15 +21,6 @@ const props = defineProps<{
   isNewCall?: boolean;
   isCallsPage?: boolean;
 }>();
-
-// Отладочный вывод
-watch(() => props.selectedCall, (newCall) => {
-  console.log('CallsView: selectedCall changed', newCall);
-}, { immediate: true });
-
-watch(() => props.callId, (newId) => {
-  console.log('CallsView: callId changed', newId);
-}, { immediate: true });
 
 const router = useRouter();
 

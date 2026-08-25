@@ -2,6 +2,9 @@
 import { computed, onMounted, onUnmounted } from 'vue';
 import type { Message } from '../types';
 import { getImageUrl } from '../utils/image';
+import { formatMessageTime } from '../utils/formatTime';
+import { hasLinks, hasIcqSmiles, renderMessageContent as renderSafeContent } from '../utils/messageContent';
+import { getReplyToSenderName, getReplyToText } from '../utils/messageDisplay';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -31,112 +34,12 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyDown);
 });
 
-const formatMessageTime = (date: string | Date): string => {
-  const d = new Date(date);
-  const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
+const renderMessageContent = (content: string): string => renderSafeContent(
+  content,
+  'message-view-modal__link',
+  'message-view-modal__icq-smile',
+);
 
-  if (minutes < 1) return 'только что';
-  if (minutes < 60) return `${minutes} мин. назад`;
-  if (hours < 24) return `${hours} ч. назад`;
-  if (days < 7) return `${days} дн. назад`;
-
-  return d.toLocaleDateString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
-  });
-};
-
-const getReplyToSenderName = (replyTo: any): string => {
-  if (!replyTo || typeof replyTo === 'string') {
-    return 'Пользователь';
-  }
-  if (typeof replyTo.senderId === 'string') {
-    return 'Пользователь';
-  }
-  if (!replyTo.senderId) {
-    return 'Пользователь';
-  }
-  return replyTo.senderId?.username || 'Пользователь';
-};
-
-const getReplyToText = (replyTo: any): string => {
-  if (!replyTo || typeof replyTo === 'string') {
-    return '';
-  }
-  if (replyTo.type === 'image') {
-    return '📷 Фото';
-  }
-  if (replyTo.type === 'file') {
-    return '📎 Файл';
-  }
-  return replyTo.content || '';
-};
-
-const hasLinks = (content: string): boolean => {
-  if (!content) return false;
-  // Регулярное выражение для обнаружения URL
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/gi;
-  return urlRegex.test(content);
-};
-
-const renderMessageContent = (content: string): string => {
-  if (!content) return '';
-  
-  let result = content;
-  
-  // Сначала заменяем [icq:filename.gif] на временные плейсхолдеры, чтобы не обрабатывать их как ссылки
-  const icqPlaceholders: string[] = [];
-  result = result.replace(
-    /\[icq:([^\]]+\.gif)\]/g,
-    (_match, filename) => {
-      const placeholder = `__ICQ_PLACEHOLDER_${icqPlaceholders.length}__`;
-      icqPlaceholders.push(`<img src="/images/icq_smiles_hd/${filename}" alt="${filename}" class="message-view-modal__icq-smile" />`);
-      return placeholder;
-    },
-  );
-  
-  // Затем заменяем URL на ссылки
-  const urlRegex = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+|[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}[^\s<>"']*)/gi;
-  
-  result = result.replace(urlRegex, (url) => {
-    // Пропускаем плейсхолдеры ICQ
-    if (url.includes('__ICQ_PLACEHOLDER')) {
-      return url;
-    }
-    
-    // Если URL уже внутри тега, не обрабатываем
-    if (/<[^>]*>/.test(url)) {
-      return url;
-    }
-    
-    // Добавляем протокол если его нет
-    let href = url;
-    if (!url.match(/^https?:\/\//i)) {
-      href = url.match(/^www\./i) ? `http://${url}` : `https://${url}`;
-    }
-    
-    // Экранируем HTML для безопасности
-    const escapedUrl = url.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    
-    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="message-view-modal__link">${escapedUrl}</a>`;
-  });
-  
-  // Возвращаем ICQ смайлы обратно
-  icqPlaceholders.forEach((placeholder, index) => {
-    result = result.replace(`__ICQ_PLACEHOLDER_${index}__`, placeholder);
-  });
-  
-  return result;
-};
-
-const hasIcqSmiles = (content: string): boolean => {
-  return /\[icq:[^\]]+\.gif\]/.test(content || '');
-};
 </script>
 
 <template>

@@ -3,7 +3,10 @@ import bcrypt from 'bcryptjs';
 import User from '../models/User.model';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { validateEmail, validateUsername, validatePassword } from '../utils/validators';
-import { wsService } from '../server';
+import { getWebSocketService } from '../services/wsRegistry';
+import { escapeRegex, sanitizeFileUrl } from '../utils/sanitize';
+import { serializeUser } from '../serializers/user.serializer';
+import { sendInternalError } from '../utils/errors';
 
 export const searchUsers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -14,29 +17,21 @@ export const searchUsers = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
+    const safeQuery = escapeRegex(query);
+
     const users = await User.find({
       $or: [
-        { username: { $regex: query, $options: 'i' } },
-        { email: { $regex: query, $options: 'i' } },
+        { username: { $regex: safeQuery, $options: 'i' } },
+        { email: { $regex: safeQuery, $options: 'i' } },
       ],
       _id: { $ne: req.userId },
     })
-      .select('username email avatar status lastSeen')
+      .select('username avatar status lastSeen')
       .limit(20);
 
-    // Преобразуем _id в id для frontend
-    const usersWithId = users.map((user) => ({
-      id: user._id.toString(),
-      username: user.username,
-      email: user.email,
-      avatar: user.avatar,
-      status: user.status,
-      lastSeen: user.lastSeen,
-    }));
-
-    res.json(usersWithId);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.json(users.map((user) => serializeUser(user, { includeEmail: false })).filter(Boolean));
+  } catch (error) {
+    sendInternalError(res, error);
   }
 };
 
@@ -51,16 +46,9 @@ export const getUserById = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    res.json({
-      id: user._id,
-      username: user.username,
-      email: user.email,
-      avatar: user.avatar,
-      status: user.status,
-      lastSeen: user.lastSeen,
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.json(serializeUser(user, { includeEmail: false }));
+  } catch (error) {
+    sendInternalError(res, error);
   }
 };
 
@@ -119,7 +107,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
 
     // Обновление аватара
     if (avatar !== undefined) {
-      user.avatar = avatar;
+      user.avatar = sanitizeFileUrl(avatar);
     }
 
     // Обновление параметров настроек
@@ -146,23 +134,15 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     await user.save();
 
     const updatedUser = {
-      id: user._id.toString(),
-      username: user.username,
-      email: user.email,
-      avatar: user.avatar,
-      status: user.status,
-      lastSeen: user.lastSeen,
+      ...serializeUser(user, { includeEmail: true }),
       params: user.params || {},
     };
 
-    // Отправляем WebSocket событие об обновлении профиля пользователя
-    if (wsService) {
-      wsService.broadcastUserUpdated(updatedUser);
-    }
+    getWebSocketService()?.broadcastUserUpdated(updatedUser);
 
     res.json(updatedUser);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    sendInternalError(res, error);
   }
 };
 
@@ -202,7 +182,7 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
     await user.save();
 
     res.json({ message: 'Пароль успешно изменен' });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    sendInternalError(res, error);
   }
 };

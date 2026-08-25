@@ -1,6 +1,6 @@
 import jwt, { SignOptions } from 'jsonwebtoken';
+import { getJwtSecret } from '../config/env';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'shama_ama_messanger007_ahamani';
 const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '7d';
 
 export interface JWTPayload {
@@ -8,8 +8,8 @@ export interface JWTPayload {
   username: string;
 }
 
-export const generateToken = (payload: JWTPayload): string => jwt.sign(payload, JWT_SECRET, {
+export const generateToken = (payload: JWTPayload): string => jwt.sign(payload, getJwtSecret(), {
   expiresIn: JWT_EXPIRES_IN,
 } as SignOptions);
 
-export const verifyToken = (token: string): JWTPayload => jwt.verify(token, JWT_SECRET) as JWTPayload;
+export const verifyToken = (token: string): JWTPayload => jwt.verify(token, getJwtSecret()) as JWTPayload;

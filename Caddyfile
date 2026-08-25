@@ -1,0 +1,27 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip zstd
+
+	handle /api* {
+		reverse_proxy backend:5001
+	}
+
+	handle /uploads* {
+		reverse_proxy backend:5001
+	}
+
+	handle /ws* {
+		reverse_proxy backend:5001
+	}
+
+	handle /health {
+		reverse_proxy backend:5001
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+}

@@ -4,14 +4,18 @@ import User from '../models/User.model';
 import { generateToken } from '../utils/jwt';
 import { validateEmail, validateUsername, validatePassword } from '../utils/validators';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { serializeUser } from '../serializers/user.serializer';
+import { sendInternalError } from '../utils/errors';
+
+const toAuthUser = (user: InstanceType<typeof User>) => ({
+  ...serializeUser(user.toObject(), { includeEmail: true }),
+  params: user.params || {},
+  pinnedChats: user.pinnedChats?.map((id) => id.toString()) || [],
+});
 
 export const register = async (req: AuthRequest, res: Response): Promise<void> => {
-  console.log('1 req.body: ', req.body);
   try {
     const { username, email, password } = req.body;
-    console.log('1.1 username: ', username);
-    console.log('1.2 email: ', email);
-    console.log('1.3 password: ', password);
 
     if (!username || !email || !password) {
       res.status(400).json({ error: 'Все поля обязательны' });
@@ -33,11 +37,9 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
       return;
     }
 
-    console.log('1.4 BEFORE User.findOne');
     const existingUser = await User.findOne({
       $or: [{ email }, { username }],
     });
-    console.log('2 existingUser: ', existingUser);
 
     if (existingUser) {
       res.status(400).json({ error: 'Пользователь с таким email или username уже существует' });
@@ -51,7 +53,6 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
       password: hashedPassword,
       status: 'offline',
     });
-    console.log('3 user: ', user);
 
     await user.save();
 
@@ -59,23 +60,13 @@ export const register = async (req: AuthRequest, res: Response): Promise<void> =
       userId: user._id.toString(),
       username: user.username,
     });
-    console.log('4 token: ', token);
 
     res.status(201).json({
       token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        avatar: user.avatar,
-        status: user.status,
-        params: user.params || {},
-        pinnedChats: user.pinnedChats?.map((id) => id.toString()) || [],
-      },
+      user: toAuthUser(user),
     });
-  } catch (error: any) {
-    console.log('ERRRRROOOR: ', error);
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    sendInternalError(res, error, 'register');
   }
 };
 
@@ -115,18 +106,10 @@ export const login = async (req: AuthRequest, res: Response): Promise<void> => {
 
     res.json({
       token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        avatar: user.avatar,
-        status: user.status,
-        params: user.params || {},
-        pinnedChats: user.pinnedChats?.map((id) => id.toString()) || [],
-      },
+      user: toAuthUser(user),
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    sendInternalError(res, error, 'login');
   }
 };
 
@@ -140,17 +123,11 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
     }
 
     res.json({
-      id: user._id.toString(),
-      username: user.username,
-      email: user.email,
-      avatar: user.avatar || '',
-      status: user.status,
+      ...toAuthUser(user),
       lastSeen: user.lastSeen,
       contacts: user.contacts,
-      params: user.params || {},
-      pinnedChats: user.pinnedChats?.map((id) => id.toString()) || [],
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    sendInternalError(res, error, 'getMe');
   }
 };

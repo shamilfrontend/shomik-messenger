@@ -18,6 +18,8 @@ export interface User {
 }
 
 export interface Chat {
+  id: string;
+  /** тот же идентификатор, что и id — для совместимости */
   _id: string;
   type: 'private' | 'group';
   participants: User[];
@@ -26,11 +28,14 @@ export interface Chat {
   admin?: User;
   lastMessage?: Message;
   pinnedMessage?: Message;
+  unreadCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface Message {
+  id: string;
+  /** тот же идентификатор, что и id — для совместимости */
   _id: string;
   chatId: string;
   senderId: User | string;
@@ -44,9 +49,35 @@ export interface Message {
   updatedAt: Date;
 }
 
+export type WebSocketEventType =
+  | 'connection:established'
+  | 'message:new'
+  | 'message:read'
+  | 'message:reaction'
+  | 'message:deleted'
+  | 'message:edited'
+  | 'typing:update'
+  | 'user:status'
+  | 'user:updated'
+  | 'chat:created'
+  | 'chat:updated'
+  | 'chat:deleted'
+  | 'chat:removed-from-group'
+  | 'call:incoming'
+  | 'call:accepted'
+  | 'call:rejected'
+  | 'call:ended'
+  | 'call:signal'
+  | 'call:unavailable'
+  | 'call:started'
+  | 'call:joined'
+  | 'call:participant_joined'
+  | 'call:participant_left'
+  | 'error';
+
 export interface WebSocketMessage {
-  type: string;
-  data: any;
+  type: WebSocketEventType | string;
+  data: unknown;
 }
 
 export interface AuthResponse {

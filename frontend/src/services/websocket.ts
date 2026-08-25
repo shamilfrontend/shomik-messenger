@@ -26,18 +26,32 @@ class WebSocketService {
     this.intentionalDisconnect = false;
 
     return new Promise((resolve, reject) => {
+      let settled = false;
+      const succeed = (): void => {
+        if (settled) return;
+        settled = true;
+        this.reconnectAttempts = 0;
+        resolve();
+      };
+      const fail = (error: unknown): void => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+
       try {
-        this.ws = new WebSocket(`${getWsBaseUrl()}/ws?token=${token}`);
+        this.ws = new WebSocket(`${getWsBaseUrl()}/ws`);
 
         this.ws.onopen = () => {
-          console.log('WebSocket подключен');
-          this.reconnectAttempts = 0;
-          resolve();
+          this.ws?.send(JSON.stringify({ type: 'auth', data: { token } }));
         };
 
         this.ws.onmessage = (event) => {
           try {
             const message: WebSocketMessage = JSON.parse(event.data);
+            if (message.type === 'connection:established') {
+              succeed();
+            }
             this.handleMessage(message);
           } catch (error) {
             console.error('Ошибка обработки сообщения:', error);
@@ -46,36 +60,30 @@ class WebSocketService {
 
         this.ws.onerror = (error) => {
           console.error('WebSocket ошибка:', error);
-          reject(error);
+          fail(error);
         };
 
         this.ws.onclose = (event: CloseEvent) => {
-          console.log('WebSocket отключен', {
-            code: event.code,
-            reason: event.reason || '(нет)',
-            wasClean: event.wasClean,
-          });
-          if (event.code === 1006) {
-            console.warn('WebSocket: код 1006 — соединение закрыто без frame (возможны Nginx/сеть или бэкенд недоступен)');
+          if (!settled) {
+            fail(new Error(event.reason || `WebSocket closed (${event.code})`));
           }
-          if (event.code === 1008 && event.reason) {
-            console.warn('WebSocket: код 1008 — отказ сервера:', event.reason);
+          if (event.code === 1006) {
+            console.warn('WebSocket: код 1006 — соединение закрыто без frame');
           }
           if (!this.intentionalDisconnect) {
             this.attemptReconnect(token);
           }
         };
       } catch (error) {
-        reject(error);
+        fail(error);
       }
     });
   }
 
   private attemptReconnect(token: string): void {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
+      this.reconnectAttempts += 1;
       setTimeout(() => {
-        console.log(`Попытка переподключения ${this.reconnectAttempts}...`);
         this.connect(token).catch(() => {});
       }, this.reconnectDelay);
     }
@@ -102,7 +110,7 @@ class WebSocketService {
     }
   }
 
-  send(type: string, data: any): void {
+  send(type: string, data: unknown): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type, data }));
     } else {

@@ -15,8 +15,8 @@ export const useWebSocket = () => {
   const { success: notifySuccess } = useNotifications();
 
   // Сохраняем ссылки на обработчики для правильной отписки
-  const messageNewHandler = (message: Message) => {
-    chatStore.addMessage(message);
+  const messageNewHandler = (message: unknown) => {
+    chatStore.addMessage(message as Message);
   };
 
   const typingUpdateHandler = (data: { chatId: string; userId: string; isTyping: boolean }) => {

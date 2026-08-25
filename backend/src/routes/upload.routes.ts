@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { upload, getFileUrl } from '../utils/upload';
 import { authMiddleware, AuthRequest } from '../middleware/auth.middleware';
+import { sendInternalError } from '../utils/errors';
 
 const router = Router();
 
@@ -22,8 +23,8 @@ router.post('/file', upload.single('file') as any, (req: AuthRequest, res: Respo
       type: fileType,
       size: req.file.size,
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    sendInternalError(res, error, 'upload');
   }
 });
 

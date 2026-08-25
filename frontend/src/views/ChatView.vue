@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  ref, onMounted, watch, computed, onUnmounted, nextTick,
+  ref, onMounted, watch, computed, onUnmounted,
 } from 'vue';
 import type { ComponentPublicInstance } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -13,16 +13,18 @@ import CallsView from './CallsView.vue';
 import TasksView from './TasksView.vue';
 import { useChatStore } from '../stores/chat.store';
 import { useAuthStore } from '../stores/auth.store';
+import { useSidebarStore } from '../stores/sidebar.store';
 import { useWebSocket } from '../composables/useWebSocket';
 import api from '../services/api';
 import { User } from '../types';
+import { entityId } from '../utils/chatDisplay';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
+const sidebarStore = useSidebarStore();
 const route = useRoute();
 const router = useRouter();
 const chatWindowRef = ref<ComponentPublicInstance<{ scrollToBottom:() => void }> | null>(null);
-const chatListRef = ref<ComponentPublicInstance<{ getCallById: (id: string) => any; getCallsHistory: () => any[]; getTaskById: (id: string) => any; getTasks: () => any[] }> | null>(null);
 const showNewChat = ref(false);
 const showNewGroup = ref(false);
 const isMobile = ref(window.innerWidth <= 768);
@@ -43,133 +45,33 @@ const profileSection = computed(() => {
 });
 const callId = computed(() => route.params.callId as string | undefined);
 const isNewCall = computed(() => route.path === '/calls/new');
-const selectedCall = ref<any>(null);
+const selectedCall = ref<ReturnType<typeof sidebarStore.getCallById> | null>(null);
 const taskId = computed(() => route.params.taskId as string | undefined);
 const isNewTask = computed(() => route.path === '/tasks/new');
-const selectedTask = ref<any>(null);
+const selectedTask = ref<ReturnType<typeof sidebarStore.getTaskById> | null>(null);
 
-const loadCall = async (): Promise<void> => {
+const loadCall = (): void => {
   if (!callId.value || isNewCall.value) {
     selectedCall.value = null;
     return;
   }
-  
-  // Ждем, пока компонент ChatList будет готов
-  let attempts = 0;
-  const maxAttempts = 10;
-  
-  const tryLoadCall = async (): Promise<void> => {
-    await nextTick();
-    
-    if (chatListRef.value) {
-      try {
-        if (typeof chatListRef.value.getCallById === 'function') {
-          const call = chatListRef.value.getCallById(callId.value);
-          if (call) {
-            selectedCall.value = call;
-            return;
-          }
-        }
-        // Если функция еще не доступна, попробуем через getCallsHistory
-        if (typeof chatListRef.value.getCallsHistory === 'function') {
-          const calls = chatListRef.value.getCallsHistory();
-          const call = calls.find((c: any) => c.id === callId.value);
-          if (call) {
-            selectedCall.value = call;
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('Ошибка загрузки звонка:', error);
-      }
-    }
-    
-    // Если не получилось, пробуем еще раз
-    attempts++;
-    if (attempts < maxAttempts) {
-      setTimeout(tryLoadCall, 50);
-    } else {
-      selectedCall.value = null;
-    }
-  };
-  
-  await tryLoadCall();
+  selectedCall.value = sidebarStore.getCallById(callId.value) ?? null;
 };
 
 watch(callId, () => {
-  if (callId.value) {
-    loadCall();
-  } else {
-    selectedCall.value = null;
-  }
+  loadCall();
 }, { immediate: true });
 
-watch(() => chatListRef.value, () => {
-  if (callId.value && chatListRef.value) {
-    loadCall();
-  }
-});
-
-const loadTask = async (): Promise<void> => {
+const loadTask = (): void => {
   if (!taskId.value || isNewTask.value) {
     selectedTask.value = null;
     return;
   }
-  
-  // Ждем, пока компонент ChatList будет готов
-  let attempts = 0;
-  const maxAttempts = 10;
-  
-  const tryLoadTask = async (): Promise<void> => {
-    await nextTick();
-    
-    if (chatListRef.value) {
-      try {
-        if (typeof chatListRef.value.getTaskById === 'function') {
-          const task = chatListRef.value.getTaskById(taskId.value);
-          if (task) {
-            selectedTask.value = task;
-            return;
-          }
-        }
-        // Если функция еще не доступна, попробуем через getTasks
-        if (typeof chatListRef.value.getTasks === 'function') {
-          const tasks = chatListRef.value.getTasks();
-          const task = tasks.find((t: any) => t.id === taskId.value);
-          if (task) {
-            selectedTask.value = task;
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('Ошибка загрузки задачи:', error);
-      }
-    }
-    
-    // Если не получилось, пробуем еще раз
-    attempts++;
-    if (attempts < maxAttempts) {
-      setTimeout(tryLoadTask, 50);
-    } else {
-      selectedTask.value = null;
-    }
-  };
-  
-  await tryLoadTask();
+  selectedTask.value = sidebarStore.getTaskById(taskId.value) ?? null;
 };
 
 watch(taskId, () => {
-  if (taskId.value) {
-    loadTask();
-  } else {
-    selectedTask.value = null;
-  }
-}, { immediate: true });
-
-watch(() => chatListRef.value, () => {
-  if (taskId.value && chatListRef.value) {
-    loadTask();
-  }
+  loadTask();
 }, { immediate: true });
 
 watch(() => route.path, () => {
@@ -254,18 +156,12 @@ const loadChatFromRoute = async (chatId: string): Promise<void> => {
     return;
   }
 
-  // Проверяем, есть ли чат в списке
-  let chat = chatStore.chats.find((c) => c._id === chatId);
+  let chat = chatStore.chats.find((c) => entityId(c) === chatId);
 
   if (!chat) {
-    // Если чата нет в списке, пытаемся загрузить его с сервера
     try {
       const response = await api.get(`/chats/${chatId}`);
-      chat = response.data;
-      // Добавляем чат в список, если его там нет
-      if (!chatStore.chats.find((c) => c._id === chatId)) {
-        chatStore.chats.push(chat);
-      }
+      chat = chatStore.applyChatUpdate(response.data);
     } catch (error) {
       console.error('Ошибка загрузки чата:', error);
       router.push('/');
@@ -297,7 +193,6 @@ const handleGroupCreated = async (chatId: string): Promise<void> => {
 <template>
   <div class="chat-view">
     <ChatList
-      ref="chatListRef"
       :class="{ 'chat-view__list--hidden': showChatWindow && isMobile }"
       @new-chat="showNewChat = true"
       @new-group="showNewGroup = true"

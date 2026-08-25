@@ -2,21 +2,31 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-const uploadsDir = process.env.NODE_ENV === 'production'
-  ? path.join(__dirname, '../uploads')
-  : path.join(__dirname, '../../uploads');
+export const uploadsDir = process.env.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads');
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+const MIME_EXTENSION: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf',
+  'application/msword': '.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'text/plain': '.txt',
+};
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (_req, _file, cb) => {
     cb(null, uploadsDir);
   },
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-    cb(null, `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`);
+    const ext = MIME_EXTENSION[file.mimetype] || '.bin';
+    cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
   },
 });
 
